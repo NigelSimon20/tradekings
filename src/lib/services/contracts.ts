@@ -17,6 +17,12 @@ export interface ContractsSnapshot {
   latest: EvaluatedContract[];
   today: ISODate;
   source: { kind: string; label: string };
+  /**
+   * Why the database could not be read, if it could not be. Reading never
+   * throws: a page that cannot reach the sheet should explain itself rather
+   * than collapse into a generic error screen.
+   */
+  error: string | null;
 }
 
 /**
@@ -27,14 +33,30 @@ export const loadSnapshot = cache(async (): Promise<ContractsSnapshot> => {
   const config = getConfig();
   const repository = getRepository();
   const today = todayIn(config.timezone);
-  const rows = await repository.listContracts();
+  const source = { kind: repository.kind, label: repository.label };
+
+  let rows;
+  try {
+    rows = await repository.listContracts();
+  } catch (error) {
+    console.error("Could not read the contract database:", error);
+    return {
+      contracts: [],
+      latest: [],
+      today,
+      source,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+
   const contracts = evaluateContracts(rows, { today });
 
   return {
     contracts,
     latest: contracts.filter((contract) => contract.computed.isLatest),
     today,
-    source: { kind: repository.kind, label: repository.label },
+    source,
+    error: null,
   };
 });
 

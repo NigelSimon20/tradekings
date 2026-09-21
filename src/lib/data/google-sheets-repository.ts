@@ -487,11 +487,24 @@ function consecutiveBlocks(rows: EvaluatedContract[]): EvaluatedContract[][] {
 export function describeGoogleError(error: unknown): string {
   const details = error as { code?: number | string; message?: string; errors?: { message?: string }[] };
   const message = details?.errors?.[0]?.message ?? details?.message ?? String(error);
+  const code = String(details?.code ?? "");
 
-  if (String(details?.code) === "403") {
+  // Credential problems are the most common deployment mistake, and their raw
+  // messages ("DECODER routines::unsupported") tell nobody anything.
+  if (/DECODER|PEM|asn1|bad decrypt|Invalid keyData/i.test(message)) {
+    return "The Google credentials could not be read — the private key looks incomplete. Ask your system administrator to re-enter it.";
+  }
+  if (/invalid_grant|unauthorized_client|Invalid JWT/i.test(message)) {
+    return "Google rejected the tracker's credentials. Ask your system administrator to check the service account is still active.";
+  }
+  if (["ENOTFOUND", "ETIMEDOUT", "ECONNRESET", "EAI_AGAIN"].includes(code)) {
+    return "The tracker could not reach Google. This is usually a temporary network problem — try again shortly.";
+  }
+
+  if (code === "403") {
     return "The tracker does not have permission to open the Google Sheet. Ask your system administrator to share it with the tracker as an Editor.";
   }
-  if (String(details?.code) === "404") {
+  if (code === "404") {
     return "The Google Sheet could not be found. Ask your system administrator to check which sheet the tracker is pointed at.";
   }
   return message;

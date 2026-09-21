@@ -153,6 +153,32 @@ export function getConfig(): AppConfig {
   return cached;
 }
 
+/**
+ * What an administrator still has to provide. Used by the "cannot reach the
+ * database" screen so a deployment problem explains itself.
+ */
+export function configurationProblems(): string[] {
+  const config = getConfig();
+  const problems: string[] = [];
+
+  if (!str("GOOGLE_SHEET_ID")) problems.push("GOOGLE_SHEET_ID is not set");
+  if (!resolveServiceAccount()) {
+    problems.push(
+      "Service account credentials are not set (GOOGLE_SERVICE_ACCOUNT_BASE64, or GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY)",
+    );
+  }
+  if (config.google && !config.hrRecipient) {
+    problems.push("HR_REPORT_EMAIL is not set (or fill in the sheet's Settings tab)");
+  }
+
+  return problems;
+}
+
+/** True when the app is running somewhere it cannot write files. */
+export function isServerless(): boolean {
+  return Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+}
+
 /** Test seam — clears the memoised config. */
 export function resetConfigCache(): void {
   cached = null;

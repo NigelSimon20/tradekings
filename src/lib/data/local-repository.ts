@@ -29,6 +29,9 @@ export class LocalJsonRepository implements ContractRepository {
   private readonly file: string;
   /** Serialises writes so concurrent requests cannot clobber the file. */
   private queue: Promise<unknown> = Promise.resolve();
+  /** Held in memory when the filesystem cannot be written to (hosted demos). */
+  private memory: LocalStore | null = null;
+  private readOnly = false;
 
   constructor(filePath: string, private readonly timezone: string) {
     // turbopackIgnore: the path is configuration, not a module to trace.
@@ -37,7 +40,14 @@ export class LocalJsonRepository implements ContractRepository {
       : path.join(/* turbopackIgnore: true */ process.cwd(), filePath);
   }
 
+  /** True once a write has failed, e.g. on a hosted read-only filesystem. */
+  get isReadOnly(): boolean {
+    return this.readOnly;
+  }
+
   private async read(): Promise<LocalStore> {
+    if (this.memory) return this.memory;
+
     try {
       const raw = await readFile(this.file, "utf8");
       const parsed = JSON.parse(raw) as Partial<LocalStore>;
@@ -54,7 +64,7 @@ export class LocalJsonRepository implements ContractRepository {
           runLog: [],
         };
         await this.write(store);
-        return store;
+        return this.memory ?? store;
       }
       throw new RepositoryError(`The sample database could not be opened: ${(error as Error).message}`, {
         cause: error,
@@ -63,8 +73,22 @@ export class LocalJsonRepository implements ContractRepository {
   }
 
   private async write(store: LocalStore): Promise<void> {
-    await mkdir(path.dirname(this.file), { recursive: true });
-    await writeFile(this.file, `${JSON.stringify(store, null, 2)}\n`, "utf8");
+    if (this.readOnly) {
+      this.memory = store;
+      return;
+    }
+
+    try {
+      await mkdir(path.dirname(this.file), { recursive: true });
+      await writeFile(this.file, `${JSON.stringify(store, null, 2)}\n`, "utf8");
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== "EROFS" && code !== "EACCES" && code !== "EPERM") throw error;
+      // Hosted without a Google Sheet: keep the sample data in memory so the
+      // tracker still runs, and say so in the health check.
+      this.readOnly = true;
+      this.memory = store;
+    }
   }
 
   /** Runs a read-modify-write cycle with no interleaving. */
@@ -158,7 +182,11 @@ export class LocalJsonRepository implements ContractRepository {
     return {
       ok: true,
       detail: `${store.contracts.length} contracts in the built-in sample database`,
-      warnings: ["The live Google Sheet is not connected yet, so this is practice data."],
+      warnings: [
+        this.readOnly
+          ? "The live Google Sheet is not connected yet. This is practice data, and changes made here are not saved."
+          : "The live Google Sheet is not connected yet, so this is practice data.",
+      ],
     };
   }
 }

@@ -9,6 +9,7 @@ import { todayIn, type ISODate } from "@/lib/date/dates";
 import { sortByUrgency } from "@/lib/domain/filters";
 import type { Contract, ContractInput, EvaluatedContract, RunLogEntry } from "@/lib/domain/types";
 import { evaluateContracts } from "@/lib/rules/evaluate";
+import { getRulesConfig } from "@/lib/services/settings";
 
 export interface ContractsSnapshot {
   /** Every row in the sheet, with the rules applied. */
@@ -35,6 +36,8 @@ export const loadSnapshot = cache(async (): Promise<ContractsSnapshot> => {
   const today = todayIn(config.timezone);
   const source = { kind: repository.kind, label: repository.label };
 
+  const { rules } = await getRulesConfig();
+
   let rows;
   try {
     rows = await repository.listContracts();
@@ -49,7 +52,7 @@ export const loadSnapshot = cache(async (): Promise<ContractsSnapshot> => {
     };
   }
 
-  const contracts = evaluateContracts(rows, { today });
+  const contracts = evaluateContracts(rows, { today, rules });
 
   return {
     contracts,
@@ -70,8 +73,9 @@ export async function loadFreshSnapshot(): Promise<ContractsSnapshot> {
   const today = todayIn(config.timezone);
   const source = { kind: repository.kind, label: repository.label };
 
+  const { rules } = await getRulesConfig();
   const rows = await repository.listContracts(true);
-  const contracts = evaluateContracts(rows, { today });
+  const contracts = evaluateContracts(rows, { today, rules });
 
   return {
     contracts,

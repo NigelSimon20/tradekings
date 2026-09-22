@@ -10,6 +10,7 @@ import {
   type RepositoryHealth,
 } from "@/lib/data/repository";
 import { buildSeedContracts } from "@/lib/data/seed";
+import type { SheetSetupResult } from "@/lib/data/sheet-setup";
 import { todayIn } from "@/lib/date/dates";
 import type { Contract, ContractInput, EvaluatedContract, RunLogEntry } from "@/lib/domain/types";
 
@@ -191,6 +192,18 @@ export class LocalJsonRepository implements ContractRepository {
   async listRunLog(limit = 20): Promise<RunLogEntry[]> {
     const store = await this.read();
     return [...store.runLog].reverse().slice(0, limit);
+  }
+
+  /** The sample database needs no setting up. */
+  async setUpStorage(): Promise<SheetSetupResult> {
+    return {
+      ok: false,
+      createdTabs: [],
+      addedColumns: [],
+      addedSettings: [],
+      colourCoded: false,
+      messages: ["There is no Google Sheet connected yet, so there is nothing to set up."],
+    };
   }
 
   async healthCheck(): Promise<RepositoryHealth> {

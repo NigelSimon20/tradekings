@@ -1,3 +1,4 @@
+import { SetupSheetButton } from "@/components/settings/setup-sheet-button";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -5,14 +6,14 @@ import { DefinitionList } from "@/components/ui/definition-list";
 import { ContractsIcon, ReportsIcon, SettingsIcon } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { TBody, THead, Table, TableWrap, Td, Th, Tr } from "@/components/ui/table";
-import { ALERT_DAYS, OVERDUE_AFTER_DAYS, RULE_SETS } from "@/lib/config/rules";
+
 import { COLUMN_TYPE_LABELS } from "@/lib/domain/meta";
 import { formatUtcHourInZone } from "@/lib/date/dates";
 import { getConfig } from "@/lib/config/env";
 import { CONTRACT_COLUMNS } from "@/lib/data/sheet-schema";
 import { getMailer } from "@/lib/email/mailer";
 import { checkDataSource } from "@/lib/services/contracts";
-import { getReportSettings } from "@/lib/services/settings";
+import { getReportSettings, getRulesConfig } from "@/lib/services/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,7 @@ export default async function SettingsPage() {
   const config = getConfig();
   const health = await checkDataSource();
   const settings = await getReportSettings();
+  const { rules, fromSheet: rulesFromSheet } = await getRulesConfig();
   const mailer = getMailer();
 
   // Marks the values an administrator has overridden on the sheet's Settings tab.
@@ -35,7 +37,7 @@ export default async function SettingsPage() {
       />
 
       <div className="grid gap-4 lg:grid-cols-3">
-        {Object.values(RULE_SETS).map((ruleSet) => (
+        {Object.values(rules.ruleSets).map((ruleSet) => (
           <Card key={ruleSet.id}>
             <CardHeader
               title={ruleSet.label}
@@ -64,15 +66,20 @@ export default async function SettingsPage() {
           icon={<ReportsIcon className="size-4" />}
           title="Alert thresholds"
           description="Applied to every contract, regardless of company."
+          action={
+            rulesFromSheet.length ? (
+              <Badge tone="info">{rulesFromSheet.length} changed on the sheet</Badge>
+            ) : null
+          }
         />
         <CardBody>
           <DefinitionList
             columns={4}
             items={[
-              { label: "First alert", value: `${ALERT_DAYS.first} days before expiry` },
-              { label: "Second alert", value: `${ALERT_DAYS.second} days before expiry` },
+              { label: "First alert", value: `${rules.alertDays.first} days before expiry` },
+              { label: "Second alert", value: `${rules.alertDays.second} days before expiry` },
               { label: "Expired", value: "On the day the contract ends" },
-              { label: "Overdue", value: `${OVERDUE_AFTER_DAYS} days after expiry with no update` },
+              { label: "Overdue", value: `${rules.overdueAfterDays} days after expiry with no update` },
             ]}
           />
         </CardBody>
@@ -142,6 +149,14 @@ export default async function SettingsPage() {
               {warning}
             </Alert>
           ))}
+
+          <SetupSheetButton connected={config.dataSource === "google-sheets"} />
+
+          <Alert tone="info" title="Changing the rules and the recipients">
+            Every number above — the contract lengths, the limits, the waiting period and the alert
+            days — can be changed on the <strong>Settings</strong> tab of the Google Sheet. Leave a
+            row blank to keep the standard rule.
+          </Alert>
 
           <Alert tone="info" title="Changing who receives the reports">
             The HR address and the manager settings live on the <strong>Settings</strong> tab of the

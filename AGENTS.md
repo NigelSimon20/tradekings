@@ -16,8 +16,10 @@ dashboard and sends the weekly reports. See README.md for setup.
 
 ## Where things belong
 
-- **Contract rules** live in `src/lib/config/rules.ts`. Change the numbers there,
-  never in a component or a report.
+- **Contract rules** live in `src/lib/config/rules.ts` as `DEFAULT_RULES`, and an
+  administrator can override any number on the sheet's Settings tab
+  (`applyRuleOverrides`). Read the rules in force with `getRulesConfig()` and
+  pass them down — never import `RULE_SETS` into a page or component.
 - **The rules engine** (`src/lib/rules/evaluate.ts`) is pure: `(rows, today) ->
   rows + computed`. It must stay free of I/O and of `new Date()` so the tests
   can pin behaviour to a fixed date. Add a test in `evaluate.test.ts` for every
@@ -25,8 +27,11 @@ dashboard and sends the weekly reports. See README.md for setup.
 - **Storage** goes through `ContractRepository` (`src/lib/data/repository.ts`).
   Pages and routes call `src/lib/services/*`, never a repository directly.
 - **The sheet has four tabs**: Contracts (the database), Dashboard (rewritten by
-  every system check), Settings (report recipients, which override the env vars
-  via `src/lib/services/settings.ts`) and Run Log.
+  every system check), Settings (recipients *and* rule numbers, which override
+  the env vars and defaults via `src/lib/services/settings.ts`) and Run Log.
+- **Anything an administrator must do should be doable in the app.** Sheet setup,
+  recipients, rules and a test email are all in the UI; adding a new
+  terminal-only step is a regression.
 - **Dashboard counts** come from saved views in `src/lib/domain/views.ts` — one
   predicate per tile, reused by `/contracts?view=<id>` so a number and its list
   cannot drift apart.

@@ -2,10 +2,33 @@ import "server-only";
 
 import { cache } from "react";
 
+import { applyRuleOverrides, type RulesConfig } from "@/lib/config/rules";
 import { getConfig } from "@/lib/config/env";
 import { getRepository } from "@/lib/data";
-import { parseSheetBoolean } from "@/lib/data/sheet-schema";
+import { RULE_SETTING_KEYS, parseSheetBoolean } from "@/lib/data/sheet-schema";
 import type { ReportSettings } from "@/lib/domain/types";
+
+/** The Settings tab, read once per request. */
+const readSettings = cache(async (): Promise<Record<string, string>> => {
+  try {
+    return await getRepository().readSettings();
+  } catch {
+    // An unreachable settings tab must never stop the tracker working.
+    return {};
+  }
+});
+
+/**
+ * The contract rules in force: the shipped defaults, with any numbers an
+ * administrator has typed on the Settings tab applied over them.
+ */
+export const getRulesConfig = cache(
+  async (): Promise<{ rules: RulesConfig; fromSheet: string[] }> => {
+    const settings = await readSettings();
+    const fromSheet = RULE_SETTING_KEYS.filter((key) => settings[key]?.trim());
+    return { rules: applyRuleOverrides(settings), fromSheet };
+  },
+);
 
 /**
  * Who receives the weekly reports.
@@ -19,12 +42,7 @@ export const getReportSettings = cache(async (): Promise<ReportSettings> => {
   const config = getConfig();
   const fromSheet: string[] = [];
 
-  let sheet: Record<string, string> = {};
-  try {
-    sheet = await getRepository().readSettings();
-  } catch {
-    // An unreachable sheet must not stop a report going out.
-  }
+  const sheet = await readSettings();
 
   const take = (key: string): string | null => {
     const value = sheet[key]?.trim();

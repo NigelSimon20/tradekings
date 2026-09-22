@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { ReportActions } from "@/components/reports/report-actions";
+import { TestEmailDialog } from "@/components/reports/test-email-dialog";
 import { RunLogTable } from "@/components/reports/run-log-table";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -69,11 +70,14 @@ export default async function ReportsPage({
         description="HR receives the full database; each manager receives only their own employees."
         actions={
           preview ? (
-            <ReportActions
-              recipient={preview.data.scope.recipient}
-              recipientLabel={scope.kind === "hr" ? "HR" : preview.data.scope.label.split(" ")[0]}
-              canSend={Boolean(config.hrRecipient)}
-            />
+            <div className="flex flex-wrap items-start gap-2">
+              <TestEmailDialog defaultAddress={preview.data.scope.recipient || config.hrRecipient} />
+              <ReportActions
+                recipient={preview.data.scope.recipient}
+                recipientLabel={scope.kind === "hr" ? "HR" : preview.data.scope.label.split(" ")[0]}
+                canSend={Boolean(config.hrRecipient)}
+              />
+            </div>
           ) : null
         }
       />

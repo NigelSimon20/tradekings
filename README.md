@@ -47,14 +47,17 @@ npm run sheet:check  # read-only health report for the connected Google Sheet
    GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n…\n-----END PRIVATE KEY-----\n"
    ```
 
-4. **Prepare the tabs**:
+4. **Prepare the tabs** — either from **Rules & settings → Prepare the Google
+   Sheet** in the app, or from the command line:
 
    ```bash
-   npm run sheet:setup            # headers, dropdowns, date formats, colour coding
+   npm run sheet:setup            # headings, dropdowns, date formats, colour coding
    npm run sheet:setup -- --seed  # …and load the sample rows
+   npm run sheet:check            # read-only report on the connected sheet
    ```
 
-   The script is safe to re-run: it only ever adds missing columns.
+   Both are safe to run again: they only ever add what is missing, and never
+   change a value someone has filled in.
 
 The spreadsheet ends up with four tabs:
 
@@ -62,8 +65,11 @@ The spreadsheet ends up with four tabs:
 | --- | --- |
 | **Contracts** | The database. HR fills in the left-hand columns; the system writes the calculated ones. |
 | **Dashboard** | The summary view, rebuilt on every system check, with links back into the tracker. |
-| **Settings** | Report recipients, changeable by an administrator without a redeploy. |
+| **Settings** | Report recipients **and every contract rule** — changeable without a developer. |
 | **Run Log** | Every system check and report send. |
+
+Nothing on the Settings tab needs a redeploy. Leave a row blank to keep the
+standard rule; a typo keeps the default rather than switching a rule off.
 
 Reading the sheet is a network round trip, so rows are reused for
 `SHEET_CACHE_SECONDS` (30 by default). Anything the tracker itself writes clears
@@ -122,6 +128,9 @@ redeploy; anything left blank there falls back to the values above.
 | `/api/cron/weekly-report` | Mondays 06:00 (08:00 Harare) | System check, then the HR and manager emails |
 | `/api/cron/system-check` | Daily 03:00 | Refreshes every calculated column in the sheet |
 
+Links written into the sheet and the emails use the address the run came in on,
+so they are correct after a deploy whether or not `APP_URL` was updated.
+
 Set `CRON_SECRET` in the environment — Vercel then sends it automatically, and
 the endpoints refuse unauthenticated calls in production. Any other scheduler
 works too:
@@ -150,6 +159,9 @@ Everything the specification asks for is expressed in
 [`src/lib/config/rules.ts`](src/lib/config/rules.ts) and applied by
 [`src/lib/rules/evaluate.ts`](src/lib/rules/evaluate.ts). Change a number in the
 config and the dashboard, the sheet and the emails all follow.
+
+Every number below can be changed on the sheet's **Settings** tab; the code
+holds the defaults.
 
 | Rule | Implementation |
 | --- | --- |
@@ -243,7 +255,10 @@ Three ideas keep the code debuggable:
   send one report or run the full weekly cycle.
 * **Rules & settings** — the rules in force, the sheet layout, the effective
   report recipients (and whether each came from the sheet or the environment),
-  and the state of the Google and email connections.
+  the state of the Google and email connections, and a **Prepare the Google
+  Sheet** button that adds anything missing.
+* **Send a test** — on the Reports page, one short email to an address you
+  choose, so email can be proved before anyone relies on the weekly run.
 * **While capturing** — the end date follows the rules for the employee, dates
   that break a rule are called out before saving (a Zimkings contract running
   past a year, a casual contract that is not a week), and starting a renewal for

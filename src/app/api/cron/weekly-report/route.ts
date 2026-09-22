@@ -1,3 +1,4 @@
+import { originFromRequest } from "@/lib/api/origin";
 import { authoriseCron, failure, success } from "@/lib/api/respond";
 import { runWeeklyReports } from "@/lib/reports/run";
 import { runSystemCheck } from "@/lib/services/system-check";
@@ -14,8 +15,9 @@ export async function GET(request: Request): Promise<Response> {
   if (unauthorised) return unauthorised;
 
   try {
-    const check = await runSystemCheck({ trigger: "cron" });
-    const reports = await runWeeklyReports({ mode: "send", trigger: "cron" });
+    const appUrl = originFromRequest(request);
+    const check = await runSystemCheck({ trigger: "cron", appUrl });
+    const reports = await runWeeklyReports({ mode: "send", trigger: "cron", appUrl });
     return success(
       `${reports.emailsSent} reports sent for ${check.rowsChecked} contract rows.`,
       { check, reports },

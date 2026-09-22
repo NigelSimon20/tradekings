@@ -1,15 +1,35 @@
 import { describe, expect, it } from "vitest";
 
-import { SETTINGS_ROWS, parseSheetBoolean, settingKeyFor } from "@/lib/data/sheet-schema";
+import {
+  RULE_SETTING_KEYS,
+  SETTINGS_ROWS,
+  parseSheetBoolean,
+  settingKeyFor,
+} from "@/lib/data/sheet-schema";
 
 describe("settings tab", () => {
   it("covers every report setting an administrator can change", () => {
-    expect(SETTINGS_ROWS.map((row) => row.key)).toEqual([
-      "hrRecipient",
-      "reportCc",
-      "managerReportsEnabled",
-      "skipEmptyManagerReports",
-    ]);
+    expect(SETTINGS_ROWS.map((row) => row.key)).toEqual(
+      expect.arrayContaining([
+        "hrRecipient",
+        "reportCc",
+        "managerReportsEnabled",
+        "skipEmptyManagerReports",
+      ]),
+    );
+  });
+
+  it("gives every contract rule a row people can edit", () => {
+    const keys = SETTINGS_ROWS.map((row) => row.key);
+    for (const key of RULE_SETTING_KEYS) expect(keys).toContain(key);
+  });
+
+  it("explains every setting and offers a starting value", () => {
+    for (const row of SETTINGS_ROWS) {
+      expect(row.label.length).toBeGreaterThan(3);
+      expect(row.note.length).toBeGreaterThan(10);
+      expect(settingKeyFor(row.label)).toBe(row.key);
+    }
   });
 
   it("matches labels however they are typed in the sheet", () => {

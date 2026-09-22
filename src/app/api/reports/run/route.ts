@@ -1,3 +1,4 @@
+import { originFromRequest } from "@/lib/api/origin";
 import { failure, success } from "@/lib/api/respond";
 import { runWeeklyReports } from "@/lib/reports/run";
 
@@ -17,6 +18,7 @@ export async function POST(request: Request): Promise<Response> {
       mode: body.mode === "preview" ? "preview" : "send",
       trigger: "manual",
       onlyRecipient: body.onlyRecipient,
+      appUrl: originFromRequest(request),
     });
 
     const plural = result.emailsSent === 1 ? "" : "s";

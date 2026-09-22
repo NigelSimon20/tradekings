@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { applyRuleOverrides } from "@/lib/config/rules";
 import { evaluateContracts } from "@/lib/rules/evaluate";
 import { makeContract } from "@/lib/rules/test-helpers";
 import type { Contract, FlagCode } from "@/lib/domain/types";
@@ -253,5 +254,49 @@ describe("data quality", () => {
   it("flags rows without an employee id", () => {
     const result = evaluateOne({ employeeId: "" });
     expect(flagsOf(result)).toContain("MISSING_EMPLOYEE_ID");
+  });
+});
+
+describe("rules changed by an administrator", () => {
+  it("uses the alert windows set on the sheet", () => {
+    const rules = applyRuleOverrides({ firstAlertDays: "60", secondAlertDays: "45", overdueAfterDays: "2" });
+    const check = (endDate: string) =>
+      evaluateContracts([makeContract({ startDate: "2026-01-01", endDate })], { today: TODAY, rules })[0]
+        .computed.status;
+
+    expect(check("2026-08-01")).toBe("EXPIRING_30"); // 47 days out — inside the new 60 day window
+    expect(check("2026-07-01")).toBe("EXPIRING_15"); // 16 days out — inside the new 45 day window
+    expect(check("2026-06-12")).toBe("OVERDUE"); // 3 days past, overdue now kicks in after 2
+  });
+
+  it("applies a changed Zimkings contract limit", () => {
+    const rules = applyRuleOverrides({ zkMaxContracts: "3" });
+    const contracts = Array.from({ length: 3 }, (_, index) =>
+      makeContract({
+        company: "Zimkings",
+        employeeId: "Z-200",
+        startDate: `${2023 + index}-01-01`,
+        endDate: `${2023 + index}-12-31`,
+      }),
+    );
+    const results = evaluateContracts(contracts, { today: TODAY, rules });
+    expect(results[2].computed.limitStatus).toBe("LIMIT_REACHED");
+    expect(flagsOf(results[2])).toContain("ZIM_LIMIT_REACHED");
+  });
+
+  it("applies a changed casual limit and waiting period", () => {
+    const rules = applyRuleOverrides({ casualMaxContracts: "3", casualWaitMonths: "1" });
+    const weekly = (index: number) =>
+      makeContract({
+        workerType: "Casual",
+        employeeId: "CAS-9",
+        startDate: `2026-05-${String(4 + index * 7).padStart(2, "0")}`,
+        endDate: `2026-05-${String(10 + index * 7).padStart(2, "0")}`,
+      });
+    const results = evaluateContracts([weekly(0), weekly(1), weekly(2)], { today: "2026-05-25", rules });
+    const latest = results[2];
+    expect(latest.computed.contractCount).toBe(3);
+    expect(latest.computed.limitStatus).toBe("LIMIT_REACHED");
+    expect(latest.computed.rehireEligibleDate).toBe("2026-06-24"); // one month after the last contract
   });
 });

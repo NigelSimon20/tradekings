@@ -1,3 +1,4 @@
+import { originFromRequest } from "@/lib/api/origin";
 import { authoriseCron, failure, success } from "@/lib/api/respond";
 import { runSystemCheck } from "@/lib/services/system-check";
 
@@ -10,7 +11,7 @@ export async function GET(request: Request): Promise<Response> {
   if (unauthorised) return unauthorised;
 
   try {
-    const result = await runSystemCheck({ trigger: "cron" });
+    const result = await runSystemCheck({ trigger: "cron", appUrl: originFromRequest(request) });
     return success(`Checked ${result.rowsChecked} contract rows.`, { result });
   } catch (error) {
     return failure(error);

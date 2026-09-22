@@ -3,12 +3,13 @@ import { notFound } from "next/navigation";
 import { ContractForm, type ContractFormDefaults } from "@/components/contracts/contract-form";
 import { Alert } from "@/components/ui/alert";
 import { PageHeader } from "@/components/ui/page-header";
-import { RULE_SETS } from "@/lib/config/rules";
+
 import { formatDate } from "@/lib/date/dates";
 import { getConfig } from "@/lib/config/env";
 import { todayIn } from "@/lib/date/dates";
 import { defaultEndDate, renewalStartDate } from "@/lib/rules/terms";
 import { getContractById } from "@/lib/services/contracts";
+import { getRulesConfig } from "@/lib/services/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,7 @@ export default async function NewContractPage({
   const params = await searchParams;
   const renewFrom = typeof params.renewFrom === "string" ? params.renewFrom : "";
   const config = getConfig();
+  const { rules } = await getRulesConfig();
   const today = todayIn(config.timezone);
 
   let limitWarning: string | null = null;
@@ -34,7 +36,7 @@ export default async function NewContractPage({
     contractType: "New",
     renewalStatus: "Pending",
     startDate: today,
-    endDate: defaultEndDate("Trade Kings", "Blue Collar", today),
+    endDate: defaultEndDate("Trade Kings", "Blue Collar", today, rules),
   };
 
   if (renewFrom) {
@@ -42,7 +44,7 @@ export default async function NewContractPage({
     if (!previous) notFound();
 
     const startDate = renewalStartDate(previous.endDate ?? today) || today;
-    const ruleSet = RULE_SETS[previous.computed.ruleSetId];
+    const ruleSet = rules.ruleSets[previous.computed.ruleSetId];
 
     // Renewing past a contract limit, or inside the casual waiting period, is a
     // decision HR should make deliberately — so it is said plainly up front.
@@ -62,7 +64,7 @@ export default async function NewContractPage({
       renewalStatus: "Pending",
       notes: "",
       startDate,
-      endDate: defaultEndDate(previous.company, previous.workerType, startDate),
+      endDate: defaultEndDate(previous.company, previous.workerType, startDate, rules),
     };
   }
 
@@ -85,7 +87,7 @@ export default async function NewContractPage({
         </Alert>
       ) : null}
 
-      <ContractForm defaults={defaults} mode="create" />
+      <ContractForm defaults={defaults} mode="create" rules={rules} />
     </div>
   );
 }

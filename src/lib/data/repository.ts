@@ -1,3 +1,4 @@
+import type { SheetSetupResult } from "@/lib/data/sheet-setup";
 import type {
   Contract,
   ContractInput,
@@ -45,6 +46,8 @@ export interface ContractRepository {
   appendRunLog(entry: RunLogEntry): Promise<void>;
   listRunLog(limit?: number): Promise<RunLogEntry[]>;
   healthCheck(): Promise<RepositoryHealth>;
+  /** Creates the tabs, headings and formatting the system expects. */
+  setUpStorage(): Promise<SheetSetupResult>;
 }
 
 export class RepositoryError extends Error {

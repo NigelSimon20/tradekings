@@ -1,4 +1,9 @@
-import { defaultEndDateOffset, resolveRuleSet } from "@/lib/config/rules";
+import {
+  DEFAULT_RULES,
+  defaultEndDateOffset,
+  resolveRuleSetId,
+  type RulesConfig,
+} from "@/lib/config/rules";
 import { addDays, addMonths, isISODate, type ISODate } from "@/lib/date/dates";
 import type { Company, WorkerType } from "@/lib/domain/types";
 
@@ -11,9 +16,10 @@ export function defaultEndDate(
   company: Company,
   workerType: WorkerType,
   startDate: string,
+  rules: RulesConfig = DEFAULT_RULES,
 ): ISODate | "" {
   if (!isISODate(startDate)) return "";
-  const { months, days } = defaultEndDateOffset(resolveRuleSet(company, workerType));
+  const { months, days } = defaultEndDateOffset(rules.ruleSets[resolveRuleSetId(company, workerType)]);
   const withMonths = months ? addMonths(startDate, months) : startDate;
   return addDays(withMonths, days);
 }
@@ -33,10 +39,11 @@ export function checkTermAgainstRules(
   workerType: WorkerType,
   startDate: string,
   endDate: string,
+  rules: RulesConfig = DEFAULT_RULES,
 ): string | null {
   if (!isISODate(startDate) || !isISODate(endDate)) return null;
 
-  const ruleSet = resolveRuleSet(company, workerType);
+  const ruleSet = rules.ruleSets[resolveRuleSetId(company, workerType)];
 
   if (ruleSet.maxTermMonths !== null) {
     const latestAllowed = addMonths(startDate, ruleSet.maxTermMonths);
@@ -48,7 +55,7 @@ export function checkTermAgainstRules(
   if (ruleSet.standardTermDays !== null) {
     const expected = addDays(startDate, ruleSet.standardTermDays - 1);
     if (endDate !== expected) {
-      return `Casual contracts are issued weekly — a contract starting ${startDate} would normally end ${expected}.`;
+      return `Casual contracts run ${ruleSet.standardTermDays} days — a contract starting ${startDate} would normally end ${expected}.`;
     }
   }
 

@@ -26,6 +26,15 @@ export interface RuleSet {
   summary: string[];
 }
 
+/** Every number the rules engine uses, in one object. */
+export interface RulesConfig {
+  ruleSets: Record<RuleSetId, RuleSet>;
+  /** Days before expiry at which a contract is escalated. */
+  alertDays: { first: number; second: number };
+  /** Days past the end date before an expired contract becomes overdue. */
+  overdueAfterDays: number;
+}
+
 export const RULE_SETS: Record<RuleSetId, RuleSet> = {
   TK_BLUE_COLLAR: {
     id: "TK_BLUE_COLLAR",
@@ -85,6 +94,96 @@ export const ALERT_DAYS = {
   first: 30,
   second: 15,
 } as const;
+
+/** The rules as shipped. An administrator can override the numbers in the sheet. */
+export const DEFAULT_RULES: RulesConfig = {
+  ruleSets: RULE_SETS,
+  alertDays: { first: ALERT_DAYS.first, second: ALERT_DAYS.second },
+  overdueAfterDays: 7,
+};
+
+/**
+ * Applies the numbers an administrator has typed on the sheet's Settings tab.
+ * A blank or unusable value keeps the shipped default, so a typo can never
+ * switch a rule off.
+ */
+export function applyRuleOverrides(overrides: Record<string, string>): RulesConfig {
+  const number = (key: string, fallback: number | null): number | null => {
+    const raw = overrides[key]?.trim();
+    if (!raw) return fallback;
+    const value = Number(raw);
+    return Number.isFinite(value) && value > 0 ? Math.round(value) : fallback;
+  };
+
+  const tk = RULE_SETS.TK_BLUE_COLLAR;
+  const zk = RULE_SETS.ZK_BLUE_COLLAR;
+  const casual = RULE_SETS.CASUAL;
+
+  const config: RulesConfig = {
+    ruleSets: {
+      TK_BLUE_COLLAR: {
+        ...tk,
+        standardTermMonths: number("tkTermMonths", tk.standardTermMonths),
+      },
+      ZK_BLUE_COLLAR: {
+        ...zk,
+        standardTermMonths: number("zkMaxTermMonths", zk.standardTermMonths),
+        maxTermMonths: number("zkMaxTermMonths", zk.maxTermMonths),
+        maxContracts: number("zkMaxContracts", zk.maxContracts),
+      },
+      CASUAL: {
+        ...casual,
+        standardTermDays: number("casualTermDays", casual.standardTermDays),
+        maxContracts: number("casualMaxContracts", casual.maxContracts),
+        limitWindowWeeks: number("casualWindowWeeks", casual.limitWindowWeeks),
+        waitingPeriodMonths: number("casualWaitMonths", casual.waitingPeriodMonths),
+      },
+    },
+    alertDays: {
+      first: number("firstAlertDays", ALERT_DAYS.first) ?? ALERT_DAYS.first,
+      second: number("secondAlertDays", ALERT_DAYS.second) ?? ALERT_DAYS.second,
+    },
+    overdueAfterDays: number("overdueAfterDays", 7) ?? 7,
+  };
+
+  // "Approaching the limit" always means one contract short of it.
+  for (const ruleSet of Object.values(config.ruleSets)) {
+    ruleSet.approachingAtCount = ruleSet.maxContracts === null ? null : Math.max(1, ruleSet.maxContracts - 1);
+    ruleSet.summary = describeRules(ruleSet, config);
+  }
+
+  return config;
+}
+
+/** The plain-English rules shown in the app, rebuilt from the current numbers. */
+function describeRules(ruleSet: RuleSet, config: RulesConfig): string[] {
+  const alerts = `Alerts at ${config.alertDays.first} days, ${config.alertDays.second} days, on expiry and once overdue.`;
+
+  if (ruleSet.id === "CASUAL") {
+    return [
+      `Contracts are issued every ${ruleSet.standardTermDays} days.`,
+      `Maximum of ${ruleSet.maxContracts} contracts within a ${ruleSet.limitWindowWeeks} week period.`,
+      `After ${ruleSet.maxContracts} contracts the employee is out of the system for ${ruleSet.waitingPeriodMonths} months.`,
+      "The next eligible rehire date is calculated automatically.",
+      "Casual contracts and renewals are monitored weekly.",
+    ];
+  }
+
+  if (ruleSet.maxContracts === null) {
+    return [
+      `Standard blue-collar contract: ${ruleSet.standardTermMonths} months.`,
+      "Contract renewals: unlimited.",
+      alerts,
+    ];
+  }
+
+  return [
+    `Maximum fixed-term contract duration: ${ruleSet.maxTermMonths} months.`,
+    `Maximum of ${ruleSet.maxContracts} contracts per employee.`,
+    `Employees on contract ${ruleSet.approachingAtCount} are flagged as approaching the limit.`,
+    alerts,
+  ];
+}
 
 /**
  * An expired contract becomes "Overdue" once it has been past its end date for

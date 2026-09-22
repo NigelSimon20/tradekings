@@ -1,9 +1,8 @@
 import {
-  ALERT_DAYS,
-  OVERDUE_AFTER_DAYS,
-  RULE_SETS,
+  DEFAULT_RULES,
   resolveRuleSetId,
   type RuleSet,
+  type RulesConfig,
 } from "@/lib/config/rules";
 import {
   addMonths,
@@ -29,6 +28,11 @@ import {
 export interface EvaluateOptions {
   /** The calendar date the evaluation is run for. */
   today: ISODate;
+  /**
+   * The rule numbers to apply. Defaults to the shipped rules; the running
+   * system passes whatever an administrator has set on the Settings tab.
+   */
+  rules?: RulesConfig;
 }
 
 interface Row {
@@ -58,7 +62,7 @@ interface Cycle {
  */
 export function evaluateContracts(
   contracts: Contract[],
-  { today }: EvaluateOptions,
+  { today, rules = DEFAULT_RULES }: EvaluateOptions,
 ): EvaluatedContract[] {
   const rows: Row[] = contracts.map((contract, index) => ({
     index,
@@ -70,7 +74,7 @@ export function evaluateContracts(
 
   for (const group of groupRows(rows).values()) {
     const ordered = [...group].sort(compareRows);
-    const ruleSet = RULE_SETS[ordered[0].ruleSetId];
+    const ruleSet = rules.ruleSets[ordered[0].ruleSetId];
     const cycles = splitIntoCycles(ordered, ruleSet);
     const lastRowIndex = ordered[ordered.length - 1].index;
 
@@ -88,6 +92,7 @@ export function evaluateContracts(
           computed: computeRow({
             row,
             ruleSet,
+            rules,
             today,
             hasLaterContract: !isLatest,
             isLatest,
@@ -245,6 +250,7 @@ function isInForce(contract: Contract, today: ISODate): boolean {
 interface ComputeRowArgs {
   row: Row;
   ruleSet: RuleSet;
+  rules: RulesConfig;
   today: ISODate;
   hasLaterContract: boolean;
   isLatest: boolean;
@@ -271,6 +277,7 @@ function computeRow(args: ComputeRowArgs): ContractComputed {
   const status = resolveStatus({
     contract,
     ruleSet,
+    rules: args.rules,
     today,
     datesValid,
     daysRemaining,
@@ -307,13 +314,14 @@ function computeRow(args: ComputeRowArgs): ContractComputed {
 function resolveStatus(args: {
   contract: Contract;
   ruleSet: RuleSet;
+  rules: RulesConfig;
   today: ISODate;
   datesValid: boolean;
   daysRemaining: number | null;
   hasLaterContract: boolean;
   limitReached: boolean;
 }): ContractStatus {
-  const { contract, ruleSet, today, datesValid, daysRemaining, hasLaterContract, limitReached } = args;
+  const { contract, ruleSet, rules, today, datesValid, daysRemaining, hasLaterContract, limitReached } = args;
 
   if (!datesValid) return "INVALID";
   // A newer contract for the same employee means this one has been renewed.
@@ -330,11 +338,11 @@ function resolveStatus(args: {
   if (ended && limitReached && ruleSet.waitingPeriodMonths !== null) return "CLOSED";
 
   if (isBefore(today, contract.startDate!)) return "NOT_STARTED";
-  if (days < -OVERDUE_AFTER_DAYS) return "OVERDUE";
+  if (days < -rules.overdueAfterDays) return "OVERDUE";
   if (days < 0) return "EXPIRED";
   if (days === 0) return "EXPIRES_TODAY";
-  if (days <= ALERT_DAYS.second) return "EXPIRING_15";
-  if (days <= ALERT_DAYS.first) return "EXPIRING_30";
+  if (days <= rules.alertDays.second) return "EXPIRING_15";
+  if (days <= rules.alertDays.first) return "EXPIRING_30";
   return "ACTIVE";
 }
 

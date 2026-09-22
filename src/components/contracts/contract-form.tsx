@@ -9,7 +9,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
-import { resolveRuleSet } from "@/lib/config/rules";
+import { resolveRuleSetId, type RulesConfig } from "@/lib/config/rules";
 import { EMPTY_FORM_STATE } from "@/lib/domain/form-state";
 import {
   COMPANIES,
@@ -36,10 +36,13 @@ export interface ContractFormDefaults extends Partial<Contract> {
 export function ContractForm({
   defaults,
   mode,
+  rules,
   submitLabel,
 }: {
   defaults: ContractFormDefaults;
   mode: "create" | "edit";
+  /** The rules in force, so the form matches what the system will calculate. */
+  rules: RulesConfig;
   submitLabel?: string;
 }) {
   const router = useRouter();
@@ -53,12 +56,12 @@ export function ContractForm({
     mode === "edit" ? (defaults.endDate ?? "") : null,
   );
 
-  const ruleSet = resolveRuleSet(company, workerType);
-  const suggestedEnd = defaultEndDate(company, workerType, startDate);
+  const ruleSet = rules.ruleSets[resolveRuleSetId(company, workerType)];
+  const suggestedEnd = defaultEndDate(company, workerType, startDate, rules);
   const endDate = endDateOverride ?? suggestedEnd;
   // The rules are applied while the contract is being captured, not only after
   // it has been saved.
-  const termWarning = checkTermAgainstRules(company, workerType, startDate, endDate);
+  const termWarning = checkTermAgainstRules(company, workerType, startDate, endDate, rules);
 
   useEffect(() => {
     if (state.status === "success" && mode === "create" && state.contractId) {

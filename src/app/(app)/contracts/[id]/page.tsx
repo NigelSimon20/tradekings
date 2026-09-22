@@ -15,11 +15,12 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { DefinitionList } from "@/components/ui/definition-list";
 import { ArrowLeftIcon, ContractsIcon, PlusIcon } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
-import { TBody, THead, Table, TableWrap, Td, Th, Tr } from "@/components/ui/table";
-import { RULE_SETS } from "@/lib/config/rules";
+import { LinkRow, TBody, THead, Table, TableWrap, Td, Th, Tr } from "@/components/ui/table";
+
 import { getConfig } from "@/lib/config/env";
 import { describeDays, formatDate, formatTimestamp } from "@/lib/date/dates";
 import { getContractById, getEmployeeHistory } from "@/lib/services/contracts";
+import { getRulesConfig } from "@/lib/services/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -33,9 +34,10 @@ export default async function ContractDetailPage({
   if (!contract) notFound();
 
   const config = getConfig();
+  const { rules } = await getRulesConfig();
   const history = await getEmployeeHistory(contract);
   const { computed } = contract;
-  const ruleSet = RULE_SETS[computed.ruleSetId];
+  const ruleSet = rules.ruleSets[computed.ruleSetId];
 
   return (
     <div className="space-y-6">
@@ -146,7 +148,11 @@ export default async function ContractDetailPage({
               </THead>
               <TBody>
                 {history.map((row) => (
-                  <Tr key={row.id} className={row.id === contract.id ? "bg-brand-50/70" : undefined}>
+                  <LinkRow
+                    key={row.id}
+                    href={`/contracts/${encodeURIComponent(row.id)}`}
+                    className={row.id === contract.id ? "bg-brand-50/70" : undefined}
+                  >
                     <Td className="numeric">{row.computed.contractNumber}</Td>
                     <Td className="numeric whitespace-nowrap">
                       {formatDate(row.startDate)} → {formatDate(row.endDate)}
@@ -170,7 +176,7 @@ export default async function ContractDetailPage({
                         </Link>
                       )}
                     </Td>
-                  </Tr>
+                  </LinkRow>
                 ))}
               </TBody>
             </Table>
@@ -180,7 +186,7 @@ export default async function ContractDetailPage({
 
       <section className="space-y-4">
         <h2 className="text-sm font-semibold text-slate-900">Edit contract</h2>
-        <ContractForm defaults={contract} mode="edit" />
+        <ContractForm defaults={contract} mode="edit" rules={rules} />
       </section>
     </div>
   );

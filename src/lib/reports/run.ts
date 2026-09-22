@@ -41,6 +41,8 @@ export interface RunWeeklyReportOptions {
   trigger?: "cron" | "manual";
   /** Limits the run to one manager, used by "send me a test". */
   onlyRecipient?: string;
+  /** Where the app is reachable, for the link in the email. */
+  appUrl?: string;
 }
 
 /**
@@ -68,7 +70,7 @@ export async function runWeeklyReports(
       scope,
       today,
       appName: config.appName,
-      appUrl: config.appUrl,
+      appUrl: options.appUrl || config.appUrl,
       generatedAt,
     });
     const email = renderReportEmail(data, config.timezone);

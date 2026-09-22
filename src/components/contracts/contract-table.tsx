@@ -3,7 +3,7 @@ import Link from "next/link";
 import { FlagBadges, StatusBadge } from "@/components/contracts/status-badges";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ChevronRightIcon } from "@/components/ui/icons";
-import { TBody, THead, Table, TableWrap, Td, Th, Tr } from "@/components/ui/table";
+import { LinkRow, TBody, THead, Table, TableWrap, Td, Th, Tr } from "@/components/ui/table";
 import { describeDays, formatDate } from "@/lib/date/dates";
 import { STATUS_META } from "@/lib/domain/meta";
 import { TONE_CLASSES } from "@/lib/ui/tones";
@@ -54,7 +54,7 @@ export function ContractTable({
             const href = `/contracts/${encodeURIComponent(contract.id)}`;
 
             return (
-              <Tr key={contract.id} className="group">
+              <LinkRow key={contract.id} href={href} className="group">
                 <Td>
                   <div className="flex items-center gap-3">
                     <span
@@ -117,15 +117,14 @@ export function ContractTable({
                   </Td>
                 ) : null}
                 <Td className="text-right">
-                  <Link
-                    href={href}
-                    aria-label={`Open ${contract.employeeName || contract.id}`}
+                  <span
+                    aria-hidden
                     className="inline-flex size-8 items-center justify-center rounded-lg text-slate-300 transition group-hover:bg-white group-hover:text-brand-700 group-hover:shadow-xs"
                   >
                     <ChevronRightIcon className="size-4" />
-                  </Link>
+                  </span>
                 </Td>
-              </Tr>
+              </LinkRow>
             );
           })}
         </TBody>

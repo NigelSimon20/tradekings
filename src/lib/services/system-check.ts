@@ -26,7 +26,7 @@ export interface SystemCheckResult {
  * back to the sheet. Runs on a schedule and from the "Run system check" button.
  */
 export async function runSystemCheck(
-  options: { trigger?: "cron" | "manual" } = {},
+  options: { trigger?: "cron" | "manual"; appUrl?: string } = {},
 ): Promise<SystemCheckResult> {
   const startedAt = Date.now();
   const config = getConfig();
@@ -56,7 +56,7 @@ export async function runSystemCheck(
       today,
       generatedAt: ranAt,
       employees: latest.length,
-      appUrl: config.appUrl,
+      appUrl: options.appUrl || config.appUrl,
       rows: counts.map((entry) => ({ label: entry.label, count: entry.count, viewId: entry.id })),
       byCompany: breakdownByCompany(latest),
     });

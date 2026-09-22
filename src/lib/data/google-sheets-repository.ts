@@ -16,6 +16,7 @@ import {
   parseContractRow,
   type ColumnKey,
 } from "@/lib/data/sheet-schema";
+import { setUpSheet, type SheetSetupResult } from "@/lib/data/sheet-setup";
 import {
   RepositoryError,
   companyPrefix,
@@ -53,6 +54,7 @@ export class GoogleSheetsRepository implements ContractRepository {
    * is ever served stale.
    */
   private cache: { at: number; rows: Contract[] } | null = null;
+  private settingsCache: { at: number; values: Record<string, string> } | null = null;
 
   constructor(private readonly config: GoogleConfig) {}
 
@@ -336,8 +338,12 @@ export class GoogleSheetsRepository implements ContractRepository {
     return true;
   }
 
-  /** Report settings an administrator has filled in on the Settings tab. */
+  /** Settings an administrator has filled in on the Settings tab. */
   async readSettings(): Promise<Record<string, string>> {
+    if (this.settingsCache && Date.now() - this.settingsCache.at < this.cacheTtlMs) {
+      return this.settingsCache.values;
+    }
+
     try {
       const response = await this.api().spreadsheets.values.get({
         spreadsheetId: this.config.spreadsheetId,
@@ -351,6 +357,8 @@ export class GoogleSheetsRepository implements ContractRepository {
         const value = String(row?.[1] ?? "").trim();
         if (key && value) settings[key] = value;
       }
+
+      this.settingsCache = { at: Date.now(), values: settings };
       return settings;
     } catch {
       // No Settings tab yet: the environment variables stand on their own.
@@ -445,6 +453,14 @@ export class GoogleSheetsRepository implements ContractRepository {
     } catch {
       return [];
     }
+  }
+
+  /** Prepares the spreadsheet; safe to run again at any time. */
+  async setUpStorage(): Promise<SheetSetupResult> {
+    const result = await this.call(() => setUpSheet(this.api(), this.config));
+    this.invalidate();
+    this.settingsCache = null;
+    return result;
   }
 
   async healthCheck(): Promise<RepositoryHealth> {

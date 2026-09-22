@@ -314,6 +314,80 @@ export const SETTINGS_ROWS: SettingRow[] = [
     note: "Yes or No. No means every manager is emailed every week.",
     example: "Yes",
   },
+  {
+    key: "firstAlertDays",
+    label: "First Alert (Days Before Expiry)",
+    note: "When a contract first appears as expiring.",
+    example: "30",
+  },
+  {
+    key: "secondAlertDays",
+    label: "Second Alert (Days Before Expiry)",
+    note: "The more urgent warning closer to the end date.",
+    example: "15",
+  },
+  {
+    key: "overdueAfterDays",
+    label: "Overdue After (Days Past End Date)",
+    note: "How long an expired contract may sit before it is called overdue.",
+    example: "7",
+  },
+  {
+    key: "tkTermMonths",
+    label: "Trade Kings Contract Length (Months)",
+    note: "The standard blue-collar contract length offered when capturing one.",
+    example: "6",
+  },
+  {
+    key: "zkMaxTermMonths",
+    label: "Zimkings Maximum Contract Length (Months)",
+    note: "Fixed-term contracts longer than this are flagged.",
+    example: "12",
+  },
+  {
+    key: "zkMaxContracts",
+    label: "Zimkings Maximum Contracts Per Employee",
+    note: "The contract limit for Zimkings blue-collar employees.",
+    example: "5",
+  },
+  {
+    key: "casualTermDays",
+    label: "Casual Contract Length (Days)",
+    note: "How long one casual contract runs.",
+    example: "7",
+  },
+  {
+    key: "casualMaxContracts",
+    label: "Casual Maximum Contracts",
+    note: "How many casual contracts an employee may have before the break.",
+    example: "6",
+  },
+  {
+    key: "casualWindowWeeks",
+    label: "Casual Contract Window (Weeks)",
+    note: "The period the casual contract limit is measured over.",
+    example: "6",
+  },
+  {
+    key: "casualWaitMonths",
+    label: "Casual Break Before Rehire (Months)",
+    note: "How long a casual employee stays out of the system after the limit.",
+    example: "3",
+  },
+];
+
+/** Settings that change the contract rules rather than the reports. */
+export const RULE_SETTING_KEYS = [
+  "firstAlertDays",
+  "secondAlertDays",
+  "overdueAfterDays",
+  "tkTermMonths",
+  "zkMaxTermMonths",
+  "zkMaxContracts",
+  "casualTermDays",
+  "casualMaxContracts",
+  "casualWindowWeeks",
+  "casualWaitMonths",
 ];
 
 /** Matches a settings label from the sheet back to its key. */

@@ -1,5 +1,6 @@
 import type { ReactNode, ThHTMLAttributes, TdHTMLAttributes } from "react";
 
+import { ClickableRow } from "@/components/ui/clickable-row";
 import { cn } from "@/lib/ui/cn";
 
 /** Scrollable wrapper — wide contract tables stay usable on small screens. */
@@ -42,5 +43,30 @@ export function Td({ children, className, ...props }: TdHTMLAttributes<HTMLTable
     <td {...props} className={cn("px-4 py-3 align-top text-slate-700", className)}>
       {children}
     </td>
+  );
+}
+
+/**
+ * A table row that opens a page when clicked anywhere.
+ *
+ * The row is a convenience for mouse users; the real link stays on the primary
+ * cell so keyboard and screen-reader users get one proper, focusable link
+ * rather than a row that only responds to a mouse. Clicks that land on a link
+ * or button inside the row, and clicks that finish a text selection, are left
+ * alone, and ctrl/cmd-click still opens a new tab.
+ */
+export function LinkRow({
+  href,
+  children,
+  className,
+}: {
+  href: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <ClickableRow href={href} className={className}>
+      {children}
+    </ClickableRow>
   );
 }

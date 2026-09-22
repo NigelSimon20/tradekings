@@ -19,12 +19,15 @@ export async function POST(request: Request): Promise<Response> {
       onlyRecipient: body.onlyRecipient,
     });
 
+    const plural = result.emailsSent === 1 ? "" : "s";
     const skipped = result.recipients - result.emailsSent;
-    const problems = result.errors.length ? ` Problems: ${result.errors.join("; ")}` : "";
-    return success(
-      `${result.emailsSent} report${result.emailsSent === 1 ? "" : "s"} sent via ${result.transport}${skipped ? `, ${skipped} skipped` : ""}.${problems}`,
-      { result },
-    );
+    const outcome =
+      result.transportKind === "smtp"
+        ? `${result.emailsSent} report${plural} sent`
+        : `${result.emailsSent} report${plural} prepared, but not sent — email sending is not set up yet`;
+    const problems = result.errors.length ? ` ${result.errors.join("; ")}` : "";
+
+    return success(`${outcome}${skipped ? `, ${skipped} skipped` : ""}.${problems}`, { result });
   } catch (error) {
     return failure(error);
   }

@@ -5,7 +5,7 @@ import { getRepository } from "@/lib/data";
 import { newRunLogId } from "@/lib/data/repository";
 import { DATA_QUALITY_FLAGS } from "@/lib/domain/meta";
 import { CONTRACT_VIEWS, countView, rowsForView } from "@/lib/domain/views";
-import { breakdownByCompany, loadSnapshot } from "@/lib/services/contracts";
+import { breakdownByCompany, loadFreshSnapshot } from "@/lib/services/contracts";
 
 export interface SystemCheckResult {
   today: string;
@@ -31,7 +31,7 @@ export async function runSystemCheck(
   const startedAt = Date.now();
   const config = getConfig();
   const repository = getRepository();
-  const { contracts, latest, today } = await loadSnapshot();
+  const { contracts, latest, today } = await loadFreshSnapshot();
   const warnings: string[] = [];
 
   let rowsWritten = 0;

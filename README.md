@@ -30,6 +30,7 @@ npm test             # rules engine + report tests
 npm run typecheck
 npm run lint
 npm run build
+npm run sheet:check  # read-only health report for the connected Google Sheet
 ```
 
 ## Connecting the Google Sheet
@@ -63,6 +64,10 @@ The spreadsheet ends up with four tabs:
 | **Dashboard** | The summary view, rebuilt on every system check, with links back into the tracker. |
 | **Settings** | Report recipients, changeable by an administrator without a redeploy. |
 | **Run Log** | Every system check and report send. |
+
+Reading the sheet is a network round trip, so rows are reused for
+`SHEET_CACHE_SECONDS` (30 by default). Anything the tracker itself writes clears
+that cache immediately; only edits typed straight into the sheet wait for it.
 
 Columns are matched **by header text**, not by position, so HR can reorder or
 insert columns in the sheet without breaking anything. The full list is on the

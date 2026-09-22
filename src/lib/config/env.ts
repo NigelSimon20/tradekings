@@ -12,6 +12,8 @@ export interface GoogleConfig {
   privateKey: string;
   /** Used when the system writes timestamps into the sheet. */
   timezone: string;
+  /** How long a read of the sheet may be reused, in seconds. */
+  cacheSeconds: number;
 }
 
 export interface SmtpConfig {
@@ -107,6 +109,7 @@ export function getConfig(): AppConfig {
           dashboardSheet: str("GOOGLE_DASHBOARD_SHEET_NAME", "Dashboard"),
           settingsSheet: str("GOOGLE_SETTINGS_SHEET_NAME", "Settings"),
           timezone: str("APP_TIMEZONE", "Africa/Harare"),
+          cacheSeconds: Math.max(0, Number(str("SHEET_CACHE_SECONDS", "30")) || 0),
           ...serviceAccount,
         }
       : null;

@@ -27,6 +27,8 @@ export interface WeeklyReportResult {
   mode: "send" | "preview";
   trigger: "cron" | "manual";
   transport: string;
+  /** How the emails left the system, so callers can word the result properly. */
+  transportKind: "smtp" | "outbox";
   hr: ReportDelivery | null;
   managers: ReportDelivery[];
   emailsSent: number;
@@ -121,7 +123,7 @@ export async function runWeeklyReports(
     ]);
     if (!settings.hrRecipient) {
       errors.push(
-        "No HR recipient is set — add one on the sheet's Settings tab or set HR_REPORT_EMAIL.",
+        "No HR recipient is set — add one on the Settings tab of the Google Sheet.",
       );
     }
   }
@@ -162,6 +164,7 @@ export async function runWeeklyReports(
     mode,
     trigger,
     transport: mailer.label,
+    transportKind: mailer.kind,
     hr,
     managers,
     emailsSent,

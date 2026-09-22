@@ -24,7 +24,11 @@ export interface RepositoryHealth {
 export interface ContractRepository {
   readonly kind: "google-sheets" | "local";
   readonly label: string;
-  listContracts(): Promise<Contract[]>;
+  /**
+   * All contract rows. Reads may be served from a short-lived cache; pass
+   * `fresh` when the answer must come from storage (e.g. the system check).
+   */
+  listContracts(fresh?: boolean): Promise<Contract[]>;
   createContract(input: ContractInput): Promise<Contract>;
   /** Bulk create, used by the CSV import. */
   createContracts(inputs: ContractInput[]): Promise<Contract[]>;

@@ -1,6 +1,6 @@
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { AlertIcon } from "@/components/ui/icons";
-import { configurationProblems } from "@/lib/config/env";
+import { configurationProblems, getConfig } from "@/lib/config/env";
 
 /**
  * Shown in place of the page when the contract database cannot be read.
@@ -11,25 +11,46 @@ import { configurationProblems } from "@/lib/config/env";
  */
 export function DatabaseUnavailable({ reason }: { reason: string }) {
   const problems = configurationProblems();
+  const connected = getConfig().google !== null;
+
+  // Advice about sharing a spreadsheet is useless when no spreadsheet has been
+  // named yet, so the two situations read differently.
+  const checks = connected
+    ? [
+        "The Google Sheet is shared with the tracker as an Editor.",
+        "The tracker is pointed at the right spreadsheet.",
+        "The sheet has been set up, so the Contracts tab has its headings.",
+      ]
+    : [
+        "A Google Sheet has been created for the contract database.",
+        "The tracker has been given the details for that sheet.",
+        "The sheet has been set up, so the Contracts tab has its headings.",
+      ];
 
   return (
     <Card className="mx-auto max-w-2xl">
       <CardHeader
         icon={<AlertIcon className="size-4" />}
-        title="The contract database could not be opened"
-        description="Nothing has been lost — the tracker simply cannot read the Google Sheet right now."
+        title={
+          connected
+            ? "The contract database could not be opened"
+            : "The tracker is not connected to a contract database yet"
+        }
+        description={
+          connected
+            ? "Nothing has been lost — the tracker simply cannot read the Google Sheet right now."
+            : "Someone needs to finish connecting it to your Google Sheet before contracts can be shown."
+        }
       />
       <CardBody className="space-y-4 text-sm text-slate-600">
-        <p className="rounded-xl bg-slate-50 px-4 py-3 text-slate-700">{reason}</p>
+        {connected ? (
+          <p className="rounded-xl bg-slate-50 px-4 py-3 text-slate-700">{reason}</p>
+        ) : null}
 
         <div>
           <p className="font-medium text-slate-900">What usually fixes this</p>
           <ul className="mt-2 space-y-1.5">
-            {[
-              "The Google Sheet is shared with the tracker as an Editor.",
-              "The tracker is pointed at the right spreadsheet.",
-              "The sheet has been set up, so the Contracts tab has its headings.",
-            ].map((item) => (
+            {checks.map((item) => (
               <li key={item} className="flex gap-2">
                 <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-brand-600" aria-hidden />
                 {item}

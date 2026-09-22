@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { isServerless } from "@/lib/config/env";
 import {
   RepositoryError,
   companyPrefix,
@@ -31,7 +32,13 @@ export class LocalJsonRepository implements ContractRepository {
   private queue: Promise<unknown> = Promise.resolve();
   /** Held in memory when the filesystem cannot be written to (hosted demos). */
   private memory: LocalStore | null = null;
-  private readOnly = false;
+  /**
+   * Hosted runtimes have a read-only filesystem, and the failure they give for
+   * a write varies (EROFS, EACCES, ENOENT…). Rather than guess at codes, the
+   * store keeps everything in memory whenever it is running serverless, and
+   * falls back to memory if any write fails anyway.
+   */
+  private readOnly = isServerless();
 
   constructor(filePath: string, private readonly timezone: string) {
     // turbopackIgnore: the path is configuration, not a module to trace.
@@ -47,6 +54,15 @@ export class LocalJsonRepository implements ContractRepository {
 
   private async read(): Promise<LocalStore> {
     if (this.memory) return this.memory;
+
+    if (this.readOnly) {
+      this.memory = {
+        version: 1,
+        contracts: buildSeedContracts(todayIn(this.timezone)),
+        runLog: [],
+      };
+      return this.memory;
+    }
 
     try {
       const raw = await readFile(this.file, "utf8");
@@ -82,10 +98,9 @@ export class LocalJsonRepository implements ContractRepository {
       await mkdir(path.dirname(this.file), { recursive: true });
       await writeFile(this.file, `${JSON.stringify(store, null, 2)}\n`, "utf8");
     } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      if (code !== "EROFS" && code !== "EACCES" && code !== "EPERM") throw error;
-      // Hosted without a Google Sheet: keep the sample data in memory so the
-      // tracker still runs, and say so in the health check.
+      // Sample data must never take the tracker down: if it cannot be written,
+      // carry on in memory and say so in the health check.
+      console.warn("Sample data could not be saved, continuing in memory:", (error as Error).message);
       this.readOnly = true;
       this.memory = store;
     }
@@ -104,6 +119,7 @@ export class LocalJsonRepository implements ContractRepository {
   }
 
   async listContracts(): Promise<Contract[]> {
+    // The file is local, so there is nothing to cache.
     const store = await this.read();
     return store.contracts;
   }

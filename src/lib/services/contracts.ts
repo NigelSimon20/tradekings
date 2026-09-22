@@ -60,6 +60,28 @@ export const loadSnapshot = cache(async (): Promise<ContractsSnapshot> => {
   };
 });
 
+/**
+ * Reads straight from storage, bypassing the short read cache. Used by the
+ * system check, which writes what it finds back into the sheet.
+ */
+export async function loadFreshSnapshot(): Promise<ContractsSnapshot> {
+  const config = getConfig();
+  const repository = getRepository();
+  const today = todayIn(config.timezone);
+  const source = { kind: repository.kind, label: repository.label };
+
+  const rows = await repository.listContracts(true);
+  const contracts = evaluateContracts(rows, { today });
+
+  return {
+    contracts,
+    latest: contracts.filter((contract) => contract.computed.isLatest),
+    today,
+    source,
+    error: null,
+  };
+}
+
 export async function getContractById(id: string): Promise<EvaluatedContract | null> {
   const { contracts } = await loadSnapshot();
   return contracts.find((contract) => contract.id === id) ?? null;

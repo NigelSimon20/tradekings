@@ -46,8 +46,23 @@ export class GoogleSheetsRepository implements ContractRepository {
   readonly label = "Google Sheet";
 
   private client: sheets_v4.Sheets | null = null;
+  /**
+   * Reading the sheet is a network round trip, and a single page can be
+   * rendered many times a minute. Rows are held for a few seconds so browsing
+   * feels instant; every write drops the cache, so nothing the tracker changes
+   * is ever served stale.
+   */
+  private cache: { at: number; rows: Contract[] } | null = null;
 
   constructor(private readonly config: GoogleConfig) {}
+
+  private get cacheTtlMs(): number {
+    return this.config.cacheSeconds * 1000;
+  }
+
+  private invalidate(): void {
+    this.cache = null;
+  }
 
   private api(): sheets_v4.Sheets {
     if (!this.client) {
@@ -87,13 +102,19 @@ export class GoogleSheetsRepository implements ContractRepository {
     return { header, index: buildColumnIndex(header), rows };
   }
 
-  async listContracts(): Promise<Contract[]> {
+  async listContracts(fresh = false): Promise<Contract[]> {
+    if (!fresh && this.cache && Date.now() - this.cache.at < this.cacheTtlMs) {
+      return this.cache.rows;
+    }
+
     const { index, rows } = await this.readSheet();
     const contracts: Contract[] = [];
     rows.forEach((row, offset) => {
       if (isBlankRow(row)) return;
       contracts.push(parseContractRow(row, index, offset + 2));
     });
+
+    this.cache = { at: Date.now(), rows: contracts };
     return contracts;
   }
 
@@ -105,6 +126,7 @@ export class GoogleSheetsRepository implements ContractRepository {
   async createContracts(inputs: ContractInput[]): Promise<Contract[]> {
     if (!inputs.length) return [];
 
+    this.invalidate();
     const { header, index } = await this.readSheet();
     const width = Math.max(header.length, ...[...index.values()].map((position) => position + 1));
     const timestamp = new Date().toISOString();
@@ -137,6 +159,7 @@ export class GoogleSheetsRepository implements ContractRepository {
       }),
     );
 
+    this.invalidate();
     const firstRow = Number(/!\D+(\d+)/.exec(response.data.updates?.updatedRange ?? "")?.[1] ?? 0);
     return contracts.map((contract, offset) => ({
       ...contract,
@@ -145,6 +168,7 @@ export class GoogleSheetsRepository implements ContractRepository {
   }
 
   async updateContract(id: string, patch: Partial<ContractInput>): Promise<Contract> {
+    this.invalidate();
     const { index, rows } = await this.readSheet();
     const offset = rows.findIndex((row, position) => {
       if (isBlankRow(row)) return false;
@@ -188,6 +212,7 @@ export class GoogleSheetsRepository implements ContractRepository {
       );
     }
 
+    this.invalidate();
     return updated;
   }
 

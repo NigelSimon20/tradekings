@@ -3,7 +3,7 @@ import "server-only";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { getConfig } from "@/lib/config/env";
+import { getConfig, isServerless } from "@/lib/config/env";
 
 export interface EmailAttachment {
   filename: string;
@@ -69,10 +69,19 @@ class OutboxMailer implements Mailer {
   readonly label: string;
 
   constructor(private readonly directory: string) {
-    this.label = "Email sending is not set up — reports are saved for review";
+    this.label = isServerless()
+      ? "Email sending is not set up — nothing is being sent"
+      : "Email sending is not set up — reports are saved for review";
   }
 
   async send(email: OutboundEmail): Promise<void> {
+    // Hosted runtimes have no writable folder, so there is nowhere to put a
+    // copy — the run still succeeds and reports what it would have sent.
+    if (isServerless()) {
+      console.info(`[outbox] would send "${email.subject}" to ${email.to}`);
+      return;
+    }
+
     // turbopackIgnore: the outbox path is configuration, not a module to trace.
     const dir = path.isAbsolute(this.directory)
       ? this.directory

@@ -22,9 +22,9 @@ export function RunLogTable({ runs, timezone }: { runs: RunLogEntry[]; timezone:
           <Tr className="hover:bg-transparent">
             <Th>Run at</Th>
             <Th>Type</Th>
-            <Th>Started</Th>
-            <Th className="text-right">Rows</Th>
-            <Th className="text-right">Emails</Th>
+            <Th className="hidden sm:table-cell">Started</Th>
+            <Th className="hidden text-right md:table-cell">Rows</Th>
+            <Th className="hidden text-right md:table-cell">Emails</Th>
             <Th>Result</Th>
           </Tr>
         </THead>
@@ -33,9 +33,9 @@ export function RunLogTable({ runs, timezone }: { runs: RunLogEntry[]; timezone:
             <Tr key={run.id}>
               <Td className="whitespace-nowrap">{formatTimestamp(run.runAt, timezone)}</Td>
               <Td>{run.type === "weekly-report" ? "Weekly report" : "System check"}</Td>
-              <Td>{TRIGGER_LABELS[run.trigger] ?? run.trigger}</Td>
-              <Td className="numeric text-right">{run.rowsChecked}</Td>
-              <Td className="numeric text-right">
+              <Td className="hidden sm:table-cell">{TRIGGER_LABELS[run.trigger] ?? run.trigger}</Td>
+              <Td className="numeric hidden text-right md:table-cell">{run.rowsChecked}</Td>
+              <Td className="numeric hidden text-right md:table-cell">
                 {run.type === "weekly-report" ? `${run.emailsSent}/${run.recipients}` : "—"}
               </Td>
               <Td>

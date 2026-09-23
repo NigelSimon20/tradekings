@@ -1,20 +1,36 @@
+import { parseRole, type Role } from "@/lib/auth/roles";
+
 /**
- * A deliberately small access gate: one shared password for HR/admin users,
- * held in a signed, expiring cookie. It runs on Web Crypto so the same code
- * works in the proxy (edge) and in server actions (node).
+ * Sign-in sessions.
  *
- * The employee data in this system is personal information — when the app is
- * deployed, set APP_PASSWORD so the gate is active.
+ * The cookie carries who the person is and what they may do, signed with
+ * AUTH_SECRET so it cannot be edited in the browser. Web Crypto is used so the
+ * same code runs in the proxy and in server actions.
  */
 export const SESSION_COOKIE = "tkzim_contract_session";
 export const SESSION_TTL_SECONDS = 60 * 60 * 12;
 
-const encoder = new TextEncoder();
+export interface SessionUser {
+  email: string;
+  name: string;
+  role: Role;
+  /** How the person signed in, for the run log. */
+  via: "google" | "password";
+}
 
-function base64url(bytes: ArrayBuffer): string {
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+
+function toBase64Url(bytes: Uint8Array): string {
   let binary = "";
-  for (const byte of new Uint8Array(bytes)) binary += String.fromCharCode(byte);
+  for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function fromBase64Url(value: string): Uint8Array {
+  const padded = value.replace(/-/g, "+").replace(/_/g, "/");
+  const binary = atob(padded + "=".repeat((4 - (padded.length % 4)) % 4));
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 }
 
 async function sign(value: string, secret: string): Promise<string> {
@@ -25,7 +41,7 @@ async function sign(value: string, secret: string): Promise<string> {
     false,
     ["sign"],
   );
-  return base64url(await crypto.subtle.sign("HMAC", key, encoder.encode(value)));
+  return toBase64Url(new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(value))));
 }
 
 /** Compares without leaking length or position through timing. */
@@ -38,24 +54,58 @@ function safeEqual(a: string, b: string): boolean {
   return mismatch === 0;
 }
 
-export async function createSessionToken(secret: string): Promise<string> {
-  const expiresAt = Date.now() + SESSION_TTL_SECONDS * 1000;
-  const payload = String(expiresAt);
+export async function createSessionToken(secret: string, user: SessionUser): Promise<string> {
+  const payload = toBase64Url(
+    encoder.encode(
+      JSON.stringify({ ...user, exp: Date.now() + SESSION_TTL_SECONDS * 1000 }),
+    ),
+  );
   return `${payload}.${await sign(payload, secret)}`;
 }
 
-export async function verifySessionToken(
+/** Returns the signed-in person, or null when the cookie is missing or invalid. */
+export async function readSessionToken(
   token: string | undefined,
   secret: string,
-): Promise<boolean> {
-  if (!token) return false;
+): Promise<SessionUser | null> {
+  if (!token) return null;
+
   const [payload, signature] = token.split(".");
-  if (!payload || !signature) return false;
-  if (!safeEqual(signature, await sign(payload, secret))) return false;
-  const expiresAt = Number(payload);
-  return Number.isFinite(expiresAt) && expiresAt > Date.now();
+  if (!payload || !signature) return null;
+  if (!safeEqual(signature, await sign(payload, secret))) return null;
+
+  try {
+    const data = JSON.parse(decoder.decode(fromBase64Url(payload))) as Partial<SessionUser> & {
+      exp?: number;
+    };
+    const role = parseRole(String(data.role ?? ""));
+    if (!role || !data.email || !data.exp || data.exp <= Date.now()) return null;
+
+    return {
+      email: String(data.email),
+      name: String(data.name ?? data.email),
+      role,
+      via: data.via === "password" ? "password" : "google",
+    };
+  } catch {
+    return null;
+  }
 }
 
 export function passwordMatches(input: string, expected: string): boolean {
   return expected.length > 0 && safeEqual(input, expected);
+}
+
+/** Constant-time comparison for shared secrets, such as the scheduled-run key. */
+export function secretsMatch(input: string, expected: string): boolean {
+  return expected.length > 0 && safeEqual(input, expected);
+}
+
+/** Signs short-lived values such as the OAuth state parameter. */
+export async function signValue(value: string, secret: string): Promise<string> {
+  return sign(value, secret);
+}
+
+export async function verifyValue(value: string, signature: string, secret: string): Promise<boolean> {
+  return safeEqual(signature, await sign(value, secret));
 }

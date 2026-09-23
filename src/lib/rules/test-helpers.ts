@@ -27,6 +27,7 @@ export function makeContract(overrides: Partial<Contract> = {}): Contract {
     location: "Harare",
     notes: "",
     lastUpdated: null,
+    lastUpdatedBy: "",
     ...overrides,
   };
 }

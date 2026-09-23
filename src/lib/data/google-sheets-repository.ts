@@ -12,6 +12,8 @@ import {
   columnLetter,
   inputCellValue,
   isBlankRow,
+  neutraliseFormula,
+  parseUserRow,
   missingColumns,
   parseContractRow,
   type ColumnKey,
@@ -24,6 +26,7 @@ import {
   type ContractRepository,
   type RepositoryHealth,
 } from "@/lib/data/repository";
+import type { SheetUser } from "@/lib/data/sheet-schema";
 import type {
   Contract,
   ContractInput,
@@ -55,6 +58,7 @@ export class GoogleSheetsRepository implements ContractRepository {
    */
   private cache: { at: number; rows: Contract[] } | null = null;
   private settingsCache: { at: number; values: Record<string, string> } | null = null;
+  private usersCache: { at: number; users: SheetUser[] } | null = null;
 
   constructor(private readonly config: GoogleConfig) {}
 
@@ -137,6 +141,7 @@ export class GoogleSheetsRepository implements ContractRepository {
       ...input,
       id: input.id?.trim() || generateContractId(companyPrefix(input.company)),
       lastUpdated: timestamp,
+      lastUpdatedBy: input.lastUpdatedBy ?? "",
     }));
 
     const values = contracts.map((contract) => {
@@ -144,7 +149,9 @@ export class GoogleSheetsRepository implements ContractRepository {
       for (const column of INPUT_COLUMNS) {
         const position = index.get(column.key);
         if (position === undefined) continue;
-        row[position] = inputCellValue(contract, column.key as Parameters<typeof inputCellValue>[1]);
+        row[position] = neutraliseFormula(
+          inputCellValue(contract, column.key as Parameters<typeof inputCellValue>[1]),
+        );
       }
       return row;
     });
@@ -187,6 +194,7 @@ export class GoogleSheetsRepository implements ContractRepository {
       id: existing.id,
       rowNumber,
       lastUpdated: new Date().toISOString(),
+      lastUpdatedBy: patch.lastUpdatedBy ?? existing.lastUpdatedBy,
     };
 
     const data: sheets_v4.Schema$ValueRange[] = [];
@@ -201,7 +209,7 @@ export class GoogleSheetsRepository implements ContractRepository {
       }
       data.push({
         range: this.tabRange(this.config.contractsSheet, `!${columnLetter(position)}${rowNumber}`),
-        values: [[inputCellValue(updated, key)]],
+        values: [[neutraliseFormula(inputCellValue(updated, key))]],
       });
     }
 
@@ -251,7 +259,7 @@ export class GoogleSheetsRepository implements ContractRepository {
           ),
           values: block.map((row) => {
             const values = calculatedCellValues(row);
-            return sorted.map((column) => values[column.key as keyof typeof values]);
+            return sorted.map((column) => neutraliseFormula(values[column.key as keyof typeof values]));
           }),
         });
       }
@@ -366,6 +374,49 @@ export class GoogleSheetsRepository implements ContractRepository {
     }
   }
 
+  /**
+   * Everyone allowed to sign in. Cached briefly like everything else, so a
+   * sign-in does not always cost a round trip; removing someone takes effect
+   * within the cache window.
+   */
+  async listUsers(): Promise<SheetUser[]> {
+    if (this.usersCache && Date.now() - this.usersCache.at < this.cacheTtlMs) {
+      return this.usersCache.users;
+    }
+
+    try {
+      const response = await this.api().spreadsheets.values.get({
+        spreadsheetId: this.config.spreadsheetId,
+        range: this.tabRange(this.config.usersSheet),
+        valueRenderOption: "UNFORMATTED_VALUE",
+        dateTimeRenderOption: "FORMATTED_STRING",
+      });
+
+      const values = (response.data.values ?? []) as unknown[][];
+      const users = values
+        .slice(1)
+        .map((row, offset) => parseUserRow(row, offset + 2))
+        .filter((user): user is SheetUser => user !== null);
+
+      this.usersCache = { at: Date.now(), users };
+      return users;
+    } catch {
+      // No Users tab yet — nobody is listed, so only the bootstrap
+      // administrators can sign in.
+      return [];
+    }
+  }
+
+  async recordSignIn(user: SheetUser, at: string): Promise<void> {
+    this.usersCache = null;
+    await this.api().spreadsheets.values.update({
+      spreadsheetId: this.config.spreadsheetId,
+      range: this.tabRange(this.config.usersSheet, `!E${user.rowNumber}`),
+      valueInputOption: "RAW",
+      requestBody: { values: [[at]] },
+    });
+  }
+
   async appendRunLog(entry: RunLogEntry): Promise<void> {
     const row = [
       entry.runAt,
@@ -456,10 +507,11 @@ export class GoogleSheetsRepository implements ContractRepository {
   }
 
   /** Prepares the spreadsheet; safe to run again at any time. */
-  async setUpStorage(): Promise<SheetSetupResult> {
-    const result = await this.call(() => setUpSheet(this.api(), this.config));
+  async setUpStorage(options: { seedAdmins?: string[] } = {}): Promise<SheetSetupResult> {
+    const result = await this.call(() => setUpSheet(this.api(), this.config, options));
     this.invalidate();
     this.settingsCache = null;
+    this.usersCache = null;
     return result;
   }
 

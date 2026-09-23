@@ -33,7 +33,66 @@ export function ContractTable({
   }
 
   return (
-    <TableWrap>
+    <>
+      {/* Phones get one card per contract: eight columns cannot be read at
+          360px, and a sideways-scrolling table hides the urgent columns. */}
+      <ul className="divide-y divide-slate-100 md:hidden">
+        {contracts.map((contract) => {
+          const { computed } = contract;
+          const tone = STATUS_META[computed.status].tone;
+
+          return (
+            <li key={contract.id}>
+              <Link
+                href={`/contracts/${encodeURIComponent(contract.id)}`}
+                className="flex gap-3 px-4 py-3.5 transition active:bg-brand-50/60"
+              >
+                <span
+                  className={cn(
+                    "inline-flex size-10 shrink-0 items-center justify-center rounded-xl text-xs font-semibold text-white",
+                    contract.company === "Zimkings" ? "bg-accent-600" : "bg-brand-700",
+                  )}
+                  aria-hidden
+                >
+                  {initials(contract.employeeName)}
+                </span>
+
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-start justify-between gap-2">
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium text-slate-900">
+                        {contract.employeeName || "(no name)"}
+                      </span>
+                      <span className="block truncate text-xs text-slate-500">
+                        {contract.company} · {contract.workerType}
+                        {contract.department ? ` · ${contract.department}` : ""}
+                      </span>
+                    </span>
+                    <StatusBadge status={computed.status} />
+                  </span>
+
+                  <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                    <span className="numeric">
+                      {formatDate(contract.startDate)} → {formatDate(contract.endDate)}
+                    </span>
+                    <span className={cn("numeric font-semibold", TONE_CLASSES[tone].text)}>
+                      {describeDays(computed.daysRemaining)}
+                    </span>
+                  </span>
+
+                  {computed.flags.length ? (
+                    <span className="mt-2 block">
+                      <FlagBadges flags={computed.flags} limit={2} />
+                    </span>
+                  ) : null}
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+
+      <TableWrap className="hidden md:block">
       <Table>
         <THead>
           <Tr className="hover:bg-transparent">
@@ -129,6 +188,7 @@ export function ContractTable({
           })}
         </TBody>
       </Table>
-    </TableWrap>
+      </TableWrap>
+    </>
   );
 }

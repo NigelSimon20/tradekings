@@ -42,6 +42,27 @@ dashboard and sends the weekly reports. See README.md for setup.
   (`render-email.ts`), so the on-screen preview and the sent email are the same
   thing.
 
+## Access
+
+- Who may sign in comes from the sheet's Users tab (`listUsers`), resolved by
+  `resolveSignIn`; `ADMIN_EMAILS` is the lock-out escape hatch.
+- Permissions live in `src/lib/auth/roles.ts`. Pages call `requireViewer`, API
+  routes call `guardApi`, and server actions check `can(...)` — never rely on
+  hiding a button alone.
+- Pages that show contracts use `loadVisibleSnapshot`, which scopes a Manager to
+  their own team using the same Manager Email column the reports use.
+
+## Security rules
+
+- Anything written to the sheet or a CSV goes through `neutraliseFormula` —
+  spreadsheet cells execute, so user text must never start `=`, `+`, `-` or `@`.
+- Content rendered from sheet data into HTML is escaped (`escapeHtml`), and the
+  report preview frame stays `sandbox=""`.
+- Secrets are compared with the constant-time helpers in `lib/auth/session.ts`,
+  never with `===`.
+- New API routes are protected by the proxy by default; adding a path to the
+  `/api/cron` exemption means it must check `authoriseCron`.
+
 ## Conventions
 
 - Server components by default; `"use client"` only for interaction.

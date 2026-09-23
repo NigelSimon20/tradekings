@@ -1,4 +1,5 @@
 import type { SheetSetupResult } from "@/lib/data/sheet-setup";
+import type { SheetUser } from "@/lib/data/sheet-schema";
 import type {
   Contract,
   ContractInput,
@@ -43,11 +44,15 @@ export interface ContractRepository {
   writeDashboard(summary: DashboardSummary): Promise<boolean>;
   /** Report settings captured in the sheet, as raw key/value pairs. */
   readSettings(): Promise<Record<string, string>>;
+  /** Everyone allowed to sign in, from the Users tab. */
+  listUsers(): Promise<SheetUser[]>;
+  /** Stamps the moment someone signed in, so access can be reviewed. */
+  recordSignIn(user: SheetUser, at: string): Promise<void>;
   appendRunLog(entry: RunLogEntry): Promise<void>;
   listRunLog(limit?: number): Promise<RunLogEntry[]>;
   healthCheck(): Promise<RepositoryHealth>;
   /** Creates the tabs, headings and formatting the system expects. */
-  setUpStorage(): Promise<SheetSetupResult>;
+  setUpStorage(options?: { seedAdmins?: string[] }): Promise<SheetSetupResult>;
 }
 
 export class RepositoryError extends Error {

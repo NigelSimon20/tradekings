@@ -19,6 +19,8 @@ import { LinkRow, TBody, THead, Table, TableWrap, Td, Th, Tr } from "@/component
 
 import { getConfig } from "@/lib/config/env";
 import { describeDays, formatDate, formatTimestamp } from "@/lib/date/dates";
+import { can } from "@/lib/auth/roles";
+import { getCurrentUser } from "@/lib/services/auth";
 import { getContractById, getEmployeeHistory } from "@/lib/services/contracts";
 import { getRulesConfig } from "@/lib/services/settings";
 
@@ -32,6 +34,14 @@ export default async function ContractDetailPage({
   const { id } = await params;
   const contract = await getContractById(decodeURIComponent(id));
   if (!contract) notFound();
+
+  // A manager may only open the employees their weekly report covers.
+  const viewer = await getCurrentUser();
+  const mine =
+    viewer && contract.managerEmail.trim().toLowerCase() === viewer.email.trim().toLowerCase();
+  if (viewer && !can(viewer.role, "viewAll") && !mine) notFound();
+
+  const canEdit = viewer ? can(viewer.role, "editContracts") : false;
 
   const config = getConfig();
   const { rules } = await getRulesConfig();
@@ -54,10 +64,17 @@ export default async function ContractDetailPage({
         title={contract.employeeName || contract.employeeId || contract.id}
         description={`${contract.company} · ${contract.workerType} · ${contract.jobTitle || "No job title"}`}
         actions={
-          <ButtonLink href={`/contracts/new?renewFrom=${encodeURIComponent(contract.id)}`}>
-            <PlusIcon />
-            Create renewal
-          </ButtonLink>
+          // Creating contracts is a desk job: on a phone these pages are for
+          // reviewing, and only people who may capture contracts see it at all.
+          canEdit ? (
+            <ButtonLink
+              href={`/contracts/new?renewFrom=${encodeURIComponent(contract.id)}`}
+              className="hidden sm:inline-flex"
+            >
+              <PlusIcon />
+              Create renewal
+            </ButtonLink>
+          ) : null
         }
       />
 
@@ -115,7 +132,12 @@ export default async function ContractDetailPage({
                 label: "Responsible HR",
                 value: contract.hrPerson ? `${contract.hrPerson} (${contract.hrEmail || "no email"})` : "—",
               },
-              { label: "Last updated", value: formatTimestamp(contract.lastUpdated, config.timezone) },
+              {
+                label: "Last updated",
+                value: `${formatTimestamp(contract.lastUpdated, config.timezone)}${
+                  contract.lastUpdatedBy ? ` by ${contract.lastUpdatedBy}` : ""
+                }`,
+              },
               {
                 label: "On the weekly report",
                 value: computed.needsAction ? "Yes — action required" : "No",
@@ -140,8 +162,8 @@ export default async function ContractDetailPage({
                 <Tr className="hover:bg-transparent">
                   <Th>#</Th>
                   <Th>Period</Th>
-                  <Th>Type</Th>
-                  <Th>Renewal status</Th>
+                  <Th className="hidden sm:table-cell">Type</Th>
+                  <Th className="hidden sm:table-cell">Renewal status</Th>
                   <Th>Status</Th>
                   <Th className="sr-only">Open</Th>
                 </Tr>
@@ -157,8 +179,8 @@ export default async function ContractDetailPage({
                     <Td className="numeric whitespace-nowrap">
                       {formatDate(row.startDate)} → {formatDate(row.endDate)}
                     </Td>
-                    <Td>{row.contractType}</Td>
-                    <Td>
+                    <Td className="hidden sm:table-cell">{row.contractType}</Td>
+                    <Td className="hidden sm:table-cell">
                       <RenewalBadge status={row.renewalStatus} />
                     </Td>
                     <Td>
@@ -184,10 +206,12 @@ export default async function ContractDetailPage({
         </Card>
       ) : null}
 
-      <section className="space-y-4">
-        <h2 className="text-sm font-semibold text-slate-900">Edit contract</h2>
-        <ContractForm defaults={contract} mode="edit" rules={rules} />
-      </section>
+      {canEdit ? (
+        <section className="space-y-4">
+          <h2 className="text-sm font-semibold text-slate-900">Edit contract</h2>
+          <ContractForm defaults={contract} mode="edit" rules={rules} />
+        </section>
+      ) : null}
     </div>
   );
 }

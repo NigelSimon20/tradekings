@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getConfig } from "@/lib/config/env";
+import { secretsMatch } from "@/lib/auth/session";
 
 /** JSON error response with a consistent shape. */
 export function failure(error: unknown, status = 500): Response {
@@ -30,8 +31,10 @@ export function authoriseCron(request: Request): Response | null {
   }
 
   const header = request.headers.get("authorization") ?? "";
-  const provided = header.startsWith("Bearer ") ? header.slice(7) : request.headers.get("x-cron-secret");
-  return provided === cronSecret
+  const provided =
+    (header.startsWith("Bearer ") ? header.slice(7) : request.headers.get("x-cron-secret")) ?? "";
+
+  return secretsMatch(provided, cronSecret)
     ? null
     : Response.json({ ok: false, error: "Unauthorised." }, { status: 401 });
 }

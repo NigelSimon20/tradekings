@@ -1,9 +1,15 @@
-import { CONTRACT_COLUMNS, calculatedCellValues, inputCellValue } from "@/lib/data/sheet-schema";
+import {
+  CONTRACT_COLUMNS,
+  calculatedCellValues,
+  inputCellValue,
+  neutraliseFormula,
+} from "@/lib/data/sheet-schema";
 import type { InputColumnKey } from "@/lib/data/sheet-schema";
 import type { EvaluatedContract } from "@/lib/domain/types";
 
 function escapeCell(value: string | number): string {
-  const text = String(value ?? "");
+  // Neutralise first: a spreadsheet opening this file must not execute a cell.
+  const text = String(neutraliseFormula(value) ?? "");
   return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 

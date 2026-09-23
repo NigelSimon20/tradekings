@@ -123,11 +123,15 @@ export interface Contract {
   notes: string;
   /** ISO datetime of the last write by this system. */
   lastUpdated: string | null;
+  /** Who made that change, when people sign in individually. */
+  lastUpdatedBy: string;
 }
 
 /** Fields the UI writes. Everything else is calculated. */
-export type ContractInput = Omit<Contract, "id" | "rowNumber" | "lastUpdated"> & {
+export type ContractInput = Omit<Contract, "id" | "rowNumber" | "lastUpdated" | "lastUpdatedBy"> & {
   id?: string;
+  /** Set by the system from whoever is signed in, never by a form. */
+  lastUpdatedBy?: string;
 };
 
 /** Everything the rules engine derives for a contract row. */

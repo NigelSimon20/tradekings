@@ -28,7 +28,7 @@ export interface WeeklyReportResult {
   trigger: "cron" | "manual";
   transport: string;
   /** How the emails left the system, so callers can word the result properly. */
-  transportKind: "smtp" | "outbox";
+  transportKind: "resend" | "smtp" | "outbox";
   hr: ReportDelivery | null;
   managers: ReportDelivery[];
   emailsSent: number;
@@ -43,6 +43,8 @@ export interface RunWeeklyReportOptions {
   onlyRecipient?: string;
   /** Where the app is reachable, for the link in the email. */
   appUrl?: string;
+  /** Who pressed the button, for the run log. */
+  actor?: string;
 }
 
 /**
@@ -185,7 +187,7 @@ export async function runWeeklyReports(
     rowsChecked: latest.length,
     needsAction: latest.filter((contract) => contract.computed.needsAction).length,
     errors,
-    note: `${mailer.label}${options.onlyRecipient ? ` · single recipient ${options.onlyRecipient}` : ""}`,
+    note: `${mailer.label}${options.onlyRecipient ? ` · single recipient ${options.onlyRecipient}` : ""}${options.actor ? ` · by ${options.actor}` : ""}`,
   });
 
   return result;

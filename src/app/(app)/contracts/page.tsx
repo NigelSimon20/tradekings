@@ -17,7 +17,8 @@ import {
   toSearchParams,
 } from "@/lib/domain/filters";
 import { getView } from "@/lib/domain/views";
-import { loadSnapshot } from "@/lib/services/contracts";
+import { can } from "@/lib/auth/roles";
+import { loadVisibleSnapshot } from "@/lib/services/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,9 @@ export default async function ContractsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const filters = parseFilters(await searchParams);
-  const { contracts } = await loadSnapshot();
+  const { contracts, user } = await loadVisibleSnapshot();
+  const mayEdit = user ? can(user.role, "editContracts") : false;
+  const mayExport = user ? can(user.role, "exportData") : false;
 
   const view = getView(filters.view);
   const matching = sortByUrgency(applyFilters(contracts, filters));
@@ -47,12 +50,19 @@ export default async function ContractsPage({
       <PageHeader
         eyebrow="Contract database"
         title="Contracts"
-        description="Every contract row, with the Trade Kings, Zimkings and casual rules applied automatically."
+        description={
+          mayExport
+            ? "Every contract row, with the Trade Kings, Zimkings and casual rules applied automatically."
+            : "Your employees, with the Trade Kings, Zimkings and casual rules applied automatically."
+        }
         actions={
-          <ButtonLink href="/contracts/new">
-            <PlusIcon className="size-4" />
-            Add contract
-          </ButtonLink>
+          // Hidden on phones: the header is for orientation there, not actions.
+          mayEdit ? (
+            <ButtonLink href="/contracts/new" className="hidden sm:inline-flex">
+              <PlusIcon className="size-4" />
+              Add contract
+            </ButtonLink>
+          ) : null
         }
       />
 
@@ -87,13 +97,17 @@ export default async function ContractsPage({
             )}
           </div>
 
-          <div className="flex items-center gap-2">
-            <ImportDialog />
-            <ButtonLink href={exportHref} variant="secondary" size="sm">
-              <DownloadIcon className="size-4" />
-              Export CSV
-            </ButtonLink>
-          </div>
+          {mayEdit || mayExport ? (
+            <div className="flex items-center gap-2">
+              {mayEdit ? <ImportDialog /> : null}
+              {mayExport ? (
+                <ButtonLink href={exportHref} variant="secondary" size="sm">
+                  <DownloadIcon className="size-4" />
+                  Export CSV
+                </ButtonLink>
+              ) : null}
+            </div>
+          ) : null}
         </CardToolbar>
 
         <ContractTable

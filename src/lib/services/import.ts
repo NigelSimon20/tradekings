@@ -60,7 +60,7 @@ export async function previewImport(text: string): Promise<ImportSummary> {
  */
 export async function commitImport(
   text: string,
-  options: { includeDuplicates?: boolean } = {},
+  options: { includeDuplicates?: boolean; actor?: string } = {},
 ): Promise<ImportSummary> {
   const { contracts } = await loadSnapshot();
   const plan = buildImportPlan(text, contracts);
@@ -70,7 +70,8 @@ export async function commitImport(
     ...(options.includeDuplicates ? plan.duplicates : []),
   ]
     .map((row) => row.values)
-    .filter((values): values is NonNullable<typeof values> => values !== null);
+    .filter((values): values is NonNullable<typeof values> => values !== null)
+    .map((values) => ({ ...values, lastUpdatedBy: options.actor ?? "" }));
 
   if (!toCreate.length) return summarise(plan, 0);
 

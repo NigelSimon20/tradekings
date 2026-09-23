@@ -13,6 +13,7 @@ import { formatUtcHourInZone } from "@/lib/date/dates";
 import { groupByManager } from "@/lib/reports/build";
 import { getMailer } from "@/lib/email/mailer";
 import { previewReport } from "@/lib/reports/run";
+import { requireViewer } from "@/lib/services/auth";
 import { listRunLog, loadSnapshot } from "@/lib/services/contracts";
 import { cn } from "@/lib/ui/cn";
 
@@ -27,6 +28,8 @@ export default async function ReportsPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await requireViewer("runReports");
+
   const params = await searchParams;
   const config = getConfig();
   const { latest } = await loadSnapshot();
@@ -167,7 +170,11 @@ export default async function ReportsPage({
             <iframe
               title="Weekly report preview"
               srcDoc={preview.html}
-              className="h-[760px] w-full border-0 bg-slate-100"
+              // The preview is rendered from whatever is in the sheet, so it
+              // runs with no script, form or navigation privileges at all.
+              sandbox=""
+              referrerPolicy="no-referrer"
+              className="h-[65vh] w-full border-0 bg-slate-100 sm:h-[760px]"
             />
           ) : (
             <CardBody>

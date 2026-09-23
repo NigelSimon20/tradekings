@@ -4,6 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { getConfig, isServerless } from "@/lib/config/env";
+import { RESEND_ENDPOINT, buildResendPayload, describeResendError } from "@/lib/email/resend";
 
 export interface EmailAttachment {
   filename: string;
@@ -21,9 +22,42 @@ export interface OutboundEmail {
 }
 
 export interface Mailer {
-  kind: "smtp" | "outbox";
+  kind: "resend" | "smtp" | "outbox";
   label: string;
   send(email: OutboundEmail): Promise<void>;
+}
+
+/**
+ * Sends through Resend. This is the simplest option to set up — an API key and
+ * a verified sending domain, with no mail server to configure — and it is the
+ * one the tracker uses when a key is present.
+ */
+class ResendMailer implements Mailer {
+  readonly kind = "resend" as const;
+  readonly label: string;
+
+  constructor(
+    private readonly apiKey: string,
+    private readonly from: string,
+  ) {
+    this.label = `Sending from ${from} (Resend)`;
+  }
+
+  async send(email: OutboundEmail): Promise<void> {
+    const response = await fetch(RESEND_ENDPOINT, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${this.apiKey}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(buildResendPayload(email, this.from)),
+    });
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(describeResendError(response.status, body));
+    }
+  }
 }
 
 /** Sends through the configured SMTP server (Google Workspace, Microsoft 365, …). */
@@ -32,7 +66,7 @@ class SmtpMailer implements Mailer {
   readonly label: string;
 
   constructor(private readonly from: string) {
-    this.label = `Sending from ${from}`;
+    this.label = `Sending from ${from} (your mail server)`;
   }
 
   async send(email: OutboundEmail): Promise<void> {
@@ -45,6 +79,9 @@ class SmtpMailer implements Mailer {
       host: smtp.host,
       port: smtp.port,
       secure: smtp.secure,
+      // Employee names and contract dates must not cross the network in the
+      // clear: on a non-TLS port, refuse to send unless STARTTLS succeeds.
+      requireTLS: !smtp.secure,
       auth: smtp.user ? { user: smtp.user, pass: smtp.password } : undefined,
     });
 
@@ -99,7 +136,18 @@ class OutboxMailer implements Mailer {
   }
 }
 
+/**
+ * Picks how email leaves the system: Resend when a key is set, otherwise an
+ * SMTP server, otherwise nothing is sent at all.
+ */
 export function getMailer(): Mailer {
   const config = getConfig();
-  return config.smtp ? new SmtpMailer(config.mailFrom) : new OutboxMailer(config.outboxDir);
+
+  if (config.mailTransport === "outbox") return new OutboxMailer(config.outboxDir);
+  if (config.resendApiKey && config.mailTransport !== "smtp") {
+    return new ResendMailer(config.resendApiKey, config.mailFrom);
+  }
+  if (config.smtp) return new SmtpMailer(config.mailFrom);
+
+  return new OutboxMailer(config.outboxDir);
 }

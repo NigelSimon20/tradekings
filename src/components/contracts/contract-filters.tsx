@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/ui/cn";
 import { Input, Select } from "@/components/ui/field";
 import { CONTRACT_STATUSES, COMPANIES, CONTRACT_TYPES, WORKER_TYPES, FLAG_CODES } from "@/lib/domain/types";
 import { DAYS_BUCKETS, toSearchParams, type ContractFilters } from "@/lib/domain/filters";
@@ -26,6 +27,9 @@ export function ContractFiltersBar({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [search, setSearch] = useState(filters.q);
+  // Eleven dropdowns fill a phone screen, so they start folded away there and
+  // are always open from tablet width up.
+  const [showFilters, setShowFilters] = useState(false);
 
   const navigate = (next: Partial<ContractFilters>) => {
     const params = toSearchParams({ ...filters, ...next, page: 1 });
@@ -37,13 +41,13 @@ export function ContractFiltersBar({
   return (
     <div className="rounded-2xl bg-white p-4 shadow-card ring-1 ring-slate-200/70">
       <form
-        className="flex flex-wrap items-end gap-3"
         onSubmit={(event) => {
           event.preventDefault();
           navigate({ q: search });
         }}
       >
-        <div className="min-w-56 flex-1">
+        <div className="flex items-end gap-2">
+        <div className="min-w-0 flex-1">
           <label htmlFor="contract-search" className="block text-xs font-medium text-slate-600">
             Search
           </label>
@@ -57,6 +61,23 @@ export function ContractFiltersBar({
           />
         </div>
 
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => setShowFilters((value) => !value)}
+          className="shrink-0 md:hidden"
+          aria-expanded={showFilters}
+        >
+          Filters{activeCount ? ` (${activeCount})` : ""}
+        </Button>
+        </div>
+
+        <div
+          className={cn(
+            "flex-wrap items-end gap-3 pt-3",
+            showFilters ? "flex" : "hidden md:flex",
+          )}
+        >
         <FilterSelect
           label="Company"
           value={filters.company}
@@ -130,6 +151,7 @@ export function ContractFiltersBar({
           options={options.locations.map((value) => ({ value, label: value }))}
           onChange={(location) => navigate({ location })}
         />
+        </div>
       </form>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
@@ -181,7 +203,7 @@ function FilterSelect({
 }) {
   const id = `filter-${label.toLowerCase().replace(/\s+/g, "-")}`;
   return (
-    <div className="min-w-40">
+    <div className="min-w-0 flex-1 basis-40 sm:flex-none sm:basis-auto sm:min-w-40">
       <label htmlFor={id} className="block text-xs font-medium text-slate-600">
         {label}
       </label>

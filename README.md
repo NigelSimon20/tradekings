@@ -91,25 +91,37 @@ are independent:
 * **The spreadsheet** lives in whichever Google account owns it. The app signs
   in as a *service account*, not as a person, so nobody has to share a password
   and no mailbox is involved.
-* **The email** goes out over plain SMTP. Any provider works:
+* **The email** goes out either through **Resend** or through any SMTP server.
 
-  | Mail provider for tkzim.co.zw | `SMTP_HOST` | `SMTP_PORT` |
-  | --- | --- | --- |
-  | Google Workspace | `smtp.gmail.com` | 587 (app password on the sending account) |
-  | Microsoft 365 | `smtp.office365.com` | 587 |
-  | Own/hosted mail server | e.g. `mail.tkzim.co.zw` | 587 or 465 |
+**Resend (recommended)** — no mail server, no app passwords, and it works from
+a hosted deployment without extra setup:
 
-Recommended: one dedicated mailbox, e.g. `contracts@tkzim.co.zw`, used as
-`MAIL_FROM` and `SMTP_USER`, so replies from managers land somewhere sensible.
+1. Create an account at resend.com and an **API key**.
+2. Add `tkzim.co.zw` as a domain and add the DNS records it gives you. (While
+   testing, skip this and send from `onboarding@resend.dev`.)
+3. Set the key and the sending address:
 
 ```ini
-SMTP_HOST="smtp.gmail.com"
-SMTP_PORT="587"
-SMTP_USER="contracts@tkzim.co.zw"
-SMTP_PASSWORD="…"               # app password, not the account password
+RESEND_API_KEY="re_…"
 MAIL_FROM="Contract Tracker <contracts@tkzim.co.zw>"
 HR_REPORT_EMAIL="hr@tkzim.co.zw"
 ```
+
+**Or your own mail server**, if company policy requires it:
+
+| Mail provider for tkzim.co.zw | `SMTP_HOST` | `SMTP_PORT` |
+| --- | --- | --- |
+| Google Workspace | `smtp.gmail.com` | 587 (app password on the sending account) |
+| Microsoft 365 | `smtp.office365.com` | 587 |
+| Own/hosted mail server | e.g. `mail.tkzim.co.zw` | 587 or 465 |
+
+Whichever you choose, use one dedicated mailbox such as `contracts@tkzim.co.zw`
+so replies from managers land somewhere sensible. With a Resend key present it
+is used; otherwise SMTP; with neither, reports are prepared but nothing is sent.
+`MAIL_TRANSPORT` forces one if you need to.
+
+Use **Send a test** on the Reports page to check it before the first weekly
+run.
 
 Manager addresses are **not** configured here — they come from the *Manager
 Email* column in the sheet, so HR controls who receives what.
@@ -146,12 +158,78 @@ Other endpoints: `GET /api/export` (whole database as CSV, `?history=1` for
 superseded rows), `GET /api/import` (blank template) and `POST /api/import`
 (`mode=preview` to validate, `mode=commit` to write).
 
-## Access
+## Signing in
 
-Set `APP_PASSWORD` (and ideally `AUTH_SECRET`) and the whole UI moves behind a
-sign-in page — the database holds employee personal information. Scheduled runs
-bypass it using `CRON_SECRET`. With no `APP_PASSWORD` the app is open, which is
-fine locally and not fine on the internet.
+People sign in with their **Google account**. The tracker stores no passwords:
+Google handles password strength and two-factor, and the sheet decides who gets
+in.
+
+**Setting it up** (once, about five minutes):
+
+1. Google Cloud → **APIs & Services → Credentials → Create credentials → OAuth
+   client ID → Web application**, in the same project as the service account.
+2. Add `https://your-app/api/auth/google/callback` as an authorised redirect
+   URI (and `http://localhost:3000/api/auth/google/callback` for local work).
+3. Put the client id and secret in `GOOGLE_OAUTH_CLIENT_ID` and
+   `GOOGLE_OAUTH_CLIENT_SECRET`, and set `ADMIN_EMAILS` to your own address.
+4. Press **Prepare the Google Sheet** on Rules & settings, which creates the
+   **Users** tab and adds you as an administrator.
+
+**Managing access** is then a spreadsheet job — a row per person on the Users
+tab:
+
+| Column | What to put |
+| --- | --- |
+| Email | The Google address they sign in with |
+| Name | Shown in the tracker and against their changes |
+| Role | `Administrator`, `HR` or `Manager` |
+| Active | `No` takes access away without deleting the history |
+| Last Signed In | Filled in by the system |
+
+| Role | Can |
+| --- | --- |
+| **Administrator** | Everything, including preparing the sheet |
+| **HR** | The whole database: capture, import, export, run reports |
+| **Manager** | Only their own employees — the same list their weekly email covers — read-only |
+
+Managers are off until you add one: give someone the Manager role and they see
+their team and nothing else. `ADMIN_EMAILS` always works whatever the Users tab
+says, so a bad edit there cannot lock everyone out. `APP_PASSWORD` still works
+as a fallback if you set it, and every change is now recorded against the person
+who made it in the **Last Updated By** column and the run log.
+
+## Security
+
+The database holds names, job titles, managers and contract dates for every
+blue-collar employee, so treat it as personal information.
+
+**Before it is reachable from the internet:**
+
+| Setting | Why |
+| --- | --- |
+| Google sign-in, or `APP_PASSWORD` | Without one of them every page and API route is open to anyone with the link. A red banner appears on every screen until one is set. |
+| `AUTH_SECRET` | Signs the sign-in cookie. Set it to a long random string. |
+| `CRON_SECRET` | The scheduled runs refuse to start in production without it, and reject callers who do not present it. |
+
+**What the app does on its own:**
+
+* Sign-in attempts are rate limited — eight failures per caller in ten minutes.
+* The session cookie is http-only, same-site and secure in production, and
+  expires after 12 hours. Password and key comparisons are constant-time.
+* Every response carries `X-Frame-Options`, `X-Content-Type-Options`,
+  `Referrer-Policy`, `Permissions-Policy`, `Strict-Transport-Security` and, in
+  production, a content security policy that blocks framing and any script,
+  style or image from another origin. The CSV export is marked `no-store`.
+* Values written to the sheet and to CSV exports are neutralised so a cell can
+  never execute as a formula — an employee note reading `=IMPORTXML(…)` stays
+  text rather than reaching out to an attacker from inside the spreadsheet.
+* The weekly-report preview runs in a fully sandboxed frame with no script,
+  form or navigation privileges, because it is rendered from sheet content.
+* Report email is refused unless the connection is encrypted (STARTTLS or TLS).
+
+* People sign in as themselves, so every contract change and every manual run
+  records who did it, and one person's access can be removed without affecting
+  anyone else.
 
 ## The rules, and where they live
 

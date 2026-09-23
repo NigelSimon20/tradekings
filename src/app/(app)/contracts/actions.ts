@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 
 import type { ContractFormState } from "@/lib/domain/form-state";
 import { parseContractForm } from "@/lib/domain/schema";
+import { can } from "@/lib/auth/roles";
+import { getCurrentUser } from "@/lib/services/auth";
 import { createContract, updateContract } from "@/lib/services/contracts";
 
 /**
@@ -14,6 +16,15 @@ export async function saveContractAction(
   _previous: ContractFormState,
   formData: FormData,
 ): Promise<ContractFormState> {
+  const user = await getCurrentUser();
+  if (!user || !can(user.role, "editContracts")) {
+    return {
+      status: "error",
+      message: "Your account does not have permission to change contracts.",
+      errors: {},
+    };
+  }
+
   const parsed = parseContractForm(formData);
 
   if (!parsed.ok || !parsed.values) {
@@ -27,9 +38,12 @@ export async function saveContractAction(
   const existingId = String(formData.get("id") ?? "").trim();
 
   try {
+    // The sheet records who made the change, now that people sign in as
+    // themselves rather than sharing one password.
+    const actor = user.email || user.name;
     const saved = existingId
-      ? await updateContract(existingId, parsed.values)
-      : await createContract(parsed.values);
+      ? await updateContract(existingId, parsed.values, actor)
+      : await createContract(parsed.values, actor);
 
     revalidatePath("/", "layout");
 

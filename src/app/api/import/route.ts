@@ -1,3 +1,4 @@
+import { getCurrentUser, guardApi } from "@/lib/services/auth";
 import { failure, success } from "@/lib/api/respond";
 import { importTemplateCsv } from "@/lib/data/csv-import";
 import { commitImport, previewImport } from "@/lib/services/import";
@@ -23,6 +24,9 @@ export function GET(): Response {
  * happen, `mode=commit` writes the new rows.
  */
 export async function POST(request: Request): Promise<Response> {
+  const denied = await guardApi("editContracts");
+  if (denied) return denied;
+
   try {
     const form = await request.formData();
     const file = form.get("file");
@@ -42,7 +46,11 @@ export async function POST(request: Request): Promise<Response> {
     const text = await file.text();
 
     if (mode === "commit") {
-      const summary = await commitImport(text, { includeDuplicates });
+      const actor = await getCurrentUser();
+      const summary = await commitImport(text, {
+        includeDuplicates,
+        actor: actor?.email || actor?.name,
+      });
       return success(
         `${summary.imported ?? 0} contract${summary.imported === 1 ? "" : "s"} imported from ${file.name}.`,
         { summary },

@@ -107,12 +107,16 @@ export async function getEmployeeHistory(contract: EvaluatedContract): Promise<E
     .sort((a, b) => (b.startDate ?? "").localeCompare(a.startDate ?? ""));
 }
 
-export async function createContract(input: ContractInput): Promise<Contract> {
-  return getRepository().createContract(input);
+export async function createContract(input: ContractInput, actor?: string): Promise<Contract> {
+  return getRepository().createContract({ ...input, lastUpdatedBy: actor ?? input.lastUpdatedBy ?? "" });
 }
 
-export async function updateContract(id: string, patch: Partial<ContractInput>): Promise<Contract> {
-  return getRepository().updateContract(id, patch);
+export async function updateContract(
+  id: string,
+  patch: Partial<ContractInput>,
+  actor?: string,
+): Promise<Contract> {
+  return getRepository().updateContract(id, actor ? { ...patch, lastUpdatedBy: actor } : patch);
 }
 
 export async function listRunLog(limit = 10): Promise<RunLogEntry[]> {

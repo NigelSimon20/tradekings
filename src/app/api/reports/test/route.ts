@@ -1,3 +1,4 @@
+import { guardApi } from "@/lib/services/auth";
 import { failure, success } from "@/lib/api/respond";
 import { getConfig } from "@/lib/config/env";
 import { getMailer } from "@/lib/email/mailer";
@@ -5,6 +6,9 @@ import { formatDate, todayIn } from "@/lib/date/dates";
 
 /** Sends one short message, so email setup can be proved without a real report. */
 export async function POST(request: Request): Promise<Response> {
+  const denied = await guardApi("runReports");
+  if (denied) return denied;
+
   try {
     const body = (await request.json().catch(() => ({}))) as { to?: string };
     const to = (body.to ?? "").trim();
@@ -30,7 +34,7 @@ export async function POST(request: Request): Promise<Response> {
     });
 
     return success(
-      mailer.kind === "smtp"
+      mailer.kind !== "outbox"
         ? `Test message sent to ${to}. Check the inbox — and the spam folder.`
         : `Email sending is not set up yet, so nothing left the system. The test message was prepared for ${to}.`,
       { transport: mailer.kind },

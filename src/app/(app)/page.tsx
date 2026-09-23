@@ -12,16 +12,24 @@ import { TBody, THead, Table, TableWrap, Td, Th, Tr } from "@/components/ui/tabl
 import { getConfig } from "@/lib/config/env";
 import { formatDate, formatTimestamp, nextWeekday } from "@/lib/date/dates";
 import { TRIGGER_LABELS } from "@/lib/domain/meta";
-import { breakdownByCompany, listRunLog, loadSnapshot, topPriority } from "@/lib/services/contracts";
+import { can } from "@/lib/auth/roles";
+import { loadVisibleSnapshot } from "@/lib/services/auth";
+import { breakdownByCompany, listRunLog, topPriority } from "@/lib/services/contracts";
 
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const denied = (await searchParams).denied === "1";
   const config = getConfig();
-  const { contracts, latest, today, source } = await loadSnapshot();
+  const { contracts, latest, today, source, user } = await loadVisibleSnapshot();
+  const mayRun = user ? can(user.role, "runReports") : false;
   const attention = topPriority(latest, 8);
   const breakdown = breakdownByCompany(latest);
-  const runs = await listRunLog(5);
+  const runs = mayRun ? await listRunLog(5) : [];
 
   const needsAction = latest.filter((contract) => contract.computed.needsAction).length;
   const active = latest.filter((contract) => contract.computed.isInForce).length;
@@ -32,8 +40,15 @@ export default async function DashboardPage() {
         eyebrow="Trade Kings · Zimkings"
         title="Contract dashboard"
         description={`Blue collar and casual contracts as at ${formatDate(today)}.`}
-        actions={<RunActions canSend={Boolean(config.hrRecipient)} />}
+        actions={mayRun ? <RunActions canSend={Boolean(config.hrRecipient)} /> : null}
       />
+
+      {denied ? (
+        <Alert tone="warning" title="That page is not available to your account">
+          You were brought back here because your account does not have access to what you opened.
+          If you need it, ask an administrator to change your role on the Users tab.
+        </Alert>
+      ) : null}
 
       {source.kind === "local" ? (
         <Alert tone="caution" title="You are looking at practice data" icon={<AlertIcon className="size-4" />}>
@@ -81,7 +96,7 @@ export default async function DashboardPage() {
               <THead>
                 <Tr className="hover:bg-transparent">
                   <Th>Company</Th>
-                  <Th>Worker type</Th>
+                  <Th className="hidden sm:table-cell">Worker type</Th>
                   <Th className="text-right">Employees</Th>
                   <Th className="text-right">Active</Th>
                   <Th className="text-right">Need action</Th>
@@ -91,7 +106,7 @@ export default async function DashboardPage() {
                 {breakdown.map((row) => (
                   <Tr key={`${row.company}-${row.workerType}`}>
                     <Td className="font-medium text-slate-900">{row.company}</Td>
-                    <Td>{row.workerType}</Td>
+                    <Td className="hidden sm:table-cell">{row.workerType}</Td>
                     <Td className="numeric text-right">{row.total}</Td>
                     <Td className="numeric text-right">{row.active}</Td>
                     <Td className="text-right">

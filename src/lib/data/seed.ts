@@ -352,6 +352,7 @@ export function buildSeedContracts(today: ISODate): Contract[] {
         location: employee.location,
         notes: seed.notes ?? "",
         lastUpdated: null,
+        lastUpdatedBy: "",
       });
     });
   }

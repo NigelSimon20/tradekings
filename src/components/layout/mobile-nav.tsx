@@ -4,12 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { signOutAction } from "@/app/login/actions";
 import { NAV_ITEMS } from "@/components/layout/nav-items";
-import { CloseIcon, MenuIcon } from "@/components/ui/icons";
+import { CloseIcon, MenuIcon, SignOutIcon } from "@/components/ui/icons";
+import { Portal } from "@/components/ui/portal";
 import { cn } from "@/lib/ui/cn";
 
 /** Slide-over navigation for phones and tablets. */
-export function MobileNav() {
+export function MobileNav({ signInEnabled = false }: { signInEnabled?: boolean }) {
   const pathname = usePathname();
   // Opening is recorded against the current route, so following a link closes
   // the drawer without an effect.
@@ -37,6 +39,7 @@ export function MobileNav() {
       </button>
 
       {open ? (
+        <Portal>
         <div className="fixed inset-0 z-50 lg:hidden">
           <button
             type="button"
@@ -78,8 +81,21 @@ export function MobileNav() {
                 );
               })}
             </ul>
+
+            {signInEnabled ? (
+              <form action={signOutAction} className="mt-auto pt-4">
+                <button
+                  type="submit"
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-white/70 transition hover:bg-white/10 hover:text-white"
+                >
+                  <SignOutIcon className="size-4" />
+                  Sign out
+                </button>
+              </form>
+            ) : null}
           </nav>
         </div>
+        </Portal>
       ) : null}
     </>
   );

@@ -82,7 +82,7 @@ export function AlertsMenu({ alerts }: { alerts: AlertsSummary }) {
         <div
           role="dialog"
           aria-label="Alerts"
-          className="absolute right-0 z-50 mt-2 w-[22rem] overflow-hidden rounded-2xl bg-white shadow-panel ring-1 ring-slate-200"
+          className="absolute right-0 z-50 mt-2 w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl bg-white shadow-panel ring-1 ring-slate-200"
         >
           <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
             <div>

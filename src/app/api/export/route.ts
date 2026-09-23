@@ -1,3 +1,4 @@
+import { guardApi } from "@/lib/services/auth";
 import { failure } from "@/lib/api/respond";
 import { contractsToCsv, csvFilename } from "@/lib/reports/csv";
 import { loadSnapshot } from "@/lib/services/contracts";
@@ -7,6 +8,9 @@ import { loadSnapshot } from "@/lib/services/contracts";
  * `?history=1` includes superseded contract rows.
  */
 export async function GET(request: Request): Promise<Response> {
+  const denied = await guardApi("exportData");
+  if (denied) return denied;
+
   try {
     const includeHistory = new URL(request.url).searchParams.get("history") === "1";
     const { contracts, latest, today } = await loadSnapshot();

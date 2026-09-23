@@ -4,6 +4,7 @@ import { useEffect, type ReactNode } from "react";
 
 import { IconButton } from "@/components/ui/button";
 import { CloseIcon } from "@/components/ui/icons";
+import { Portal } from "@/components/ui/portal";
 import { cn } from "@/lib/ui/cn";
 
 /** Centred dialog with a dimmed backdrop; closes on Escape or a click outside. */
@@ -44,6 +45,7 @@ export function Modal({
   if (!open) return null;
 
   return (
+    <Portal>
     <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-6">
       <button
         type="button"
@@ -79,5 +81,6 @@ export function Modal({
         ) : null}
       </div>
     </div>
+    </Portal>
   );
 }

@@ -11,6 +11,7 @@ import {
 } from "@/lib/data/repository";
 import { buildSeedContracts } from "@/lib/data/seed";
 import type { SheetSetupResult } from "@/lib/data/sheet-setup";
+import type { SheetUser } from "@/lib/data/sheet-schema";
 import { todayIn } from "@/lib/date/dates";
 import type { Contract, ContractInput, EvaluatedContract, RunLogEntry } from "@/lib/domain/types";
 
@@ -131,6 +132,7 @@ export class LocalJsonRepository implements ContractRepository {
         ...input,
         id: input.id?.trim() || generateContractId(companyPrefix(input.company)),
         lastUpdated: new Date().toISOString(),
+        lastUpdatedBy: input.lastUpdatedBy ?? "",
       };
       store.contracts.push(contract);
       return contract;
@@ -145,6 +147,7 @@ export class LocalJsonRepository implements ContractRepository {
         ...input,
         id: input.id?.trim() || generateContractId(companyPrefix(input.company)),
         lastUpdated: timestamp,
+        lastUpdatedBy: input.lastUpdatedBy ?? "",
       }));
       store.contracts.push(...created);
       return created;
@@ -160,6 +163,7 @@ export class LocalJsonRepository implements ContractRepository {
         ...patch,
         id,
         lastUpdated: new Date().toISOString(),
+        lastUpdatedBy: patch.lastUpdatedBy ?? store.contracts[index].lastUpdatedBy,
       };
       store.contracts[index] = updated;
       return updated;
@@ -179,6 +183,15 @@ export class LocalJsonRepository implements ContractRepository {
   /** Report settings come from the environment when running on sample data. */
   async readSettings(): Promise<Record<string, string>> {
     return {};
+  }
+
+  /** Sample data has no user list; the bootstrap administrators apply. */
+  async listUsers(): Promise<SheetUser[]> {
+    return [];
+  }
+
+  async recordSignIn(): Promise<void> {
+    // Nothing to stamp without a sheet.
   }
 
   async appendRunLog(entry: RunLogEntry): Promise<void> {

@@ -4,14 +4,18 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { DefinitionList } from "@/components/ui/definition-list";
 import { ContractsIcon, ReportsIcon, SettingsIcon } from "@/components/ui/icons";
+import { describeRole } from "@/lib/auth/roles";
 import { PageHeader } from "@/components/ui/page-header";
 import { TBody, THead, Table, TableWrap, Td, Th, Tr } from "@/components/ui/table";
 
 import { COLUMN_TYPE_LABELS } from "@/lib/domain/meta";
 import { formatUtcHourInZone } from "@/lib/date/dates";
 import { getConfig } from "@/lib/config/env";
+import { duplicateEnvKeys } from "@/lib/config/env-file";
 import { CONTRACT_COLUMNS } from "@/lib/data/sheet-schema";
 import { getMailer } from "@/lib/email/mailer";
+import { can } from "@/lib/auth/roles";
+import { listSignInUsers, requireViewer } from "@/lib/services/auth";
 import { checkDataSource } from "@/lib/services/contracts";
 import { getReportSettings, getRulesConfig } from "@/lib/services/settings";
 
@@ -19,10 +23,13 @@ export const dynamic = "force-dynamic";
 
 /** Read-only view of the rules and the wiring behind the automation. */
 export default async function SettingsPage() {
+  const viewer = await requireViewer("viewAll");
   const config = getConfig();
   const health = await checkDataSource();
   const settings = await getReportSettings();
   const { rules, fromSheet: rulesFromSheet } = await getRulesConfig();
+  const signInUsers = await listSignInUsers();
+  const duplicateSettings = duplicateEnvKeys();
   const mailer = getMailer();
 
   // Marks the values an administrator has overridden on the sheet's Settings tab.
@@ -141,8 +148,21 @@ export default async function SettingsPage() {
                   ? "A password is required to open the tracker"
                   : "No password set — anyone with the link can open the tracker",
               },
+              {
+                label: "Scheduled runs",
+                value: config.cronSecret
+                  ? "Protected with a shared key"
+                  : "Not protected — they will refuse to start once deployed",
+              },
             ]}
           />
+
+          {duplicateSettings.length ? (
+            <Alert tone="critical" title="Some settings are listed twice">
+              {duplicateSettings.join(", ")} appear more than once in the settings file, and only the
+              last one counts — so a value you have set may be quietly ignored. Remove the repeats.
+            </Alert>
+          ) : null}
 
           {health.warnings.map((warning) => (
             <Alert key={warning} tone="caution">
@@ -150,7 +170,9 @@ export default async function SettingsPage() {
             </Alert>
           ))}
 
-          <SetupSheetButton connected={config.dataSource === "google-sheets"} />
+          {can(viewer.role, "manageSystem") ? (
+            <SetupSheetButton connected={config.dataSource === "google-sheets"} />
+          ) : null}
 
           <Alert tone="info" title="Changing the rules and the recipients">
             Every number above — the contract lengths, the limits, the waiting period and the alert
@@ -164,6 +186,65 @@ export default async function SettingsPage() {
             manager&rsquo;s report always comes from the <strong>Manager Email</strong> column.
           </Alert>
         </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader
+          icon={<SettingsIcon className="size-4" />}
+          title="Who can sign in"
+          description="Managed on the Users tab of the Google Sheet — add a row to give someone access, or set Active to No to take it away."
+          action={<Badge tone={signInUsers.length ? "info" : "caution"}>{signInUsers.length} people</Badge>}
+        />
+        {signInUsers.length ? (
+          <TableWrap>
+            <Table>
+              <THead>
+                <Tr className="hover:bg-transparent">
+                  <Th>Name</Th>
+                  <Th>Email</Th>
+                  <Th>Role</Th>
+                  <Th>Can sign in</Th>
+                  <Th className="hidden sm:table-cell">Last signed in</Th>
+                </Tr>
+              </THead>
+              <TBody>
+                {signInUsers.map((person) => (
+                  <Tr key={person.email}>
+                    <Td className="font-medium text-slate-900">{person.name}</Td>
+                    <Td>{person.email}</Td>
+                    <Td>
+                      {person.parsedRole ? (
+                        <Badge tone="neutral" title={describeRole(person.parsedRole)}>
+                          {person.parsedRole}
+                        </Badge>
+                      ) : (
+                        <Badge tone="critical" title="Should be Administrator, HR or Manager">
+                          {person.role || "not set"}
+                        </Badge>
+                      )}
+                    </Td>
+                    <Td>
+                      <Badge tone={person.active ? "success" : "neutral"}>
+                        {person.active ? "Yes" : "No"}
+                      </Badge>
+                    </Td>
+                    <Td className="hidden text-slate-500 sm:table-cell">
+                      {person.lastSignedIn || "never"}
+                    </Td>
+                  </Tr>
+                ))}
+              </TBody>
+            </Table>
+          </TableWrap>
+        ) : (
+          <CardBody>
+            <p className="text-sm text-slate-500">
+              Nobody is listed yet. Use <strong>Prepare the Google Sheet</strong> above to create the
+              Users tab, then add a row for each person: their email, their name, a role of
+              Administrator, HR or Manager, and Yes under Active.
+            </p>
+          </CardBody>
+        )}
       </Card>
 
       <Card>
@@ -191,8 +272,8 @@ export default async function SettingsPage() {
                       {column.kind === "calculated" ? "Filled in by the system" : "Filled in by HR"}
                     </Badge>
                   </Td>
-                  <Td>{COLUMN_TYPE_LABELS[column.type]}</Td>
-                  <Td className="text-slate-500">
+                  <Td className="hidden sm:table-cell">{COLUMN_TYPE_LABELS[column.type]}</Td>
+                  <Td className="hidden text-slate-500 md:table-cell">
                     {column.note ?? (column.options ? column.options.join(" · ") : "—")}
                   </Td>
                 </Tr>

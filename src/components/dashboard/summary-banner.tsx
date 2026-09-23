@@ -28,7 +28,7 @@ export function SummaryBanner({
         aria-hidden
       />
 
-      <div className="relative flex flex-wrap items-center gap-x-10 gap-y-6 px-6 py-6">
+      <div className="relative flex flex-wrap items-center gap-x-8 gap-y-5 px-5 py-5 sm:gap-x-10 sm:px-6 sm:py-6">
         <Figure label="Employees tracked" value={employees} />
         <Figure label="Contracts active today" value={active} />
         <Figure
@@ -37,7 +37,7 @@ export function SummaryBanner({
           tone={needsAction > 0 ? "text-amber-300" : "text-emerald-300"}
         />
 
-        <div className="ml-auto flex flex-col gap-2 sm:items-end">
+        <div className="flex w-full flex-col gap-2 sm:ml-auto sm:w-auto sm:items-end">
           <p className="text-xs text-white/70">Next weekly report · {nextReport}</p>
           <Link
             href="/contracts?view=renewals-due"
@@ -56,7 +56,7 @@ function Figure({ label, value, tone }: { label: string; value: number; tone?: s
   return (
     <div>
       <p className="text-xs font-medium tracking-wide text-white/60 uppercase">{label}</p>
-      <p className={`numeric font-display mt-1 text-4xl font-semibold ${tone ?? "text-white"}`}>
+      <p className={`numeric font-display mt-1 text-3xl font-semibold sm:text-4xl ${tone ?? "text-white"}`}>
         {value}
       </p>
     </div>

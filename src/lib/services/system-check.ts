@@ -26,7 +26,7 @@ export interface SystemCheckResult {
  * back to the sheet. Runs on a schedule and from the "Run system check" button.
  */
 export async function runSystemCheck(
-  options: { trigger?: "cron" | "manual"; appUrl?: string } = {},
+  options: { trigger?: "cron" | "manual"; appUrl?: string; actor?: string } = {},
 ): Promise<SystemCheckResult> {
   const startedAt = Date.now();
   const config = getConfig();
@@ -94,7 +94,7 @@ export async function runSystemCheck(
       rowsChecked: result.rowsChecked,
       needsAction,
       errors: warnings,
-      note: `${rowsWritten} rows updated${dashboardWritten ? " · dashboard refreshed" : ""} · ${dataIssues} rows need fixing`,
+      note: `${rowsWritten} rows updated${dashboardWritten ? " · dashboard refreshed" : ""} · ${dataIssues} rows need fixing${options.actor ? ` · by ${options.actor}` : ""}`,
     });
   } catch (error) {
     console.error("Could not write the run log:", (error as Error).message);

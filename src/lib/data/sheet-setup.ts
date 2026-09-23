@@ -6,6 +6,7 @@ import {
   RUN_LOG_HEADERS,
   SETTINGS_HEADERS,
   SETTINGS_ROWS,
+  USERS_HEADERS,
   buildColumnIndex,
   settingKeyFor,
 } from "@/lib/data/sheet-schema";
@@ -33,8 +34,10 @@ export interface SheetSetupResult {
 export async function setUpSheet(
   client: sheets_v4.Sheets,
   config: GoogleConfig,
+  options: { seedAdmins?: string[] } = {},
 ): Promise<SheetSetupResult> {
-  const { spreadsheetId, contractsSheet, runLogSheet, dashboardSheet, settingsSheet } = config;
+  const { spreadsheetId, contractsSheet, runLogSheet, dashboardSheet, settingsSheet, usersSheet } =
+    config;
   const result: SheetSetupResult = {
     ok: true,
     createdTabs: [],
@@ -50,7 +53,7 @@ export async function setUpSheet(
     fields: "properties.title,sheets(properties(sheetId,title),conditionalFormats)",
   });
   const tabs = spreadsheet.data.sheets ?? [];
-  const missingTabs = [contractsSheet, dashboardSheet, settingsSheet, runLogSheet].filter(
+  const missingTabs = [contractsSheet, dashboardSheet, settingsSheet, usersSheet, runLogSheet].filter(
     (title) => !tabs.some((tab) => tab.properties?.title === title),
   );
 
@@ -212,7 +215,7 @@ export async function setUpSheet(
   }
 
   // 5. Tidy the supporting tabs.
-  for (const title of [settingsSheet, dashboardSheet, runLogSheet]) {
+  for (const title of [settingsSheet, dashboardSheet, usersSheet, runLogSheet]) {
     const id = tabByTitle(title)?.properties?.sheetId;
     if (id === null || id === undefined) continue;
     requests.push(
@@ -287,7 +290,38 @@ export async function setUpSheet(
     result.messages.push(`Added ${missingSettings.length} new setting(s) to the Settings tab.`);
   }
 
-  // 8. Dashboard placeholder until the first check fills it in.
+  // 8. Users tab — who may sign in. Whoever sets the sheet up is added as an
+  //    administrator, so switching sign-in on cannot lock everyone out.
+  const usersValues = await client.spreadsheets.values.get({
+    spreadsheetId,
+    range: `'${usersSheet}'`,
+  });
+  const userRows = (usersValues.data.values ?? []) as string[][];
+
+  if (!userRows.length) {
+    const admins = [...new Set((options.seedAdmins ?? []).map((email) => email.trim().toLowerCase()))]
+      .filter((email) => email.includes("@"));
+
+    await client.spreadsheets.values.update({
+      spreadsheetId,
+      range: `'${usersSheet}'!A1`,
+      valueInputOption: "RAW",
+      requestBody: {
+        values: [
+          [...USERS_HEADERS],
+          ...admins.map((email) => [email, "", "Administrator", "Yes", ""]),
+        ],
+      },
+    });
+
+    result.messages.push(
+      admins.length
+        ? `Created the Users tab with ${admins.length} administrator(s).`
+        : "Created the Users tab — add the people who may sign in.",
+    );
+  }
+
+  // 9. Dashboard placeholder until the first check fills it in.
   const dashboard = await client.spreadsheets.values.get({
     spreadsheetId,
     range: `'${dashboardSheet}'`,

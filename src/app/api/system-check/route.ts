@@ -1,3 +1,4 @@
+import { getCurrentUser, guardApi } from "@/lib/services/auth";
 import { originFromRequest } from "@/lib/api/origin";
 import { failure, success } from "@/lib/api/respond";
 import { runSystemCheck } from "@/lib/services/system-check";
@@ -7,8 +8,15 @@ export const maxDuration = 60;
 
 /** Manual "Run system check" from the dashboard. */
 export async function POST(request: Request): Promise<Response> {
+  const denied = await guardApi("runReports");
+  if (denied) return denied;
+
   try {
-    const result = await runSystemCheck({ trigger: "manual", appUrl: originFromRequest(request) });
+    const result = await runSystemCheck({
+      trigger: "manual",
+      appUrl: originFromRequest(request),
+      actor: (await getCurrentUser())?.email,
+    });
     return success(
       `Checked ${result.rowsChecked} contract rows — ${result.needsAction} require attention, ${result.rowsWritten} rows refreshed${result.dashboardWritten ? ", Dashboard tab updated" : ""}${result.dataIssues ? `, ${result.dataIssues} rows need fixing` : ""}.`,
       { result },

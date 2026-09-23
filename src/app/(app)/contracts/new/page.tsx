@@ -9,6 +9,7 @@ import { getConfig } from "@/lib/config/env";
 import { todayIn } from "@/lib/date/dates";
 import { defaultEndDate, renewalStartDate } from "@/lib/rules/terms";
 import { getContractById } from "@/lib/services/contracts";
+import { requireViewer } from "@/lib/services/auth";
 import { getRulesConfig } from "@/lib/services/settings";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +24,8 @@ export default async function NewContractPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await requireViewer("editContracts");
+
   const params = await searchParams;
   const renewFrom = typeof params.renewFrom === "string" ? params.renewFrom : "";
   const config = getConfig();

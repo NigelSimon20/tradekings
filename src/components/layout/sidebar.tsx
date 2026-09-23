@@ -1,12 +1,21 @@
 import { BrandWordmark } from "@/components/layout/brand-wordmark";
 import { NAV_ITEMS } from "@/components/layout/nav-items";
 import { NavLink } from "@/components/layout/nav-link";
+import { can } from "@/lib/auth/roles";
 import { getConfig } from "@/lib/config/env";
+import { getCurrentUser } from "@/lib/services/auth";
 import { formatDate, todayIn } from "@/lib/date/dates";
 
-export function Sidebar() {
+export async function Sidebar() {
   const config = getConfig();
+  const user = await getCurrentUser();
   const live = config.dataSource === "google-sheets";
+  const items = NAV_ITEMS.filter((item) => {
+    if (!user) return true;
+    if (item.href === "/reports") return can(user.role, "runReports");
+    if (item.href === "/settings") return can(user.role, "viewAll");
+    return true;
+  });
 
   return (
     <aside className="sticky top-0 hidden h-screen w-[17rem] shrink-0 flex-col overflow-hidden bg-brand-950 lg:flex">
@@ -31,7 +40,7 @@ export function Sidebar() {
           <p className="px-3 pb-2 text-[11px] font-semibold tracking-[0.14em] text-white/35 uppercase">
             Workspace
           </p>
-          {NAV_ITEMS.map((item) => (
+          {items.map((item) => (
             <NavLink
               key={item.href}
               href={item.href}

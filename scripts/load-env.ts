@@ -17,7 +17,11 @@ export function loadEnv(files = [".env.local", ".env"]): void {
       continue;
     }
 
-    for (const [key, value] of parseEnv(contents)) {
+    // A key listed twice resolves to the last entry, matching how Next.js
+    // reads these files — otherwise a script and the app could disagree about
+    // something as important as the signing key.
+    const values = new Map(parseEnv(contents));
+    for (const [key, value] of values) {
       if (process.env[key] === undefined) process.env[key] = value;
     }
   }

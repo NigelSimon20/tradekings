@@ -71,6 +71,20 @@ h2,
   letter-spacing: -0.01em;
 }
 
+/*
+ * Tailwind v4 gives buttons `cursor: default`, which makes them feel inert —
+ * the account menu, the alerts bell and every action button looked unclickable.
+ * Anything you can press gets a pointer; anything disabled keeps the arrow.
+ */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled),
+  summary,
+  label:has(input[type="checkbox"]:not(:disabled)) {
+    cursor: pointer;
+  }
+}
+
 /* Tabular numbers keep day counts and totals aligned in tables. */
 .numeric {
   font-variant-numeric: tabular-nums;

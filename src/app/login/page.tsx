@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { LoginForm } from "@/app/login/login-form";
@@ -7,12 +6,6 @@ import { Alert } from "@/components/ui/alert";
 import { getConfig } from "@/lib/config/env";
 
 export const dynamic = "force-dynamic";
-
-const POINTS = [
-  "Contract expiries tracked for both companies",
-  "Zimkings 5-contract and casual 6-contract limits applied automatically",
-  "Weekly reports for HR and every manager",
-];
 
 export default async function LoginPage({
   searchParams,
@@ -29,98 +22,68 @@ export default async function LoginPage({
   const google = config.auth.google !== null;
 
   return (
-    <main className="grid min-h-screen lg:grid-cols-2">
-      <section className="relative hidden overflow-hidden bg-brand-950 p-12 lg:flex lg:flex-col lg:justify-between">
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(36rem 24rem at 80% 0%, rgba(22,145,208,.45), transparent 60%), radial-gradient(28rem 20rem at 0% 100%, rgba(1,82,144,.55), transparent 65%)",
-          }}
-          aria-hidden
-        />
-        <div className="relative">
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-brand-950 px-4 py-10">
+      {/* The brand blues, thrown softly behind the card. */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(42rem 30rem at 70% -10%, rgba(22,145,208,.45), transparent 62%), radial-gradient(34rem 24rem at 10% 110%, rgba(1,82,144,.65), transparent 60%)",
+        }}
+        aria-hidden
+      />
+
+      <div className="relative w-full max-w-md">
+        <div className="mb-8 text-center">
           <BrandWordmark tone="light" size="lg" />
+          <p className="mt-3 text-sm text-white/60">Blue Collar Contract Tracker</p>
         </div>
 
-        <div className="relative">
-          <h1 className="font-display max-w-md text-3xl leading-tight font-semibold text-white">
-            Blue Collar Contract Tracker
-          </h1>
-          <p className="mt-3 max-w-md text-sm text-white/70">
-            Trade Kings Zimbabwe &amp; Zimkings Trading — one place for blue collar and casual
-            contracts, their limits and their renewals.
-          </p>
-          <ul className="mt-8 space-y-3">
-            {POINTS.map((point) => (
-              <li key={point} className="flex items-start gap-3 text-sm text-white/80">
-                <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-accent-400" aria-hidden />
-                {point}
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <p className="relative text-xs text-white/40">
-          This system holds employee information. Access is limited to the people listed on the
-          Users tab of the contract sheet.
-        </p>
-      </section>
-
-      <section className="flex items-center justify-center px-4 py-12">
-        <div className="w-full max-w-sm">
-          <div className="mb-8 lg:hidden">
-            <BrandWordmark size="md" />
+        <div className="rounded-3xl bg-white/95 p-7 shadow-panel ring-1 ring-white/20 backdrop-blur sm:p-9">
+          <div className="text-center">
+            <h1 className="font-display text-xl font-semibold text-slate-900">Sign in</h1>
+            <p className="mx-auto mt-2 max-w-xs text-sm text-slate-500">
+              {google
+                ? "Use the Google account your employer gave you."
+                : "Enter the access password provided by the system administrator."}
+            </p>
           </div>
 
-          <h2 className="font-display text-xl font-semibold text-slate-900">Sign in</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            {google
-              ? "Use the Google account your employer gave you."
-              : "Enter the access password provided by the system administrator."}
-          </p>
-
           {error ? (
-            <Alert tone="critical" title="Could not sign you in" className="mt-5">
+            <Alert tone="critical" title="Could not sign you in" className="mt-6">
               {error}
             </Alert>
           ) : null}
           {signedOut && !error ? (
-            <Alert tone="success" className="mt-5">
+            <Alert tone="success" className="mt-6">
               You have been signed out.
             </Alert>
           ) : null}
 
-          <div className="mt-6 space-y-5 rounded-2xl bg-white p-6 shadow-card ring-1 ring-slate-200/70">
+          <div className="mt-7">
             {google ? (
               <a
                 href={`/api/auth/google/start?next=${encodeURIComponent(next)}`}
-                className="flex h-11 w-full items-center justify-center gap-3 rounded-xl bg-white text-sm font-medium text-slate-700 ring-1 ring-slate-300 transition hover:bg-slate-50 hover:ring-slate-400"
+                className="group flex h-12 w-full items-center justify-center gap-3 rounded-xl bg-white text-sm font-medium text-slate-700 shadow-sm ring-1 ring-slate-300 transition hover:-translate-y-0.5 hover:shadow-md hover:ring-slate-400 active:translate-y-0"
               >
                 <GoogleMark />
                 Continue with Google
               </a>
-            ) : null}
-
-            {google && config.auth.password ? (
-              <div className="flex items-center gap-3">
-                <span className="h-px flex-1 bg-slate-200" />
-                <span className="text-xs text-slate-400">or</span>
-                <span className="h-px flex-1 bg-slate-200" />
-              </div>
-            ) : null}
-
-            {config.auth.password ? <LoginForm next={next} /> : null}
+            ) : (
+              <LoginForm next={next} />
+            )}
           </div>
 
-          <p className="mt-4 text-center text-xs text-slate-500">
-            Not on the list yet? Ask an administrator to add you.{" "}
-            <Link href="/" className="underline">
-              Back to the tracker
-            </Link>
+          <p className="mt-7 border-t border-slate-100 pt-5 text-center text-xs leading-relaxed text-slate-500">
+            Access is limited to the people listed on the contract sheet. If you cannot get in, ask
+            an administrator to add you.
           </p>
         </div>
-      </section>
+
+        <p className="mt-6 text-center text-xs text-white/40">
+          Trade Kings Zimbabwe (Pvt) Ltd &amp; Zimkings Trading (Pvt) Ltd
+        </p>
+      </div>
     </main>
   );
 }
@@ -128,7 +91,7 @@ export default async function LoginPage({
 /** Google's mark, drawn inline so the page loads nothing from another origin. */
 function GoogleMark() {
   return (
-    <svg viewBox="0 0 24 24" className="size-4" aria-hidden>
+    <svg viewBox="0 0 24 24" className="size-5 transition-transform group-hover:scale-110" aria-hidden>
       <path
         fill="#4285F4"
         d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5a5.6 5.6 0 0 1-2.4 3.7v3h3.9c2.3-2.1 3.5-5.2 3.5-8.9Z"

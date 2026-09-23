@@ -28,7 +28,3 @@ export function Badge({
     </span>
   );
 }
-
-export function Dot({ tone = "neutral" }: { tone?: Tone }) {
-  return <span className={cn("size-1.5 rounded-full", TONE_CLASSES[tone].dot)} aria-hidden />;
-}

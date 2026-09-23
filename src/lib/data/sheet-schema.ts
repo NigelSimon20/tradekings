@@ -1,4 +1,4 @@
-import { formatDate, parseDateValue, parseTimestampValue } from "@/lib/date/dates";
+import { parseDateValue, parseTimestampValue } from "@/lib/date/dates";
 import { FLAG_META, LIMIT_STATUS_META, REHIRE_STATUS_META, STATUS_META } from "@/lib/domain/meta";
 import {
   COMPANIES,
@@ -294,10 +294,6 @@ export function columnLetter(index: number): string {
     current = Math.floor(current / 26) - 1;
   }
   return result;
-}
-
-export function describeContractForSheet(contract: EvaluatedContract): string {
-  return `${contract.employeeName} (${contract.employeeId}) — ${formatDate(contract.endDate)}`;
 }
 
 /** Headings for the settings tab an administrator edits. */

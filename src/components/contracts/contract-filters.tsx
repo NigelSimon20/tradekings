@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/ui/cn";
 import { Input, Select } from "@/components/ui/field";
 import { CONTRACT_STATUSES, COMPANIES, CONTRACT_TYPES, WORKER_TYPES, FLAG_CODES } from "@/lib/domain/types";
-import { DAYS_BUCKETS, toSearchParams, type ContractFilters } from "@/lib/domain/filters";
+import { DAYS_BUCKETS, countActiveFilters, toSearchParams, type ContractFilters } from "@/lib/domain/filters";
 import { FLAG_META, STATUS_META } from "@/lib/domain/meta";
 import type { FilterOptions } from "@/lib/domain/filters";
 
@@ -36,7 +36,7 @@ export function ContractFiltersBar({
     startTransition(() => router.push(`/contracts?${params.toString()}`));
   };
 
-  const activeCount = countActive(filters);
+  const activeCount = countActiveFilters(filters);
 
   return (
     <div className="rounded-2xl bg-white p-4 shadow-card ring-1 ring-slate-200/70">
@@ -217,23 +217,4 @@ function FilterSelect({
       />
     </div>
   );
-}
-
-function countActive(filters: ContractFilters): number {
-  const keys: (keyof ContractFilters)[] = [
-    "view",
-    "q",
-    "company",
-    "workerType",
-    "department",
-    "costCentre",
-    "manager",
-    "contractType",
-    "status",
-    "days",
-    "flag",
-    "location",
-    "history",
-  ];
-  return keys.filter((key) => Boolean(filters[key])).length;
 }

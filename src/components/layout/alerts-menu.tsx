@@ -1,11 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
 
 import { BellIcon, CheckIcon, ChevronRightIcon } from "@/components/ui/icons";
 import type { AlertsSummary } from "@/lib/services/alerts";
+import { useDismissable } from "@/lib/ui/use-dismissable";
 import { useStoredValue } from "@/lib/ui/use-stored-value";
 import { TONE_CLASSES } from "@/lib/ui/tones";
 import { cn } from "@/lib/ui/cn";
@@ -20,32 +19,8 @@ const SEEN_KEY = "tkzim.alerts.seen";
  * returns when the underlying alerts actually change.
  */
 export function AlertsMenu({ alerts }: { alerts: AlertsSummary }) {
-  const pathname = usePathname();
-  // The panel is remembered against the route it was opened on, so navigating
-  // closes it without an effect chasing the pathname.
-  const [openedOn, setOpenedOn] = useState<string | null>(null);
-  const open = openedOn === pathname;
-  const setOpen = (next: boolean) => setOpenedOn(next ? pathname : null);
+  const { container, open, toggle } = useDismissable<HTMLDivElement>();
   const [seen, setSeen] = useStoredValue(SEEN_KEY);
-  const container = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-
-    const onPointerDown = (event: MouseEvent) => {
-      if (!container.current?.contains(event.target as Node)) setOpenedOn(null);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpenedOn(null);
-    };
-
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
 
   const unseen = alerts.total > 0 && seen !== alerts.signature;
 
@@ -55,7 +30,7 @@ export function AlertsMenu({ alerts }: { alerts: AlertsSummary }) {
     <div className="relative" ref={container}>
       <button
         type="button"
-        onClick={() => setOpen(!open)}
+        onClick={toggle}
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={`Alerts — ${alerts.total} item${alerts.total === 1 ? "" : "s"} need attention`}

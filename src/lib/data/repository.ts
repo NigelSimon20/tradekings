@@ -76,3 +76,16 @@ export function companyPrefix(company: string): string {
 export function newRunLogId(): string {
   return `RUN-${Date.now().toString(36).toUpperCase()}`;
 }
+
+/**
+ * Fills in the fields the system owns when a contract is captured. Both data
+ * sources need exactly this, so neither gets to invent its own version.
+ */
+export function stampNewContract(input: ContractInput, at: string): Contract {
+  return {
+    ...input,
+    id: input.id?.trim() || generateContractId(companyPrefix(input.company)),
+    lastUpdated: at,
+    lastUpdatedBy: input.lastUpdatedBy ?? "",
+  };
+}

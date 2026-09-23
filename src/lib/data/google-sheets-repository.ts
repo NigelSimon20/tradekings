@@ -21,8 +21,7 @@ import {
 import { setUpSheet, type SheetSetupResult } from "@/lib/data/sheet-setup";
 import {
   RepositoryError,
-  companyPrefix,
-  generateContractId,
+  stampNewContract,
   type ContractRepository,
   type RepositoryHealth,
 } from "@/lib/data/repository";
@@ -37,6 +36,18 @@ import type {
 import { formatDate, formatDateTime } from "@/lib/date/dates";
 
 const SCOPES = ["https://www.googleapis.com/auth/spreadsheets"];
+
+/** How far past the cache window stale data may still be served while it refreshes. */
+const STALE_LIMIT_MS = 5 * 60 * 1000;
+
+interface Workbook {
+  at: number;
+  header: unknown[];
+  contracts: Contract[];
+  settings: Record<string, string>;
+  users: SheetUser[];
+  runLog: RunLogEntry[];
+}
 
 interface SheetSnapshot {
   header: unknown[];
@@ -56,9 +67,19 @@ export class GoogleSheetsRepository implements ContractRepository {
    * feels instant; every write drops the cache, so nothing the tracker changes
    * is ever served stale.
    */
-  private cache: { at: number; rows: Contract[] } | null = null;
-  private settingsCache: { at: number; values: Record<string, string> } | null = null;
-  private usersCache: { at: number; users: SheetUser[] } | null = null;
+  /**
+   * Every tab the app reads, fetched together.
+   *
+   * Each call to Google is a round trip of roughly a second from Zimbabwe, and
+   * a single page needs the contracts, the settings, the user list and the run
+   * log. Asking for all four in one request turns four seconds of waiting into
+   * one. `inflight` means several components rendering at once share a single
+   * request rather than starting four identical ones.
+   */
+  private workbook: Workbook | null = null;
+  private inflight: Promise<Workbook> | null = null;
+  /** The spreadsheet's name and tab list, which change about once a year. */
+  private spreadsheetInfo: { at: number; title: string; tabs: string[] } | null = null;
 
   constructor(private readonly config: GoogleConfig) {}
 
@@ -67,7 +88,101 @@ export class GoogleSheetsRepository implements ContractRepository {
   }
 
   private invalidate(): void {
-    this.cache = null;
+    this.workbook = null;
+  }
+
+  /** Reads every tab in one request, coalescing concurrent callers. */
+  private async readWorkbook(fresh = false): Promise<Workbook> {
+    const age = this.workbook ? Date.now() - this.workbook.at : Infinity;
+
+    if (!fresh && this.workbook && age < this.cacheTtlMs) return this.workbook;
+    if (!fresh && this.inflight) return this.inflight;
+
+    const load = this.fetchWorkbook()
+      .then((workbook) => {
+        this.workbook = workbook;
+        return workbook;
+      })
+      .finally(() => {
+        this.inflight = null;
+      });
+
+    this.inflight = load;
+
+    // Something a little stale beats making someone wait: the page renders
+    // from what we have while the refresh happens behind it.
+    if (!fresh && this.workbook && age < STALE_LIMIT_MS) {
+      load.catch(() => undefined);
+      return this.workbook;
+    }
+
+    return load;
+  }
+
+  private async fetchWorkbook(): Promise<Workbook> {
+    const { contractsSheet, settingsSheet, usersSheet, runLogSheet } = this.config;
+
+    const response = await this.call(() =>
+      this.api().spreadsheets.values.batchGet({
+        spreadsheetId: this.config.spreadsheetId,
+        ranges: [contractsSheet, settingsSheet, usersSheet, runLogSheet].map((tab) =>
+          this.tabRange(tab),
+        ),
+        valueRenderOption: "UNFORMATTED_VALUE",
+        dateTimeRenderOption: "SERIAL_NUMBER",
+      }),
+    );
+
+    const ranges = response.data.valueRanges ?? [];
+    const values = (position: number) => (ranges[position]?.values ?? []) as unknown[][];
+
+    const contractValues = values(0);
+    if (!contractValues.length) {
+      throw new RepositoryError(
+        `The "${contractsSheet}" tab in the Google Sheet has no headings yet. Ask your system administrator to finish setting the sheet up.`,
+      );
+    }
+
+    const [header, ...rows] = contractValues;
+    const index = buildColumnIndex(header);
+
+    const contracts: Contract[] = [];
+    rows.forEach((row, offset) => {
+      if (isBlankRow(row)) return;
+      contracts.push(parseContractRow(row, index, offset + 2));
+    });
+
+    const settings: Record<string, string> = {};
+    for (const row of values(1)) {
+      const key = settingKeyFor(String(row?.[0] ?? ""));
+      const value = String(row?.[1] ?? "").trim();
+      if (key && value) settings[key] = value;
+    }
+
+    const users = values(2)
+      .slice(1)
+      .map((row, offset) => parseUserRow(row, offset + 2))
+      .filter((user): user is SheetUser => user !== null);
+
+    const runLog = values(3)
+      .slice(1)
+      .filter((row) => !isBlankRow(row))
+      .map((row, position) => ({
+        id: `RUN-${position + 2}`,
+        runAt: String(row[0] ?? ""),
+        type: String(row[1] ?? "system-check") as RunLogEntry["type"],
+        trigger: String(row[2] ?? "manual") as RunLogEntry["trigger"],
+        mode: String(row[3] ?? "send") as RunLogEntry["mode"],
+        recipients: Number(row[4] ?? 0) || 0,
+        emailsSent: Number(row[5] ?? 0) || 0,
+        rowsChecked: Number(row[6] ?? 0) || 0,
+        needsAction: Number(row[7] ?? 0) || 0,
+        errors: String(row[8] ?? "").split(" | ").filter(Boolean),
+        note: String(row[9] ?? ""),
+      }))
+      .reverse();
+
+    return { at: Date.now(), header, contracts, settings, users, runLog };
   }
 
   private api(): sheets_v4.Sheets {
@@ -109,19 +224,7 @@ export class GoogleSheetsRepository implements ContractRepository {
   }
 
   async listContracts(fresh = false): Promise<Contract[]> {
-    if (!fresh && this.cache && Date.now() - this.cache.at < this.cacheTtlMs) {
-      return this.cache.rows;
-    }
-
-    const { index, rows } = await this.readSheet();
-    const contracts: Contract[] = [];
-    rows.forEach((row, offset) => {
-      if (isBlankRow(row)) return;
-      contracts.push(parseContractRow(row, index, offset + 2));
-    });
-
-    this.cache = { at: Date.now(), rows: contracts };
-    return contracts;
+    return (await this.readWorkbook(fresh)).contracts;
   }
 
   async createContract(input: ContractInput): Promise<Contract> {
@@ -137,12 +240,7 @@ export class GoogleSheetsRepository implements ContractRepository {
     const width = Math.max(header.length, ...[...index.values()].map((position) => position + 1));
     const timestamp = new Date().toISOString();
 
-    const contracts: Contract[] = inputs.map((input) => ({
-      ...input,
-      id: input.id?.trim() || generateContractId(companyPrefix(input.company)),
-      lastUpdated: timestamp,
-      lastUpdatedBy: input.lastUpdatedBy ?? "",
-    }));
+    const contracts = inputs.map((input) => stampNewContract(input, timestamp));
 
     const values = contracts.map((contract) => {
       const row: (string | number)[] = new Array(width).fill("");
@@ -348,67 +446,25 @@ export class GoogleSheetsRepository implements ContractRepository {
 
   /** Settings an administrator has filled in on the Settings tab. */
   async readSettings(): Promise<Record<string, string>> {
-    if (this.settingsCache && Date.now() - this.settingsCache.at < this.cacheTtlMs) {
-      return this.settingsCache.values;
-    }
-
     try {
-      const response = await this.api().spreadsheets.values.get({
-        spreadsheetId: this.config.spreadsheetId,
-        range: this.tabRange(this.config.settingsSheet),
-        valueRenderOption: "UNFORMATTED_VALUE",
-      });
-
-      const settings: Record<string, string> = {};
-      for (const row of (response.data.values ?? []) as unknown[][]) {
-        const key = settingKeyFor(String(row?.[0] ?? ""));
-        const value = String(row?.[1] ?? "").trim();
-        if (key && value) settings[key] = value;
-      }
-
-      this.settingsCache = { at: Date.now(), values: settings };
-      return settings;
+      return (await this.readWorkbook()).settings;
     } catch {
-      // No Settings tab yet: the environment variables stand on their own.
       return {};
     }
   }
 
-  /**
-   * Everyone allowed to sign in. Cached briefly like everything else, so a
-   * sign-in does not always cost a round trip; removing someone takes effect
-   * within the cache window.
-   */
+  /** Everyone allowed to sign in, from the Users tab. */
   async listUsers(): Promise<SheetUser[]> {
-    if (this.usersCache && Date.now() - this.usersCache.at < this.cacheTtlMs) {
-      return this.usersCache.users;
-    }
-
     try {
-      const response = await this.api().spreadsheets.values.get({
-        spreadsheetId: this.config.spreadsheetId,
-        range: this.tabRange(this.config.usersSheet),
-        valueRenderOption: "UNFORMATTED_VALUE",
-        dateTimeRenderOption: "FORMATTED_STRING",
-      });
-
-      const values = (response.data.values ?? []) as unknown[][];
-      const users = values
-        .slice(1)
-        .map((row, offset) => parseUserRow(row, offset + 2))
-        .filter((user): user is SheetUser => user !== null);
-
-      this.usersCache = { at: Date.now(), users };
-      return users;
+      return (await this.readWorkbook()).users;
     } catch {
-      // No Users tab yet — nobody is listed, so only the bootstrap
-      // administrators can sign in.
+      // Without the list only the bootstrap administrators can sign in.
       return [];
     }
   }
 
   async recordSignIn(user: SheetUser, at: string): Promise<void> {
-    this.usersCache = null;
+    this.invalidate();
     await this.api().spreadsheets.values.update({
       spreadsheetId: this.config.spreadsheetId,
       range: this.tabRange(this.config.usersSheet, `!E${user.rowNumber}`),
@@ -476,31 +532,7 @@ export class GoogleSheetsRepository implements ContractRepository {
 
   async listRunLog(limit = 20): Promise<RunLogEntry[]> {
     try {
-      const response = await this.api().spreadsheets.values.get({
-        spreadsheetId: this.config.spreadsheetId,
-        range: this.tabRange(this.config.runLogSheet),
-        valueRenderOption: "UNFORMATTED_VALUE",
-        dateTimeRenderOption: "FORMATTED_STRING",
-      });
-      const values = (response.data.values ?? []) as unknown[][];
-      return values
-        .slice(1)
-        .filter((row) => !isBlankRow(row))
-        .map((row, position) => ({
-          id: `RUN-${position + 2}`,
-          runAt: String(row[0] ?? ""),
-          type: (String(row[1] ?? "system-check") as RunLogEntry["type"]) ?? "system-check",
-          trigger: (String(row[2] ?? "manual") as RunLogEntry["trigger"]) ?? "manual",
-          mode: (String(row[3] ?? "send") as RunLogEntry["mode"]) ?? "send",
-          recipients: Number(row[4] ?? 0) || 0,
-          emailsSent: Number(row[5] ?? 0) || 0,
-          rowsChecked: Number(row[6] ?? 0) || 0,
-          needsAction: Number(row[7] ?? 0) || 0,
-          errors: String(row[8] ?? "").split(" | ").filter(Boolean),
-          note: String(row[9] ?? ""),
-        }))
-        .reverse()
-        .slice(0, limit);
+      return (await this.readWorkbook()).runLog.slice(0, limit);
     } catch {
       return [];
     }
@@ -510,22 +542,30 @@ export class GoogleSheetsRepository implements ContractRepository {
   async setUpStorage(options: { seedAdmins?: string[] } = {}): Promise<SheetSetupResult> {
     const result = await this.call(() => setUpSheet(this.api(), this.config, options));
     this.invalidate();
-    this.settingsCache = null;
-    this.usersCache = null;
+    this.spreadsheetInfo = null;
     return result;
   }
 
   async healthCheck(): Promise<RepositoryHealth> {
     try {
-      const response = await this.call(() =>
-        this.api().spreadsheets.get({
-          spreadsheetId: this.config.spreadsheetId,
-          fields: "properties.title,sheets.properties.title",
-        }),
-      );
+      // The name and tabs barely ever change, so they are not worth a round
+      // trip on every visit to the settings page.
+      if (!this.spreadsheetInfo || Date.now() - this.spreadsheetInfo.at > this.cacheTtlMs) {
+        const response = await this.call(() =>
+          this.api().spreadsheets.get({
+            spreadsheetId: this.config.spreadsheetId,
+            fields: "properties.title,sheets.properties.title",
+          }),
+        );
 
-      const title = response.data.properties?.title ?? "Untitled spreadsheet";
-      const tabs = (response.data.sheets ?? []).map((sheet) => sheet.properties?.title ?? "");
+        this.spreadsheetInfo = {
+          at: Date.now(),
+          title: response.data.properties?.title ?? "Untitled spreadsheet",
+          tabs: (response.data.sheets ?? []).map((sheet) => sheet.properties?.title ?? ""),
+        };
+      }
+
+      const { title, tabs } = this.spreadsheetInfo;
       const warnings: string[] = [];
 
       if (!tabs.includes(this.config.contractsSheet)) {
@@ -533,7 +573,7 @@ export class GoogleSheetsRepository implements ContractRepository {
         return { ok: false, detail: `Connected to "${title}"`, warnings };
       }
 
-      const { header } = await this.readSheet();
+      const { header } = await this.readWorkbook();
       const missing = missingColumns(header);
       if (missing.length) {
         warnings.push(`Missing columns: ${missing.map((column) => column.header).join(", ")}.`);

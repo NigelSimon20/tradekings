@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect } from "react";
 
 import { BrandWordmark } from "@/components/layout/brand-wordmark";
+import { AdminDetails } from "@/components/ui/admin-details";
 
 /**
  * Shown when a page cannot load — usually because the Google Sheet is
@@ -48,14 +49,11 @@ export default function AppError({
           </Link>
         </div>
 
-        <details className="mt-5 text-xs text-slate-500">
-          <summary className="cursor-pointer select-none hover:text-slate-700">
-            Details for the system administrator
-          </summary>
-          <p className="mt-2 rounded-lg bg-slate-50 p-3 break-words text-slate-600">
-            {error.message}
-          </p>
-        </details>
+        <div className="mt-5">
+          <AdminDetails>
+            <p className="rounded-lg bg-slate-50 p-3 break-words text-slate-600">{error.message}</p>
+          </AdminDetails>
+        </div>
       </div>
     </main>
   );

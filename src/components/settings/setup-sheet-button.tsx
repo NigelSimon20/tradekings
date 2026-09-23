@@ -1,40 +1,33 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-
-import { setUpSheetAction, type SetupState } from "@/app/(app)/settings/actions";
+import { setUpSheetAction } from "@/app/(app)/settings/actions";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { RefreshIcon } from "@/components/ui/icons";
+import { useApiAction } from "@/lib/ui/use-api-action";
 
 /**
  * Creates the tabs, headings, dropdowns and colour coding in the Google Sheet.
  * Adding only what is missing makes this safe to press at any time.
  */
 export function SetupSheetButton({ connected }: { connected: boolean }) {
-  const router = useRouter();
-  const [state, setState] = useState<SetupState | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [, startTransition] = useTransition();
+  const { busy, result, run } = useApiAction();
 
-  const run = async () => {
+  const prepare = () => {
     if (!window.confirm("Check the Google Sheet and add anything that is missing?")) return;
-    setBusy(true);
-    setState(null);
-    try {
-      const result = await setUpSheetAction();
-      setState(result);
-      startTransition(() => router.refresh());
-    } finally {
-      setBusy(false);
-    }
+
+    void run("setup", async () => {
+      const outcome = await setUpSheetAction();
+      return outcome.status === "done"
+        ? { ok: true, message: outcome.messages.join(" ") }
+        : { ok: false, error: outcome.messages.join(" ") };
+    });
   };
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-3">
-        <Button variant="secondary" onClick={() => void run()} disabled={busy || !connected}>
+        <Button variant="secondary" onClick={prepare} disabled={busy !== null || !connected}>
           <RefreshIcon className="size-4" />
           {busy ? "Checking the sheet…" : "Prepare the Google Sheet"}
         </Button>
@@ -44,16 +37,12 @@ export function SetupSheetButton({ connected }: { connected: boolean }) {
         </p>
       </div>
 
-      {state ? (
+      {result ? (
         <Alert
-          tone={state.status === "done" ? "success" : "critical"}
-          title={state.status === "done" ? "Sheet checked" : "That did not work"}
+          tone={result.tone === "success" ? "success" : "critical"}
+          title={result.tone === "success" ? "Sheet checked" : "That did not work"}
         >
-          <ul className="space-y-1">
-            {state.messages.map((message) => (
-              <li key={message}>{message}</li>
-            ))}
-          </ul>
+          {result.text}
         </Alert>
       ) : null}
     </div>

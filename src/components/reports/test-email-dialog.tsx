@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
 import { SendIcon } from "@/components/ui/icons";
 import { Modal } from "@/components/ui/modal";
+import { postJson, useApiAction } from "@/lib/ui/use-api-action";
 
 /**
  * Proves email works before anyone relies on the weekly run — without emailing
@@ -15,27 +16,7 @@ import { Modal } from "@/components/ui/modal";
 export function TestEmailDialog({ defaultAddress }: { defaultAddress: string }) {
   const [open, setOpen] = useState(false);
   const [address, setAddress] = useState(defaultAddress);
-  const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<{ tone: "success" | "critical"; text: string } | null>(null);
-
-  const send = async () => {
-    setBusy(true);
-    setResult(null);
-    try {
-      const response = await fetch("/api/reports/test", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ to: address }),
-      });
-      const payload = (await response.json()) as { ok?: boolean; message?: string; error?: string };
-      if (!response.ok || payload.ok === false) throw new Error(payload.error ?? "The test failed.");
-      setResult({ tone: "success", text: payload.message ?? "Sent." });
-    } catch (error) {
-      setResult({ tone: "critical", text: (error as Error).message });
-    } finally {
-      setBusy(false);
-    }
-  };
+  const { busy, result, run } = useApiAction();
 
   return (
     <>
@@ -54,7 +35,10 @@ export function TestEmailDialog({ defaultAddress }: { defaultAddress: string }) 
             <Button variant="ghost" onClick={() => setOpen(false)}>
               Close
             </Button>
-            <Button onClick={() => void send()} disabled={busy || !address.trim()}>
+            <Button
+              disabled={busy !== null || !address.trim()}
+              onClick={() => void run("test", () => postJson("/api/reports/test", { to: address }))}
+            >
               {busy ? "Sending…" : "Send test"}
             </Button>
           </>

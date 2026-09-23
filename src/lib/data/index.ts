@@ -22,8 +22,3 @@ export function getRepository(): ContractRepository {
 
   return repository;
 }
-
-/** Test seam — forces the next call to rebuild the repository. */
-export function resetRepository(): void {
-  repository = null;
-}

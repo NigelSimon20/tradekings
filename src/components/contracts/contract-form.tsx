@@ -9,6 +9,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
+import { RuleSummary } from "@/components/ui/rule-summary";
 import { resolveRuleSetId, type RulesConfig } from "@/lib/config/rules";
 import { EMPTY_FORM_STATE } from "@/lib/domain/form-state";
 import {
@@ -264,14 +265,7 @@ export function ContractForm({
         <Card>
           <CardHeader title="Rules being applied" description={ruleSet.label} />
           <CardBody>
-            <ul className="space-y-2 text-sm text-slate-600">
-              {ruleSet.summary.map((rule) => (
-                <li key={rule} className="flex gap-2">
-                  <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-brand-600" aria-hidden />
-                  {rule}
-                </li>
-              ))}
-            </ul>
+            <RuleSummary ruleSet={ruleSet} />
           </CardBody>
         </Card>
       </aside>

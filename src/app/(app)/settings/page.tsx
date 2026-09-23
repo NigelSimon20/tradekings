@@ -6,6 +6,7 @@ import { DefinitionList } from "@/components/ui/definition-list";
 import { ContractsIcon, ReportsIcon, SettingsIcon } from "@/components/ui/icons";
 import { describeRole } from "@/lib/auth/roles";
 import { PageHeader } from "@/components/ui/page-header";
+import { RuleSummary } from "@/components/ui/rule-summary";
 import { TBody, THead, Table, TableWrap, Td, Th, Tr } from "@/components/ui/table";
 
 import { COLUMN_TYPE_LABELS } from "@/lib/domain/meta";
@@ -55,14 +56,7 @@ export default async function SettingsPage() {
               }
             />
             <CardBody>
-              <ul className="space-y-2 text-sm text-slate-600">
-                {ruleSet.summary.map((rule) => (
-                  <li key={rule} className="flex gap-2">
-                    <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-brand-600" aria-hidden />
-                    {rule}
-                  </li>
-                ))}
-              </ul>
+              <RuleSummary ruleSet={ruleSet} />
             </CardBody>
           </Card>
         ))}

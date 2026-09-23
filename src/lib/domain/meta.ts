@@ -251,11 +251,3 @@ export const COLUMN_TYPE_LABELS = {
   number: "Number",
   datetime: "Date & time",
 } as const;
-
-export function statusLabel(status: ContractStatus): string {
-  return STATUS_META[status].label;
-}
-
-export function flagLabel(code: FlagCode): string {
-  return FLAG_META[code].label;
-}

@@ -1,7 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useRef, useState, useTransition } from "react";
+import { useRef, useState } from "react";
 
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -9,6 +8,7 @@ import { DownloadIcon, UploadIcon } from "@/components/ui/icons";
 import { Modal } from "@/components/ui/modal";
 import type { ImportSummary } from "@/lib/services/import";
 import { cn } from "@/lib/ui/cn";
+import { postForm, useApiAction } from "@/lib/ui/use-api-action";
 
 type Step = "choose" | "review" | "done";
 
@@ -19,23 +19,20 @@ type Step = "choose" | "review" | "done";
  * first request only validates and reports, the second writes the new rows.
  */
 export function ImportDialog() {
-  const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>("choose");
   const [file, setFile] = useState<File | null>(null);
   const [summary, setSummary] = useState<ImportSummary | null>(null);
   const [includeDuplicates, setIncludeDuplicates] = useState(false);
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
-  const [, startTransition] = useTransition();
+  const { busy, result, setResult, run } = useApiAction();
 
   const reset = () => {
     setStep("choose");
     setFile(null);
     setSummary(null);
-    setError("");
+    setResult(null);
     setIncludeDuplicates(false);
   };
 
@@ -46,32 +43,21 @@ export function ImportDialog() {
   };
 
   const send = async (mode: "preview" | "commit", chosen: File) => {
-    setBusy(true);
-    setError("");
-    try {
-      const body = new FormData();
-      body.set("file", chosen);
-      body.set("mode", mode);
-      body.set("includeDuplicates", String(includeDuplicates));
+    const body = new FormData();
+    body.set("file", chosen);
+    body.set("mode", mode);
+    body.set("includeDuplicates", String(includeDuplicates));
 
-      const response = await fetch("/api/import", { method: "POST", body });
-      const payload = (await response.json()) as {
-        ok?: boolean;
-        error?: string;
-        summary?: ImportSummary;
-      };
-      if (!response.ok || payload.ok === false || !payload.summary) {
-        throw new Error(payload.error ?? "The file could not be read.");
-      }
+    // The preview is not an achievement worth announcing; only a commit is.
+    const payload = await run(mode, () => postForm("/api/import", body), {
+      refresh: mode === "commit",
+    });
+    if (!payload) return;
 
-      setSummary(payload.summary);
-      setStep(mode === "commit" ? "done" : "review");
-      if (mode === "commit") startTransition(() => router.refresh());
-    } catch (caught) {
-      setError((caught as Error).message);
-    } finally {
-      setBusy(false);
-    }
+    const next = (payload as { summary?: ImportSummary }).summary ?? null;
+    setSummary(next);
+    if (mode === "preview") setResult(null);
+    setStep(mode === "commit" ? "done" : "review");
   };
 
   const choose = (chosen: File | undefined) => {
@@ -96,14 +82,16 @@ export function ImportDialog() {
         footer={
           step === "review" && summary ? (
             <>
-              <Button variant="ghost" onClick={() => reset()} disabled={busy}>
+              <Button variant="ghost" onClick={reset} disabled={busy !== null}>
                 Choose another file
               </Button>
               <Button
                 onClick={() => file && void send("commit", file)}
-                disabled={busy || summary.newRows + (includeDuplicates ? summary.duplicates : 0) === 0}
+                disabled={
+                  busy !== null || summary.newRows + (includeDuplicates ? summary.duplicates : 0) === 0
+                }
               >
-                {busy
+                {busy === "commit"
                   ? "Importing…"
                   : `Import ${summary.newRows + (includeDuplicates ? summary.duplicates : 0)} contracts`}
               </Button>
@@ -115,9 +103,9 @@ export function ImportDialog() {
           )
         }
       >
-        {error ? (
+        {result?.tone === "critical" ? (
           <Alert tone="critical" title="That did not work" className="mb-4">
-            {error}
+            {result.text}
           </Alert>
         ) : null}
 
@@ -160,9 +148,9 @@ export function ImportDialog() {
                 size="sm"
                 className="mt-4"
                 onClick={() => inputRef.current?.click()}
-                disabled={busy}
+                disabled={busy !== null}
               >
-                {busy ? "Reading…" : "Choose file"}
+                {busy === "preview" ? "Reading…" : "Choose file"}
               </Button>
             </div>
 

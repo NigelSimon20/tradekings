@@ -185,19 +185,9 @@ function describeRules(ruleSet: RuleSet, config: RulesConfig): string[] {
   ];
 }
 
-/**
- * An expired contract becomes "Overdue" once it has been past its end date for
- * this many days without HR updating it.
- */
-export const OVERDUE_AFTER_DAYS = 7;
-
 export function resolveRuleSetId(company: Company, workerType: WorkerType): RuleSetId {
   if (workerType === "Casual") return "CASUAL";
   return company === "Zimkings" ? "ZK_BLUE_COLLAR" : "TK_BLUE_COLLAR";
-}
-
-export function resolveRuleSet(company: Company, workerType: WorkerType): RuleSet {
-  return RULE_SETS[resolveRuleSetId(company, workerType)];
 }
 
 /**

@@ -4,14 +4,13 @@ import { LoginForm } from "@/app/login/login-form";
 import { BrandWordmark } from "@/components/layout/brand-wordmark";
 import { Alert } from "@/components/ui/alert";
 import { getConfig } from "@/lib/config/env";
+import type { PageSearchParams } from "@/lib/domain/filters";
 
 export const dynamic = "force-dynamic";
 
 export default async function LoginPage({
   searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
+}: PageSearchParams) {
   const config = getConfig();
   if (!config.auth.enabled) redirect("/");
 

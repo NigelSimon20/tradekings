@@ -7,15 +7,8 @@ import { LinkRow, TBody, THead, Table, TableWrap, Td, Th, Tr } from "@/component
 import { describeDays, formatDate } from "@/lib/date/dates";
 import { STATUS_META } from "@/lib/domain/meta";
 import { TONE_CLASSES } from "@/lib/ui/tones";
-import { cn } from "@/lib/ui/cn";
+import { cn, initialsOf } from "@/lib/ui/cn";
 import type { EvaluatedContract } from "@/lib/domain/types";
-
-/** First letters of the employee's name, for the row avatar. */
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (!parts.length) return "—";
-  return (parts[0][0] + (parts[1]?.[0] ?? "")).toUpperCase();
-}
 
 export function ContractTable({
   contracts,
@@ -54,7 +47,7 @@ export function ContractTable({
                   )}
                   aria-hidden
                 >
-                  {initials(contract.employeeName)}
+                  {initialsOf(contract.employeeName)}
                 </span>
 
                 <span className="min-w-0 flex-1">
@@ -123,7 +116,7 @@ export function ContractTable({
                       )}
                       aria-hidden
                     >
-                      {initials(contract.employeeName)}
+                      {initialsOf(contract.employeeName)}
                     </span>
                     <span className="min-w-0">
                       <Link

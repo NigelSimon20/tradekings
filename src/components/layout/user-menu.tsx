@@ -1,13 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
 
 import { signOutAction } from "@/app/login/actions";
 import { ChevronRightIcon, SettingsIcon, SignOutIcon } from "@/components/ui/icons";
 import { describeRole, type Role } from "@/lib/auth/roles";
-import { cn } from "@/lib/ui/cn";
+import { cn, initialsOf } from "@/lib/ui/cn";
+import { useDismissable } from "@/lib/ui/use-dismissable";
 
 export interface MenuUser {
   name: string;
@@ -22,44 +21,13 @@ export interface MenuUser {
  * a named item in a menu opened from your own name.
  */
 export function UserMenu({ user, signInEnabled }: { user: MenuUser; signInEnabled: boolean }) {
-  const pathname = usePathname();
-  // Remembering the route the menu was opened on closes it on navigation,
-  // without an effect chasing the pathname.
-  const [openedOn, setOpenedOn] = useState<string | null>(null);
-  const open = openedOn === pathname;
-  const container = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-
-    const onPointerDown = (event: MouseEvent) => {
-      if (!container.current?.contains(event.target as Node)) setOpenedOn(null);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpenedOn(null);
-    };
-
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
-
-  const initials =
-    user.name
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase())
-      .join("") || "?";
+  const { container, open, toggle } = useDismissable<HTMLDivElement>();
 
   return (
     <div className="relative" ref={container}>
       <button
         type="button"
-        onClick={() => setOpenedOn(open ? null : pathname)}
+        onClick={toggle}
         aria-expanded={open}
         aria-haspopup="menu"
         className={cn(
@@ -72,7 +40,7 @@ export function UserMenu({ user, signInEnabled }: { user: MenuUser; signInEnable
           <span className="block text-slate-500">{user.role}</span>
         </span>
         <span className="inline-flex size-8 items-center justify-center rounded-lg bg-brand-700 text-xs font-semibold text-white">
-          {initials}
+          {initialsOf(user.name)}
         </span>
       </button>
 

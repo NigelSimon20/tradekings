@@ -31,7 +31,3 @@ export function makeContract(overrides: Partial<Contract> = {}): Contract {
     ...overrides,
   };
 }
-
-export function resetContractSequence(): void {
-  sequence = 0;
-}

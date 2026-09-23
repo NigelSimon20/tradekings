@@ -72,14 +72,6 @@ export function addMonths(date: ISODate, months: number): ISODate {
   return fromUTC(Date.UTC(year, month + months, Math.min(day, lastDayOfTarget)));
 }
 
-export function minISO(a: ISODate, b: ISODate): ISODate {
-  return toUTC(a) <= toUTC(b) ? a : b;
-}
-
-export function maxISO(a: ISODate, b: ISODate): ISODate {
-  return toUTC(a) >= toUTC(b) ? a : b;
-}
-
 export function isBefore(a: ISODate, b: ISODate): boolean {
   return toUTC(a) < toUTC(b);
 }

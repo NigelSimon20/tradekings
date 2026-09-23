@@ -3,8 +3,7 @@ import "server-only";
 import { getConfig } from "@/lib/config/env";
 import { getRepository } from "@/lib/data";
 import { newRunLogId } from "@/lib/data/repository";
-import { DATA_QUALITY_FLAGS } from "@/lib/domain/meta";
-import { CONTRACT_VIEWS, countView, rowsForView } from "@/lib/domain/views";
+import { CONTRACT_VIEWS, countDataIssues, countView, rowsForView } from "@/lib/domain/views";
 import { breakdownByCompany, loadFreshSnapshot } from "@/lib/services/contracts";
 
 export interface SystemCheckResult {
@@ -64,9 +63,7 @@ export async function runSystemCheck(
     warnings.push(`The Dashboard tab was not updated: ${(error as Error).message}`);
   }
 
-  const dataIssues = contracts.filter((contract) =>
-    contract.computed.flags.some((flag) => DATA_QUALITY_FLAGS.includes(flag.code)),
-  ).length;
+  const dataIssues = countDataIssues(contracts);
   const needsAction = latest.filter((contract) => contract.computed.needsAction).length;
 
   const result: SystemCheckResult = {

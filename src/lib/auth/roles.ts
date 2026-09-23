@@ -35,10 +35,6 @@ export function can(role: Role, permission: Permission): boolean {
   return ROLE_PERMISSIONS[role].includes(permission);
 }
 
-export function permissionsFor(role: Role): readonly Permission[] {
-  return ROLE_PERMISSIONS[role];
-}
-
 /** Matches a role however it was typed in the sheet. */
 export function parseRole(value: string): Role | null {
   const text = value.trim().toLowerCase();

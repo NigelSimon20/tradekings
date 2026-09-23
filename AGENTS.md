@@ -63,6 +63,20 @@ dashboard and sends the weekly reports. See README.md for setup.
 - New API routes are protected by the proxy by default; adding a path to the
   `/api/cron` exemption means it must check `authoriseCron`.
 
+## Shared pieces — use these, do not re-invent them
+
+- `useApiAction()` + `postJson`/`postForm` (`lib/ui/use-api-action.ts`) for any
+  button that calls the server: it owns the busy state, the result message and
+  the refresh.
+- `useDismissable()` (`lib/ui/use-dismissable.ts`) for any pop-over: Escape,
+  click-outside and close-on-navigate.
+- `Portal` for anything overlaying the page — a `backdrop-filter` ancestor
+  otherwise traps `position: fixed`.
+- `RuleSummary`, `AdminDetails`, `LinkRow`, `StatCard`, `DefinitionList` before
+  writing the markup again.
+- `countDataIssues`, `countActiveFilters`, `initialsOf`, `stampNewContract`,
+  `PageSearchParams` — one definition each, already imported where needed.
+
 ## Conventions
 
 - Server components by default; `"use client"` only for interaction.

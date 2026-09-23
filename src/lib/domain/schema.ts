@@ -56,8 +56,6 @@ export const contractSchema = z
     path: ["endDate"],
   });
 
-export type ContractFormValues = z.infer<typeof contractSchema>;
-
 export interface ParsedForm {
   ok: boolean;
   values: ContractInput | null;

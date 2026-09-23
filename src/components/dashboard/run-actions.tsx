@@ -1,12 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-
 import { Button } from "@/components/ui/button";
 import { RefreshIcon, SendIcon } from "@/components/ui/icons";
-
-type Result = { tone: "success" | "error"; message: string } | null;
+import { postJson, useApiAction } from "@/lib/ui/use-api-action";
 
 /**
  * The manual controls from the specification: re-run the rules over the whole
@@ -14,35 +10,18 @@ type Result = { tone: "success" | "error"; message: string } | null;
  * it emails managers immediately.
  */
 export function RunActions({ canSend }: { canSend: boolean }) {
-  const router = useRouter();
-  const [result, setResult] = useState<Result>(null);
-  const [pending, startTransition] = useTransition();
-  const [busy, setBusy] = useState<"check" | "report" | null>(null);
+  const { busy, result, setResult, run } = useApiAction();
 
-  const call = async (action: "check" | "report") => {
-    setBusy(action);
-    setResult(null);
-    try {
-      const response = await fetch(action === "check" ? "/api/system-check" : "/api/reports/run", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ mode: "send", trigger: "manual" }),
+  const sendReports = () => {
+    if (!canSend) {
+      setResult({
+        tone: "critical",
+        text: "No HR recipient has been set yet — add one on the Settings tab of the Google Sheet.",
       });
-      const payload = (await response.json()) as {
-        ok?: boolean;
-        message?: string;
-        error?: string;
-      };
-      if (!response.ok || payload.ok === false) {
-        throw new Error(payload.error ?? "The request failed.");
-      }
-      setResult({ tone: "success", message: payload.message ?? "Done." });
-      startTransition(() => router.refresh());
-    } catch (error) {
-      setResult({ tone: "error", message: (error as Error).message });
-    } finally {
-      setBusy(null);
+      return;
     }
+    if (!window.confirm("Send the weekly contract reports to HR and every manager now?")) return;
+    void run("report", () => postJson("/api/reports/run", { mode: "send" }));
   };
 
   return (
@@ -50,38 +29,25 @@ export function RunActions({ canSend }: { canSend: boolean }) {
       <div className="flex flex-wrap items-center gap-2">
         <Button
           variant="secondary"
-          onClick={() => call("check")}
-          disabled={busy !== null || pending}
+          disabled={busy !== null}
+          onClick={() => void run("check", () => postJson("/api/system-check"))}
         >
           <RefreshIcon />
           {busy === "check" ? "Checking…" : "Run system check"}
         </Button>
-        <Button
-          onClick={() => {
-            if (!canSend) {
-              setResult({
-                tone: "error",
-                message:
-                  "No HR recipient has been set yet — add one on the Settings tab of the Google Sheet.",
-              });
-              return;
-            }
-            if (window.confirm("Send the weekly contract reports to HR and every manager now?")) {
-              void call("report");
-            }
-          }}
-          disabled={busy !== null || pending}
-        >
+
+        <Button onClick={sendReports} disabled={busy !== null}>
           <SendIcon />
           {busy === "report" ? "Sending…" : "Run weekly report"}
         </Button>
       </div>
+
       {result ? (
         <p
-          className={`text-xs ${result.tone === "success" ? "text-emerald-700" : "text-red-700"}`}
           role="status"
+          className={`text-xs ${result.tone === "success" ? "text-emerald-700" : "text-red-700"}`}
         >
-          {result.message}
+          {result.text}
         </p>
       ) : null}
     </div>

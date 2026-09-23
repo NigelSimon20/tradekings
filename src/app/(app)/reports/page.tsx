@@ -16,6 +16,7 @@ import { previewReport } from "@/lib/reports/run";
 import { requireViewer } from "@/lib/services/auth";
 import { listRunLog, loadSnapshot } from "@/lib/services/contracts";
 import { cn } from "@/lib/ui/cn";
+import type { PageSearchParams } from "@/lib/domain/filters";
 
 export const dynamic = "force-dynamic";
 
@@ -25,9 +26,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function ReportsPage({
   searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
+}: PageSearchParams) {
   await requireViewer("runReports");
 
   const params = await searchParams;

@@ -51,6 +51,11 @@ export const DAYS_BUCKETS: { value: string; label: string; matches: (days: numbe
 
 export type SearchParamsInput = Record<string, string | string[] | undefined>;
 
+/** Props Next.js gives a page that reads the query string. */
+export interface PageSearchParams {
+  searchParams: Promise<SearchParamsInput>;
+}
+
 function single(params: SearchParamsInput, key: string): string {
   const value = params[key];
   if (Array.isArray(value)) return value[0]?.trim() ?? "";
@@ -88,11 +93,11 @@ export function toSearchParams(filters: Partial<ContractFilters>): URLSearchPara
   return params;
 }
 
+/** How many filters the person has set, for the "Clear filters" button. */
 export function countActiveFilters(filters: ContractFilters): number {
-  return (Object.keys(EMPTY_FILTERS) as (keyof ContractFilters)[]).filter((key) => {
-    if (key === "page") return false;
-    return filters[key] !== EMPTY_FILTERS[key];
-  }).length;
+  return (Object.keys(EMPTY_FILTERS) as (keyof ContractFilters)[]).filter(
+    (key) => key !== "page" && filters[key] !== EMPTY_FILTERS[key],
+  ).length;
 }
 
 function matchesSearch(contract: EvaluatedContract, term: string): boolean {

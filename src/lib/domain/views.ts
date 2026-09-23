@@ -24,6 +24,13 @@ export interface ContractView {
 const hasFlag = (contract: EvaluatedContract, ...codes: string[]) =>
   contract.computed.flags.some((flag) => codes.includes(flag.code));
 
+/** Rows an HR person has to go and fix in the spreadsheet. */
+export function countDataIssues(contracts: EvaluatedContract[]): number {
+  return contracts.filter((contract) =>
+    contract.computed.flags.some((flag) => DATA_QUALITY_FLAGS.includes(flag.code)),
+  ).length;
+}
+
 export const CONTRACT_VIEWS: ContractView[] = [
   {
     id: "active",

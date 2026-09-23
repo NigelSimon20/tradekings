@@ -9,8 +9,11 @@ export const maxDuration = 60;
 /** A 2 MB file is roughly 10,000 contract rows — far beyond a normal import. */
 const MAX_BYTES = 2 * 1024 * 1024;
 
-/** Downloads the import template. */
-export function GET(): Response {
+/** Downloads the import template — for the people who can actually import. */
+export async function GET(): Promise<Response> {
+  const denied = await guardApi("editContracts");
+  if (denied) return denied;
+
   return new Response(importTemplateCsv(), {
     headers: {
       "content-type": "text/csv; charset=utf-8",

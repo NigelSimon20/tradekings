@@ -1,3 +1,4 @@
+import { AdminDetails } from "@/components/ui/admin-details";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { AlertIcon } from "@/components/ui/icons";
 import { configurationProblems, getConfig } from "@/lib/config/env";
@@ -65,11 +66,8 @@ export function DatabaseUnavailable({ reason }: { reason: string }) {
         </p>
 
         {problems.length ? (
-          <details className="text-xs text-slate-500">
-            <summary className="cursor-pointer select-none hover:text-slate-700">
-              Details for the system administrator
-            </summary>
-            <ul className="mt-2 space-y-1 rounded-lg bg-slate-50 p-3 font-mono text-slate-600">
+          <AdminDetails>
+            <ul className="space-y-1 rounded-lg bg-slate-50 p-3 font-mono text-slate-600">
               {problems.map((problem) => (
                 <li key={problem}>· {problem}</li>
               ))}
@@ -78,7 +76,7 @@ export function DatabaseUnavailable({ reason }: { reason: string }) {
               On a hosted deployment these are set in the hosting project&rsquo;s environment
               settings, not in a local file.
             </p>
-          </details>
+          </AdminDetails>
         ) : null}
       </CardBody>
     </Card>

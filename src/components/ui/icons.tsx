@@ -127,13 +127,6 @@ export const CheckIcon = (props: SVGProps<SVGSVGElement>) => (
   </Icon>
 );
 
-export const SearchIcon = (props: SVGProps<SVGSVGElement>) => (
-  <Icon {...props}>
-    <circle cx="11" cy="11" r="7" />
-    <path d="m20 20-3.5-3.5" />
-  </Icon>
-);
-
 export const SignOutIcon = (props: SVGProps<SVGSVGElement>) => (
   <Icon {...props}>
     <path d="M15 5V4a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" />

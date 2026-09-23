@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { Tone } from "@/lib/domain/meta";
-import { DATA_QUALITY_FLAGS } from "@/lib/domain/meta";
+import { countDataIssues } from "@/lib/domain/views";
 import type { EvaluatedContract } from "@/lib/domain/types";
 import { describeDays } from "@/lib/date/dates";
 import { sortByUrgency } from "@/lib/domain/filters";
@@ -43,9 +43,7 @@ export async function loadAlerts(): Promise<AlertsSummary> {
   const count = (predicate: (contract: EvaluatedContract) => boolean) =>
     latest.reduce((total, contract) => (predicate(contract) ? total + 1 : total), 0);
 
-  const dataIssues = contracts.filter((contract) =>
-    contract.computed.flags.some((flag) => DATA_QUALITY_FLAGS.includes(flag.code)),
-  ).length;
+  const dataIssues = countDataIssues(contracts);
 
   const groups: AlertGroup[] = ([
     {

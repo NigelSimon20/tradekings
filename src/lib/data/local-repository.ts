@@ -4,8 +4,7 @@ import path from "node:path";
 import { isServerless } from "@/lib/config/env";
 import {
   RepositoryError,
-  companyPrefix,
-  generateContractId,
+  stampNewContract,
   type ContractRepository,
   type RepositoryHealth,
 } from "@/lib/data/repository";
@@ -128,12 +127,7 @@ export class LocalJsonRepository implements ContractRepository {
 
   async createContract(input: ContractInput): Promise<Contract> {
     return this.mutate((store) => {
-      const contract: Contract = {
-        ...input,
-        id: input.id?.trim() || generateContractId(companyPrefix(input.company)),
-        lastUpdated: new Date().toISOString(),
-        lastUpdatedBy: input.lastUpdatedBy ?? "",
-      };
+      const contract = stampNewContract(input, new Date().toISOString());
       store.contracts.push(contract);
       return contract;
     });
@@ -143,12 +137,7 @@ export class LocalJsonRepository implements ContractRepository {
     if (!inputs.length) return [];
     return this.mutate((store) => {
       const timestamp = new Date().toISOString();
-      const created = inputs.map((input) => ({
-        ...input,
-        id: input.id?.trim() || generateContractId(companyPrefix(input.company)),
-        lastUpdated: timestamp,
-        lastUpdatedBy: input.lastUpdatedBy ?? "",
-      }));
+      const created = inputs.map((input) => stampNewContract(input, timestamp));
       store.contracts.push(...created);
       return created;
     });

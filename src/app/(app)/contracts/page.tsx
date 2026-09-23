@@ -19,6 +19,7 @@ import {
 import { getView } from "@/lib/domain/views";
 import { can } from "@/lib/auth/roles";
 import { loadVisibleSnapshot } from "@/lib/services/auth";
+import type { PageSearchParams } from "@/lib/domain/filters";
 
 export const dynamic = "force-dynamic";
 
@@ -26,9 +27,7 @@ const PAGE_SIZE = 50;
 
 export default async function ContractsPage({
   searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
+}: PageSearchParams) {
   const filters = parseFilters(await searchParams);
   const { contracts, user } = await loadVisibleSnapshot();
   const mayEdit = user ? can(user.role, "editContracts") : false;

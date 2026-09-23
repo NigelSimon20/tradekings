@@ -234,8 +234,3 @@ export function configurationProblems(): string[] {
 export function isServerless(): boolean {
   return Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
 }
-
-/** Test seam — clears the memoised config. */
-export function resetConfigCache(): void {
-  cached = null;
-}

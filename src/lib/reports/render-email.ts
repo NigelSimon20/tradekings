@@ -1,5 +1,5 @@
 import { describeDays, formatDate, formatDateTime } from "@/lib/date/dates";
-import { FLAG_META, STATUS_META } from "@/lib/domain/meta";
+import { STATUS_META } from "@/lib/domain/meta";
 import type { EvaluatedContract, FlagCode } from "@/lib/domain/types";
 import type { ReportData, ReportSection } from "@/lib/reports/build";
 import { TONE_COLORS } from "@/lib/ui/tones";
@@ -263,9 +263,4 @@ export function escapeHtml(value: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
-}
-
-/** Flag labels, exported for the plain-text renderer and tests. */
-export function flagSectionTitle(code: FlagCode): string {
-  return FLAG_META[code].label;
 }

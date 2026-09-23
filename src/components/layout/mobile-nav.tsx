@@ -2,36 +2,24 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
 
 import { signOutAction } from "@/app/login/actions";
 import { NAV_ITEMS } from "@/components/layout/nav-items";
 import { CloseIcon, MenuIcon, SignOutIcon } from "@/components/ui/icons";
 import { Portal } from "@/components/ui/portal";
+import { useDismissable } from "@/lib/ui/use-dismissable";
 import { cn } from "@/lib/ui/cn";
 
 /** Slide-over navigation for phones and tablets. */
 export function MobileNav({ signInEnabled = false }: { signInEnabled?: boolean }) {
   const pathname = usePathname();
-  // Opening is recorded against the current route, so following a link closes
-  // the drawer without an effect.
-  const [openedOn, setOpenedOn] = useState<string | null>(null);
-  const open = openedOn === pathname;
-  const setOpen = (next: boolean) => setOpenedOn(next ? pathname : null);
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpenedOn(null);
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, []);
+  const { open, show, close } = useDismissable<HTMLElement>();
 
   return (
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={show}
         aria-label="Open navigation"
         className="inline-flex size-10 items-center justify-center rounded-xl text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 lg:hidden"
       >
@@ -44,7 +32,7 @@ export function MobileNav({ signInEnabled = false }: { signInEnabled?: boolean }
           <button
             type="button"
             aria-label="Close navigation"
-            onClick={() => setOpen(false)}
+            onClick={close}
             className="absolute inset-0 bg-brand-950/50 backdrop-blur-sm"
           />
           <nav className="absolute inset-y-0 left-0 flex w-72 flex-col bg-brand-950 p-4 shadow-panel">
@@ -52,7 +40,7 @@ export function MobileNav({ signInEnabled = false }: { signInEnabled?: boolean }
               <p className="font-display text-sm font-semibold text-white">Contract Tracker</p>
               <button
                 type="button"
-                onClick={() => setOpen(false)}
+                onClick={close}
                 aria-label="Close navigation"
                 className="inline-flex size-9 items-center justify-center rounded-lg text-white/70 hover:bg-white/10 hover:text-white"
               >

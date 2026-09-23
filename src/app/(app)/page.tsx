@@ -15,14 +15,13 @@ import { TRIGGER_LABELS } from "@/lib/domain/meta";
 import { can } from "@/lib/auth/roles";
 import { loadVisibleSnapshot } from "@/lib/services/auth";
 import { breakdownByCompany, listRunLog, topPriority } from "@/lib/services/contracts";
+import type { PageSearchParams } from "@/lib/domain/filters";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage({
   searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
+}: PageSearchParams) {
   const denied = (await searchParams).denied === "1";
   const config = getConfig();
   const { contracts, latest, today, source, user } = await loadVisibleSnapshot();

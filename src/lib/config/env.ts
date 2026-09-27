@@ -8,6 +8,12 @@ export interface GoogleConfig {
   runLogSheet: string;
   dashboardSheet: string;
   settingsSheet: string;
+  /**
+   * The spreadsheet holding the Users tab. It is kept apart from the contracts
+   * spreadsheet so the people who edit contracts cannot see or change who may
+   * sign in. Falls back to `spreadsheetId` when GOOGLE_USERS_SHEET_ID is unset.
+   */
+  usersSpreadsheetId: string;
   usersSheet: string;
   clientEmail: string;
   privateKey: string;
@@ -132,6 +138,10 @@ export function getConfig(): AppConfig {
           runLogSheet: str("GOOGLE_RUN_LOG_SHEET_NAME", "Run Log"),
           dashboardSheet: str("GOOGLE_DASHBOARD_SHEET_NAME", "Dashboard"),
           settingsSheet: str("GOOGLE_SETTINGS_SHEET_NAME", "Settings"),
+          // Deliberately an environment variable, never a Settings-tab row: an
+          // editor of the contracts sheet must not be able to redirect sign-in
+          // to a users list they control.
+          usersSpreadsheetId: str("GOOGLE_USERS_SHEET_ID") || spreadsheetId,
           usersSheet: str("GOOGLE_USERS_SHEET_NAME", "Users"),
           timezone: str("APP_TIMEZONE", "Africa/Harare"),
           cacheSeconds: Math.max(0, Number(str("SHEET_CACHE_SECONDS", "30")) || 0),

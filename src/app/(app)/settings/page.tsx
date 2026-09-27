@@ -186,7 +186,7 @@ export default async function SettingsPage() {
         <CardHeader
           icon={<SettingsIcon className="size-4" />}
           title="Who can sign in"
-          description="Managed on the Users tab of the Google Sheet — add a row to give someone access, or set Active to No to take it away."
+          description="Managed on the Users tab of the separate users spreadsheet, which only administrators should be able to open — add a row to give someone access, or set Active to No to take it away."
           action={<Badge tone={signInUsers.length ? "info" : "caution"}>{signInUsers.length} people</Badge>}
         />
         {signInUsers.length ? (
@@ -234,7 +234,7 @@ export default async function SettingsPage() {
           <CardBody>
             <p className="text-sm text-slate-500">
               Nobody is listed yet. Use <strong>Prepare the Google Sheet</strong> above to create the
-              Users tab, then add a row for each person: their email, their name, a role of
+              Users tab in the users spreadsheet, then add a row for each person: their email, their name, a role of
               Administrator, HR or Manager, and Yes under Active.
             </p>
           </CardBody>

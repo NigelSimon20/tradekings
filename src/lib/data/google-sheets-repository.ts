@@ -46,6 +46,8 @@ interface Workbook {
   contracts: Contract[];
   settings: Record<string, string>;
   users: SheetUser[];
+  /** Why the users spreadsheet could not be read, when it is a separate one. */
+  usersError: string | null;
   runLog: RunLogEntry[];
 }
 
@@ -91,6 +93,11 @@ export class GoogleSheetsRepository implements ContractRepository {
     this.workbook = null;
   }
 
+  /** True when the Users tab lives in its own spreadsheet, as it should. */
+  private get usersSeparate(): boolean {
+    return this.config.usersSpreadsheetId !== this.config.spreadsheetId;
+  }
+
   /** Reads every tab in one request, coalescing concurrent callers. */
   private async readWorkbook(fresh = false): Promise<Workbook> {
     const age = this.workbook ? Date.now() - this.workbook.at : Infinity;
@@ -121,17 +128,34 @@ export class GoogleSheetsRepository implements ContractRepository {
 
   private async fetchWorkbook(): Promise<Workbook> {
     const { contractsSheet, settingsSheet, usersSheet, runLogSheet } = this.config;
+    const separate = this.usersSeparate;
+    const tabs = [contractsSheet, settingsSheet, runLogSheet, ...(separate ? [] : [usersSheet])];
 
-    const response = await this.call(() =>
-      this.api().spreadsheets.values.batchGet({
-        spreadsheetId: this.config.spreadsheetId,
-        ranges: [contractsSheet, settingsSheet, usersSheet, runLogSheet].map((tab) =>
-          this.tabRange(tab),
-        ),
-        valueRenderOption: "UNFORMATTED_VALUE",
-        dateTimeRenderOption: "SERIAL_NUMBER",
-      }),
-    );
+    // A separate users spreadsheet is read alongside, not after, so it costs no
+    // extra waiting. If it cannot be read the tracker still works and only the
+    // ADMIN_EMAILS addresses can sign in.
+    const [response, separateUsers] = await Promise.all([
+      this.call(() =>
+        this.api().spreadsheets.values.batchGet({
+          spreadsheetId: this.config.spreadsheetId,
+          ranges: tabs.map((tab) => this.tabRange(tab)),
+          valueRenderOption: "UNFORMATTED_VALUE",
+          dateTimeRenderOption: "SERIAL_NUMBER",
+        }),
+      ),
+      separate
+        ? this.call(() =>
+            this.api().spreadsheets.values.get({
+              spreadsheetId: this.config.usersSpreadsheetId,
+              range: this.tabRange(usersSheet),
+              valueRenderOption: "UNFORMATTED_VALUE",
+            }),
+          ).then(
+            (users) => ({ rows: (users.data.values ?? []) as unknown[][], error: null }),
+            (error: Error) => ({ rows: [] as unknown[][], error: error.message }),
+          )
+        : null,
+    ]);
 
     const ranges = response.data.valueRanges ?? [];
     const values = (position: number) => (ranges[position]?.values ?? []) as unknown[][];
@@ -159,12 +183,12 @@ export class GoogleSheetsRepository implements ContractRepository {
       if (key && value) settings[key] = value;
     }
 
-    const users = values(2)
+    const users = (separateUsers ? separateUsers.rows : values(3))
       .slice(1)
       .map((row, offset) => parseUserRow(row, offset + 2))
       .filter((user): user is SheetUser => user !== null);
 
-    const runLog = values(3)
+    const runLog = values(2)
       .slice(1)
       .filter((row) => !isBlankRow(row))
       .map((row, position) => ({
@@ -182,7 +206,15 @@ export class GoogleSheetsRepository implements ContractRepository {
       }))
       .reverse();
 
-    return { at: Date.now(), header, contracts, settings, users, runLog };
+    return {
+      at: Date.now(),
+      header,
+      contracts,
+      settings,
+      users,
+      usersError: separateUsers?.error ?? null,
+      runLog,
+    };
   }
 
   private api(): sheets_v4.Sheets {
@@ -453,7 +485,7 @@ export class GoogleSheetsRepository implements ContractRepository {
     }
   }
 
-  /** Everyone allowed to sign in, from the Users tab. */
+  /** Everyone allowed to sign in, from the Users tab of the users spreadsheet. */
   async listUsers(): Promise<SheetUser[]> {
     try {
       return (await this.readWorkbook()).users;
@@ -466,7 +498,7 @@ export class GoogleSheetsRepository implements ContractRepository {
   async recordSignIn(user: SheetUser, at: string): Promise<void> {
     this.invalidate();
     await this.api().spreadsheets.values.update({
-      spreadsheetId: this.config.spreadsheetId,
+      spreadsheetId: this.config.usersSpreadsheetId,
       range: this.tabRange(this.config.usersSheet, `!E${user.rowNumber}`),
       valueInputOption: "RAW",
       requestBody: { values: [[at]] },
@@ -573,7 +605,7 @@ export class GoogleSheetsRepository implements ContractRepository {
         return { ok: false, detail: `Connected to "${title}"`, warnings };
       }
 
-      const { header } = await this.readWorkbook();
+      const { header, usersError } = await this.readWorkbook();
       const missing = missingColumns(header);
       if (missing.length) {
         warnings.push(`Missing columns: ${missing.map((column) => column.header).join(", ")}.`);
@@ -581,6 +613,7 @@ export class GoogleSheetsRepository implements ContractRepository {
       for (const tab of [this.config.runLogSheet, this.config.dashboardSheet, this.config.settingsSheet]) {
         if (!tabs.includes(tab)) warnings.push(`The "${tab}" tab will be created on the first run.`);
       }
+      warnings.push(...this.usersWarnings(tabs, usersError));
 
       return {
         ok: true,
@@ -590,6 +623,29 @@ export class GoogleSheetsRepository implements ContractRepository {
     } catch (error) {
       return { ok: false, detail: describeGoogleError(error), warnings: [] };
     }
+  }
+
+  /** What is wrong with where the list of users is kept, if anything. */
+  private usersWarnings(contractTabs: string[], usersError: string | null): string[] {
+    const { usersSheet } = this.config;
+    if (!this.usersSeparate) {
+      return [
+        `Who may sign in is kept on the "${usersSheet}" tab of the contracts spreadsheet, so anyone who can edit contracts can also give themselves access. Ask your system administrator to set GOOGLE_USERS_SHEET_ID to a separate spreadsheet.`,
+      ];
+    }
+
+    const warnings: string[] = [];
+    if (usersError) {
+      warnings.push(
+        `The users spreadsheet could not be read: ${usersError} Until it is fixed, only the ADMIN_EMAILS addresses can sign in.`,
+      );
+    }
+    if (contractTabs.includes(usersSheet)) {
+      warnings.push(
+        `The contracts spreadsheet still has an old "${usersSheet}" tab. It is no longer used — once everyone is on the users spreadsheet, delete it so contract editors cannot see who has access.`,
+      );
+    }
+    return warnings;
   }
 
   /** Wraps Google API errors in something a person can act on. */

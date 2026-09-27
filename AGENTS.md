@@ -44,8 +44,12 @@ dashboard and sends the weekly reports. See README.md for setup.
 
 ## Access
 
-- Who may sign in comes from the sheet's Users tab (`listUsers`), resolved by
+- Who may sign in comes from the Users tab (`listUsers`), resolved by
   `resolveSignIn`; `ADMIN_EMAILS` is the lock-out escape hatch.
+- The Users tab lives in its **own spreadsheet** (`GOOGLE_USERS_SHEET_ID` →
+  `usersSpreadsheetId`) so contract editors cannot grant themselves access.
+  That ID is an environment variable on purpose — never make it a Settings-tab
+  row, or an editor of the contracts sheet could point sign-in at their own list.
 - Permissions live in `src/lib/auth/roles.ts`. Pages call `requireViewer`, API
   routes call `guardApi`, and server actions check `can(...)` — never rely on
   hiding a button alone.

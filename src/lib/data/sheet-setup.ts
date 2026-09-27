@@ -36,8 +36,19 @@ export async function setUpSheet(
   config: GoogleConfig,
   options: { seedAdmins?: string[] } = {},
 ): Promise<SheetSetupResult> {
-  const { spreadsheetId, contractsSheet, runLogSheet, dashboardSheet, settingsSheet, usersSheet } =
-    config;
+  const {
+    spreadsheetId,
+    usersSpreadsheetId,
+    contractsSheet,
+    runLogSheet,
+    dashboardSheet,
+    settingsSheet,
+    usersSheet,
+  } = config;
+  // The Users tab belongs in its own spreadsheet; it only lives alongside the
+  // contracts when GOOGLE_USERS_SHEET_ID has not been set.
+  const usersHere = usersSpreadsheetId === spreadsheetId;
+  const localTabs = [contractsSheet, dashboardSheet, settingsSheet, ...(usersHere ? [usersSheet] : []), runLogSheet];
   const result: SheetSetupResult = {
     ok: true,
     createdTabs: [],
@@ -53,7 +64,7 @@ export async function setUpSheet(
     fields: "properties.title,sheets(properties(sheetId,title),conditionalFormats)",
   });
   const tabs = spreadsheet.data.sheets ?? [];
-  const missingTabs = [contractsSheet, dashboardSheet, settingsSheet, usersSheet, runLogSheet].filter(
+  const missingTabs = localTabs.filter(
     (title) => !tabs.some((tab) => tab.properties?.title === title),
   );
 
@@ -215,7 +226,7 @@ export async function setUpSheet(
   }
 
   // 5. Tidy the supporting tabs.
-  for (const title of [settingsSheet, dashboardSheet, usersSheet, runLogSheet]) {
+  for (const title of localTabs.filter((tab) => tab !== contractsSheet)) {
     const id = tabByTitle(title)?.properties?.sheetId;
     if (id === null || id === undefined) continue;
     requests.push(
@@ -290,34 +301,13 @@ export async function setUpSheet(
     result.messages.push(`Added ${missingSettings.length} new setting(s) to the Settings tab.`);
   }
 
-  // 8. Users tab — who may sign in. Whoever sets the sheet up is added as an
-  //    administrator, so switching sign-in on cannot lock everyone out.
-  const usersValues = await client.spreadsheets.values.get({
-    spreadsheetId,
-    range: `'${usersSheet}'`,
-  });
-  const userRows = (usersValues.data.values ?? []) as string[][];
-
-  if (!userRows.length) {
-    const admins = [...new Set((options.seedAdmins ?? []).map((email) => email.trim().toLowerCase()))]
-      .filter((email) => email.includes("@"));
-
-    await client.spreadsheets.values.update({
-      spreadsheetId,
-      range: `'${usersSheet}'!A1`,
-      valueInputOption: "RAW",
-      requestBody: {
-        values: [
-          [...USERS_HEADERS],
-          ...admins.map((email) => [email, "", "Administrator", "Yes", ""]),
-        ],
-      },
-    });
-
+  // 8. Users tab — who may sign in.
+  try {
+    await setUpUsersTab(client, config, options.seedAdmins ?? [], result);
+  } catch {
+    result.ok = false;
     result.messages.push(
-      admins.length
-        ? `Created the Users tab with ${admins.length} administrator(s).`
-        : "Created the Users tab — add the people who may sign in.",
+      "Could not prepare the users spreadsheet. Check that GOOGLE_USERS_SHEET_ID is right and that the spreadsheet is shared with the tracker's service account as an Editor.",
     );
   }
 
@@ -342,6 +332,85 @@ export async function setUpSheet(
 
   if (!result.messages.length) result.messages.push("The sheet was already set up correctly.");
   return result;
+}
+
+/**
+ * Creates the Users tab with its headings, in the users spreadsheet. Whoever
+ * sets it up is added as an administrator, so switching sign-in on cannot lock
+ * everyone out. When the list is moving out of the contracts spreadsheet, the
+ * people already on the old tab are copied across so nobody loses access.
+ */
+async function setUpUsersTab(
+  client: sheets_v4.Sheets,
+  config: GoogleConfig,
+  seedAdmins: string[],
+  result: SheetSetupResult,
+): Promise<void> {
+  const { spreadsheetId, usersSpreadsheetId, usersSheet } = config;
+  const separate = usersSpreadsheetId !== spreadsheetId;
+
+  if (separate) {
+    const book = await client.spreadsheets.get({
+      spreadsheetId: usersSpreadsheetId,
+      fields: "properties.title,sheets.properties.title",
+    });
+    const exists = (book.data.sheets ?? []).some((tab) => tab.properties?.title === usersSheet);
+    if (!exists) {
+      await client.spreadsheets.batchUpdate({
+        spreadsheetId: usersSpreadsheetId,
+        requestBody: { requests: [{ addSheet: { properties: { title: usersSheet } } }] },
+      });
+      result.createdTabs.push(usersSheet);
+      result.messages.push(
+        `Created the ${usersSheet} tab in the users spreadsheet “${book.data.properties?.title ?? ""}”.`,
+      );
+    }
+  }
+
+  const current = await client.spreadsheets.values.get({
+    spreadsheetId: usersSpreadsheetId,
+    range: `'${usersSheet}'`,
+  });
+  if ((current.data.values ?? []).length) return;
+
+  let carried: string[][] = [];
+  if (separate) {
+    try {
+      const old = await client.spreadsheets.values.get({ spreadsheetId, range: `'${usersSheet}'` });
+      carried = ((old.data.values ?? []) as string[][]).slice(1).filter((row) => row.some(Boolean));
+    } catch {
+      // No old tab in the contracts spreadsheet — nothing to carry across.
+    }
+  }
+
+  const listed = new Set(carried.map((row) => String(row[0] ?? "").trim().toLowerCase()));
+  const admins = [...new Set(seedAdmins.map((email) => email.trim().toLowerCase()))].filter(
+    (email) => email.includes("@") && !listed.has(email),
+  );
+
+  await client.spreadsheets.values.update({
+    spreadsheetId: usersSpreadsheetId,
+    range: `'${usersSheet}'!A1`,
+    valueInputOption: "RAW",
+    requestBody: {
+      values: [
+        [...USERS_HEADERS],
+        ...carried,
+        ...admins.map((email) => [email, "", "Administrator", "Yes", ""]),
+      ],
+    },
+  });
+
+  if (carried.length) {
+    result.messages.push(
+      `Copied ${carried.length} ${carried.length === 1 ? "person" : "people"} from the old ${usersSheet} tab in the contracts spreadsheet. Check the list, then delete that old tab.`,
+    );
+  }
+  if (admins.length) {
+    result.messages.push(`Added ${admins.length} administrator(s) to the ${usersSheet} tab.`);
+  } else if (!carried.length) {
+    result.messages.push(`Set up the ${usersSheet} tab — add the people who may sign in.`);
+  }
 }
 
 function hexToRgb(hex: string): { red: number; green: number; blue: number } {

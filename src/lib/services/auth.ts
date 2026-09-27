@@ -23,8 +23,8 @@ export interface SignInOutcome {
 /**
  * Decides whether an email address may sign in, and with what role.
  *
- * The Users tab of the Google Sheet is the list, so access is managed where the
- * rest of the system is managed. `ADMIN_EMAILS` is the way back in if that tab
+ * The Users tab of the users spreadsheet is the list. It is kept apart from the
+ * contracts spreadsheet so the people who edit contracts cannot grant access. `ADMIN_EMAILS` is the way back in if that tab
  * is ever emptied or mistyped — without it a bad edit would lock everyone out.
  */
 export async function resolveSignIn(

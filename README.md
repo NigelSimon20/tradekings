@@ -59,7 +59,8 @@ npm run sheet:check  # read-only health report for the connected Google Sheet
    Both are safe to run again: they only ever add what is missing, and never
    change a value someone has filled in.
 
-The spreadsheet ends up with four tabs:
+The contracts spreadsheet ends up with four tabs, and the list of people who may
+sign in is kept in a second spreadsheet (see [Signing in](#signing-in)):
 
 | Tab | What it holds |
 | --- | --- |
@@ -172,11 +173,24 @@ in.
    URI (and `http://localhost:3000/api/auth/google/callback` for local work).
 3. Put the client id and secret in `GOOGLE_OAUTH_CLIENT_ID` and
    `GOOGLE_OAUTH_CLIENT_SECRET`, and set `ADMIN_EMAILS` to your own address.
-4. Press **Prepare the Google Sheet** on Rules & settings, which creates the
-   **Users** tab and adds you as an administrator.
+4. **Create a second, empty spreadsheet for the users**, share it with the
+   service account as an Editor and with administrators only, and put its ID
+   in `GOOGLE_USERS_SHEET_ID`. Keeping it apart from the contracts spreadsheet
+   means the people who edit contracts cannot see or change who has access.
+5. Press **Prepare the Google Sheet** on Rules & settings, which creates the
+   **Users** tab in that spreadsheet and adds you as an administrator. If the
+   contracts spreadsheet already had a Users tab, everyone on it is copied
+   across; check the list, then delete the old tab (Rules & settings warns
+   until you do).
+
+`GOOGLE_USERS_SHEET_ID` is an environment variable rather than a row on the
+Settings tab on purpose: a setting inside the contracts spreadsheet could be
+changed by anyone who edits contracts, and would let them point sign-in at a
+list of their own. Left blank, the Users tab stays in the contracts spreadsheet
+and Rules & settings shows a warning.
 
 **Managing access** is then a spreadsheet job — a row per person on the Users
-tab:
+tab of the users spreadsheet:
 
 | Column | What to put |
 | --- | --- |

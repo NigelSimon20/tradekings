@@ -1,4 +1,4 @@
-import { parseRole, type Role } from "@/lib/auth/roles";
+import { parseBillboardRole, parseRole, type BillboardRole, type Role } from "@/lib/auth/roles";
 
 /**
  * Sign-in sessions.
@@ -13,7 +13,10 @@ export const SESSION_TTL_SECONDS = 60 * 60 * 12;
 export interface SessionUser {
   email: string;
   name: string;
-  role: Role;
+  /** Access to the contract tracker; null when the person only has billboards. */
+  role: Role | null;
+  /** Access to the billboard tracker; null when the person only has contracts. */
+  billboardRole: BillboardRole | null;
   /** How the person signed in, for the run log. */
   via: "google" | "password";
 }
@@ -79,12 +82,14 @@ export async function readSessionToken(
       exp?: number;
     };
     const role = parseRole(String(data.role ?? ""));
-    if (!role || !data.email || !data.exp || data.exp <= Date.now()) return null;
+    const billboardRole = parseBillboardRole(String(data.billboardRole ?? ""));
+    if ((!role && !billboardRole) || !data.email || !data.exp || data.exp <= Date.now()) return null;
 
     return {
       email: String(data.email),
       name: String(data.name ?? data.email),
       role,
+      billboardRole,
       via: data.via === "password" ? "password" : "google",
     };
   } catch {

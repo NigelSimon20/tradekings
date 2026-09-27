@@ -104,3 +104,36 @@ h2,
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Billboard map markers. The colour comes in as --pin from the tone palette
+   (lib/ui/tones.ts), so a marker matches its status badge. */
+.bb-marker {
+  background: none;
+  border: 0;
+}
+
+.bb-pin {
+  display: block;
+  width: 18px;
+  height: 18px;
+  margin: 2px;
+  border-radius: 9999px;
+  background: var(--pin);
+  border: 3px solid white;
+  box-shadow: 0 2px 6px rgb(15 30 46 / 0.35);
+  transition: transform 120ms ease;
+}
+
+.bb-pin.needs-follow-up {
+  box-shadow:
+    0 0 0 2px var(--ring),
+    0 2px 6px rgb(15 30 46 / 0.35);
+}
+
+.bb-pin.is-selected {
+  transform: scale(1.4);
+}
+
+.leaflet-container {
+  font: inherit;
+}

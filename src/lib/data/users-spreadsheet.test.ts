@@ -150,7 +150,7 @@ describe("setting up the users spreadsheet", () => {
     expect(books[CONTRACTS_ID].tabs.has("Users")).toBe(false);
     expect(books[USERS_ID].tabs.get("Users")).toEqual([
       [...USERS_HEADERS],
-      ["admin@tkzim.co.zw", "", "Administrator", "Yes", ""],
+      ["admin@tkzim.co.zw", "", "Administrator", "Yes", "", "Administrator"],
     ]);
   });
 
@@ -186,6 +186,23 @@ describe("setting up the users spreadsheet", () => {
     await setUpSheet(fakeClient(books), config(), { seedAdmins: ["admin@tkzim.co.zw"] });
 
     expect(books[USERS_ID].tabs.get("Users")).toEqual(existing);
+  });
+
+  it("adds the Billboards column to a list made before it existed, without touching anyone", async () => {
+    const books: Books = {
+      [CONTRACTS_ID]: contractsBook(),
+      [USERS_ID]: usersBook([
+        ["Email", "Name", "Role", "Active", "Last Signed In"],
+        ["hr@tkzim.co.zw", "HR", "HR", "Yes", ""],
+      ]),
+    };
+
+    await setUpSheet(fakeClient(books), config(), { seedAdmins: [] });
+
+    expect(books[USERS_ID].tabs.get("Users")).toEqual([
+      [...USERS_HEADERS],
+      ["hr@tkzim.co.zw", "HR", "HR", "Yes", ""],
+    ]);
   });
 
   it("reports a users spreadsheet the tracker cannot open, without failing the rest", async () => {

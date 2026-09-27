@@ -1,21 +1,20 @@
 import { BrandWordmark } from "@/components/layout/brand-wordmark";
-import { NAV_ITEMS } from "@/components/layout/nav-items";
+import { navItemsFor } from "@/components/layout/nav-items";
 import { NavLink } from "@/components/layout/nav-link";
-import { can } from "@/lib/auth/roles";
+import { ProjectSwitcher } from "@/components/layout/project-switcher";
 import { getConfig } from "@/lib/config/env";
+import { accessibleProjects, type ProjectId } from "@/lib/domain/projects";
 import { getCurrentUser } from "@/lib/services/auth";
 import { formatDate, todayIn } from "@/lib/date/dates";
 
-export async function Sidebar() {
+export async function Sidebar({ project }: { project: ProjectId }) {
   const config = getConfig();
   const user = await getCurrentUser();
-  const live = config.dataSource === "google-sheets";
-  const items = NAV_ITEMS.filter((item) => {
-    if (!user) return true;
-    if (item.href === "/reports") return can(user.role, "runReports");
-    if (item.href === "/settings") return can(user.role, "viewAll");
-    return true;
-  });
+  const items = navItemsFor(project, user);
+  const live =
+    project === "billboards"
+      ? config.billboards.google !== null
+      : config.dataSource === "google-sheets";
 
   return (
     <aside className="sticky top-0 hidden h-screen w-[17rem] shrink-0 flex-col overflow-hidden bg-brand-950 lg:flex">
@@ -32,8 +31,9 @@ export async function Sidebar() {
       <div className="relative flex h-full flex-col">
         <div className="px-6 pt-7 pb-6">
           <BrandWordmark tone="light" size="lg" />
-          <p className="mt-2 text-sm font-medium text-white/80">Contract Tracker</p>
-          <p className="text-xs text-white/50">Blue collar &amp; casual employees</p>
+          <div className="mt-3 -mx-3">
+            <ProjectSwitcher current={project} projects={accessibleProjects(user)} />
+          </div>
         </div>
 
         <nav className="flex flex-1 flex-col gap-1 px-6">
@@ -58,7 +58,11 @@ export async function Sidebar() {
               className={`size-2 rounded-full ${live ? "bg-emerald-400" : "bg-amber-400"}`}
               aria-hidden
             />
-            {live ? "Google Sheet connected" : "Sample data"}
+            {live
+              ? project === "billboards"
+                ? "Billboard sheet connected"
+                : "Google Sheet connected"
+              : "Sample data"}
           </p>
           <p className="mt-1.5">
             {formatDate(todayIn(config.timezone))} · {config.timezone}

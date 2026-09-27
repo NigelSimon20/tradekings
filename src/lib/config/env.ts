@@ -23,6 +23,15 @@ export interface GoogleConfig {
   cacheSeconds: number;
 }
 
+/** Where the billboard tracker keeps its data: its own spreadsheet. */
+export interface BillboardSheetConfig {
+  spreadsheetId: string;
+  clientEmail: string;
+  privateKey: string;
+  timezone: string;
+  cacheSeconds: number;
+}
+
 export interface SmtpConfig {
   host: string;
   port: number;
@@ -38,6 +47,11 @@ export interface AppConfig {
   dataSource: "google-sheets" | "local";
   localDataFile: string;
   google: GoogleConfig | null;
+  billboards: {
+    /** Null runs the billboard tracker on the local sample file. */
+    google: BillboardSheetConfig | null;
+    localDataFile: string;
+  };
   smtp: SmtpConfig | null;
   /** Resend API key; the preferred way to send when it is set. */
   resendApiKey: string;
@@ -164,6 +178,20 @@ export function getConfig(): AppConfig {
   const dataSource: AppConfig["dataSource"] =
     requestedSource === "local" ? "local" : google ? "google-sheets" : "local";
 
+  // The billboard tracker uses the same service account but its own
+  // spreadsheet, so the people who manage billboards and the people who manage
+  // contracts can be given access to one without the other.
+  const billboardsSpreadsheetId = str("GOOGLE_BILLBOARDS_SHEET_ID");
+  const billboardsGoogle: BillboardSheetConfig | null =
+    serviceAccount && billboardsSpreadsheetId && requestedSource !== "local"
+      ? {
+          spreadsheetId: billboardsSpreadsheetId,
+          timezone: str("APP_TIMEZONE", "Africa/Harare"),
+          cacheSeconds: Math.max(0, Number(str("SHEET_CACHE_SECONDS", "30")) || 0),
+          ...serviceAccount,
+        }
+      : null;
+
   const password = str("APP_PASSWORD");
   const googleClientId = str("GOOGLE_OAUTH_CLIENT_ID");
   const googleClientSecret = str("GOOGLE_OAUTH_CLIENT_SECRET");
@@ -176,6 +204,10 @@ export function getConfig(): AppConfig {
     dataSource,
     localDataFile: str("LOCAL_DATA_FILE", "data/contracts.local.json"),
     google,
+    billboards: {
+      google: billboardsGoogle,
+      localDataFile: str("LOCAL_BILLBOARDS_FILE", "data/billboards.local.json"),
+    },
     smtp,
     resendApiKey: str("RESEND_API_KEY"),
     mailTransport: (["resend", "smtp", "outbox"] as const).find(

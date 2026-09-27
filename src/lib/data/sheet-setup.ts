@@ -8,6 +8,7 @@ import {
   SETTINGS_ROWS,
   USERS_HEADERS,
   buildColumnIndex,
+  columnLetter,
   settingKeyFor,
 } from "@/lib/data/sheet-schema";
 import { STATUS_META } from "@/lib/domain/meta";
@@ -371,7 +372,22 @@ async function setUpUsersTab(
     spreadsheetId: usersSpreadsheetId,
     range: `'${usersSheet}'`,
   });
-  if ((current.data.values ?? []).length) return;
+  const currentRows = (current.data.values ?? []) as string[][];
+  if (currentRows.length) {
+    // Lists made before a column existed get its heading, and nothing else.
+    const header = currentRows[0] ?? [];
+    const missing = USERS_HEADERS.slice(header.length);
+    if (missing.length) {
+      await client.spreadsheets.values.update({
+        spreadsheetId: usersSpreadsheetId,
+        range: `'${usersSheet}'!${columnLetter(header.length)}1`,
+        valueInputOption: "RAW",
+        requestBody: { values: [[...missing]] },
+      });
+      result.messages.push(`Added the ${missing.join(", ")} column to the ${usersSheet} tab.`);
+    }
+    return;
+  }
 
   let carried: string[][] = [];
   if (separate) {
@@ -396,7 +412,7 @@ async function setUpUsersTab(
       values: [
         [...USERS_HEADERS],
         ...carried,
-        ...admins.map((email) => [email, "", "Administrator", "Yes", ""]),
+        ...admins.map((email) => [email, "", "Administrator", "Yes", "", "Administrator"]),
       ],
     },
   });

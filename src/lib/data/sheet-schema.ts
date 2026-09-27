@@ -427,13 +427,15 @@ export function parseSheetBoolean(value: string, fallback: boolean): boolean {
 }
 
 /** Headings for the tab that decides who may sign in. */
-export const USERS_HEADERS = ["Email", "Name", "Role", "Active", "Last Signed In"] as const;
+export const USERS_HEADERS = ["Email", "Name", "Role", "Active", "Last Signed In", "Billboards"] as const;
 
 export interface SheetUser {
   email: string;
   name: string;
-  /** As typed in the sheet; validated against the known roles on read. */
+  /** Contract tracker role as typed in the sheet; validated on read. */
   role: string;
+  /** Billboard tracker access as typed in the sheet; blank means none. */
+  billboards: string;
   active: boolean;
   lastSignedIn: string;
   /** 1-based row, so a sign-in can be stamped back. */
@@ -453,6 +455,7 @@ export function parseUserRow(row: unknown[], rowNumber: number): SheetUser | nul
     // Blank means active: a row someone has just added should work.
     active: parseSheetBoolean(active, true),
     lastSignedIn: String(row?.[4] ?? "").trim(),
+    billboards: String(row?.[5] ?? "").trim(),
     rowNumber,
   };
 }

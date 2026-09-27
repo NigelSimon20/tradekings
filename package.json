@@ -11,10 +11,12 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "sheet:setup": "tsx scripts/setup-sheet.ts",
-    "sheet:check": "tsx scripts/check-sheet.ts"
+    "sheet:check": "tsx scripts/check-sheet.ts",
+    "billboards:seed": "tsx scripts/seed-billboards.ts"
   },
   "dependencies": {
     "@googleapis/sheets": "^18.0.0",
+    "leaflet": "^1.9.4",
     "next": "16.3.5",
     "nodemailer": "^10.0.10",
     "react": "19.2.8",
@@ -24,6 +26,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/leaflet": "^1.9.22",
     "@types/node": "^24.13.6",
     "@types/nodemailer": "^8.0.2",
     "@types/react": "^19",

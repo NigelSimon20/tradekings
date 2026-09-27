@@ -6,7 +6,15 @@ import { cache } from "react";
 
 import { getConfig } from "@/lib/config/env";
 import { getRepository } from "@/lib/data";
-import { can, parseRole, type Permission } from "@/lib/auth/roles";
+import {
+  can,
+  canBillboards,
+  parseBillboardRole,
+  parseRole,
+  resolveAccess,
+  type BillboardPermission,
+  type Permission,
+} from "@/lib/auth/roles";
 import {
   SESSION_COOKIE,
   readSessionToken,
@@ -38,7 +46,15 @@ export async function resolveSignIn(
   const config = getConfig();
 
   if (config.auth.bootstrapAdmins.includes(address)) {
-    return { user: { email: address, name: name || address, role: "Administrator", via } };
+    return {
+      user: {
+        email: address,
+        name: name || address,
+        role: "Administrator",
+        billboardRole: "Administrator",
+        via,
+      },
+    };
   }
 
   let users: Awaited<ReturnType<ReturnType<typeof getRepository>["listUsers"]>> = [];
@@ -62,13 +78,8 @@ export async function resolveSignIn(
     return { user: null, reason: "That account has been switched off." };
   }
 
-  const role = parseRole(match.role);
-  if (!role) {
-    return {
-      user: null,
-      reason: `The role "${match.role || "(blank)"}" is not recognised. It should be Administrator, HR or Manager.`,
-    };
-  }
+  const access = resolveAccess(match.role, match.billboards);
+  if (!access.ok) return { user: null, reason: access.reason };
 
   // Best effort: a failed stamp must never block a valid sign-in.
   try {
@@ -77,7 +88,15 @@ export async function resolveSignIn(
     // Ignored on purpose.
   }
 
-  return { user: { email: address, name: match.name || name || address, role, via } };
+  return {
+    user: {
+      email: address,
+      name: match.name || name || address,
+      role: access.role,
+      billboardRole: access.billboardRole,
+      via,
+    },
+  };
 }
 
 /** The signed-in person for this request, or null. */
@@ -86,7 +105,13 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
   if (!config.auth.enabled) {
     // With no sign-in configured the tracker is open, and whoever is using it
     // is treated as an administrator.
-    return { email: "", name: "Administrator", role: "Administrator", via: "password" };
+    return {
+      email: "",
+      name: "Administrator",
+      role: "Administrator",
+      billboardRole: "Administrator",
+      via: "password",
+    };
   }
 
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
@@ -121,7 +146,18 @@ export async function loadVisibleSnapshot() {
 export async function requireViewer(permission: Permission): Promise<SessionUser> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  // Someone with billboards only has nothing to see on the contract side.
+  if (!user.role) redirect(user.billboardRole ? "/billboards" : "/login");
   if (!can(user.role, permission)) redirect("/?denied=1");
+  return user;
+}
+
+/** The billboard tracker's equivalent of `requireViewer`. */
+export async function requireBillboardViewer(permission: BillboardPermission): Promise<SessionUser> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  if (!user.billboardRole) redirect(user.role ? "/?denied=1" : "/login");
+  if (!canBillboards(user.billboardRole, permission)) redirect("/billboards?denied=1");
   return user;
 }
 
@@ -147,6 +183,7 @@ export const listSignInUsers = cache(async () => {
     return users.map((user) => ({
       ...user,
       parsedRole: parseRole(user.role),
+      parsedBillboardRole: parseBillboardRole(user.billboards),
     }));
   } catch {
     return [];

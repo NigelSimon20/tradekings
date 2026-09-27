@@ -4,14 +4,30 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { signOutAction } from "@/app/login/actions";
-import { NAV_ITEMS } from "@/components/layout/nav-items";
+import { PROJECT_NAV } from "@/components/layout/nav-items";
+import { ProjectSwitcher } from "@/components/layout/project-switcher";
 import { CloseIcon, MenuIcon, SignOutIcon } from "@/components/ui/icons";
 import { Portal } from "@/components/ui/portal";
+import type { Project, ProjectId } from "@/lib/domain/projects";
 import { useDismissable } from "@/lib/ui/use-dismissable";
 import { cn } from "@/lib/ui/cn";
 
-/** Slide-over navigation for phones and tablets. */
-export function MobileNav({ signInEnabled = false }: { signInEnabled?: boolean }) {
+/**
+ * Slide-over navigation for phones and tablets. The server decides which items
+ * this person may see (`hrefs`), the same way the desktop sidebar does.
+ */
+export function MobileNav({
+  project,
+  projects,
+  hrefs,
+  signInEnabled = false,
+}: {
+  project: ProjectId;
+  projects: Project[];
+  hrefs: string[];
+  signInEnabled?: boolean;
+}) {
+  const items = PROJECT_NAV[project].filter((item) => hrefs.includes(item.href));
   const pathname = usePathname();
   const { open, show, close } = useDismissable<HTMLElement>();
 
@@ -37,7 +53,7 @@ export function MobileNav({ signInEnabled = false }: { signInEnabled?: boolean }
           />
           <nav className="absolute inset-y-0 left-0 flex w-72 flex-col bg-brand-950 p-4 shadow-panel">
             <div className="flex items-center justify-between">
-              <p className="font-display text-sm font-semibold text-white">Contract Tracker</p>
+              <p className="font-display text-sm font-semibold text-white">Trade Kings · Zimkings</p>
               <button
                 type="button"
                 onClick={close}
@@ -48,8 +64,12 @@ export function MobileNav({ signInEnabled = false }: { signInEnabled?: boolean }
               </button>
             </div>
 
-            <ul className="mt-6 space-y-1">
-              {NAV_ITEMS.map((item) => {
+            <div className="mt-4">
+              <ProjectSwitcher current={project} projects={projects} />
+            </div>
+
+            <ul className="mt-4 space-y-1">
+              {items.map((item) => {
                 const active = item.exact
                   ? pathname === item.href
                   : pathname === item.href || pathname.startsWith(`${item.href}/`);

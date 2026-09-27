@@ -13,6 +13,7 @@ const USER: SessionUser = {
   email: "rutendo@example.com",
   name: "Rutendo Moyo",
   role: "HR",
+  billboardRole: null,
   via: "google",
 };
 
@@ -25,6 +26,16 @@ describe("sign-in session", () => {
   it("keeps names with accents intact", async () => {
     const token = await createSessionToken(SECRET, { ...USER, name: "José Ndlovu" });
     expect((await readSessionToken(token, SECRET))?.name).toBe("José Ndlovu");
+  });
+
+  it("carries billboard-only access", async () => {
+    const token = await createSessionToken(SECRET, { ...USER, role: null, billboardRole: "Editor" });
+    expect(await readSessionToken(token, SECRET)).toMatchObject({ role: null, billboardRole: "Editor" });
+  });
+
+  it("rejects a token that grants access to neither tracker", async () => {
+    const token = await createSessionToken(SECRET, { ...USER, role: null, billboardRole: null });
+    expect(await readSessionToken(token, SECRET)).toBeNull();
   });
 
   it("rejects a token signed with a different secret", async () => {

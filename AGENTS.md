@@ -8,11 +8,31 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
-# Blue Collar Contract Tracker
+# Blue Collar Contract Tracker (and the Billboard Tracker)
 
 Contract tracking for Trade Kings & Zimkings blue-collar and casual employees.
 A Google Sheet is the database; this app applies the contract rules, shows a
 dashboard and sends the weekly reports. See README.md for setup.
+
+The same app also hosts the **Billboard Tracker** (map, profiles, leases,
+campaigns, maintenance). The two share one link, one sign-in and one shell;
+the switcher under the wordmark moves between them (`lib/domain/projects.ts`).
+
+## The billboard tracker
+
+- Pages live in `src/app/(billboards)/billboards/` with their own layout, so
+  they never read the contract database. Contract pages stay in `(app)`.
+- Its data is its **own spreadsheet** (`GOOGLE_BILLBOARDS_SHEET_ID`), tabs
+  defined in `lib/billboards/data/sheet-tables.ts`, behind
+  `BillboardRepository`; pages call `lib/services/billboards.ts`.
+- `lib/billboards/evaluate.ts` is pure like the contract engine — test it in
+  `evaluate.test.ts`. Dashboard tiles are `lib/billboards/views.ts`.
+- History is kept, not overwritten: campaigns, maintenance, documents and the
+  Activity Log are append-only; every change records who and when. Deleting a
+  billboard means archiving it; removing a document hides it.
+- Files are stored as links (e.g. Google Drive). Every link must pass
+  `isSafeUrl` on save and is re-checked on render (`ExternalLink`), because
+  cells typed straight into the sheet skip the form.
 
 ## Where things belong
 
@@ -46,6 +66,11 @@ dashboard and sends the weekly reports. See README.md for setup.
 
 - Who may sign in comes from the Users tab (`listUsers`), resolved by
   `resolveSignIn`; `ADMIN_EMAILS` is the lock-out escape hatch.
+- Each person has two independent levels: **Role** (contracts: Administrator /
+  HR / Manager) and **Billboards** (Administrator / Editor / Viewer). Either may
+  be blank, not both (`resolveAccess`). `SessionUser.role` can be null, so use
+  `can(...)`, never `ROLE_PERMISSIONS` directly. Billboard pages call
+  `requireBillboardViewer`; billboard actions check `canBillboards(...)`.
 - The Users tab lives in its **own spreadsheet** (`GOOGLE_USERS_SHEET_ID` →
   `usersSpreadsheetId`) so contract editors cannot grant themselves access.
   That ID is an environment variable on purpose — never make it a Settings-tab

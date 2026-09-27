@@ -7,7 +7,8 @@ import type { NextConfig } from "next";
  * The tracker holds employee personal information, so the browser is told to
  * lock down what the page may do: no framing (clickjacking), no MIME sniffing,
  * no referrer leakage of contract URLs to other sites, and no loading of
- * scripts, styles or images from anywhere but this app.
+ * scripts, styles or images from anywhere but this app — except the
+ * OpenStreetMap tiles behind the billboard map.
  *
  * The content policy is applied in production only — the development server
  * needs `eval` and a websocket for hot reloading.
@@ -18,7 +19,8 @@ const CONTENT_SECURITY_POLICY = [
   "object-src 'none'",
   "frame-ancestors 'none'",
   "form-action 'self'",
-  "img-src 'self' data: blob:",
+  // Map tiles for the billboard tracker, and nothing else from outside.
+  "img-src 'self' data: blob: https://tile.openstreetmap.org",
   "font-src 'self' data:",
   // Next.js inlines its bootstrap script and Tailwind inlines styles.
   "style-src 'self' 'unsafe-inline'",

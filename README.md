@@ -196,9 +196,10 @@ tab of the users spreadsheet:
 | --- | --- |
 | Email | The Google address they sign in with |
 | Name | Shown in the tracker and against their changes |
-| Role | `Administrator`, `HR` or `Manager` |
+| Role | `Administrator`, `HR` or `Manager` for the Contract Tracker; blank for none |
 | Active | `No` takes access away without deleting the history |
 | Last Signed In | Filled in by the system |
+| Billboards | `Administrator`, `Editor` or `Viewer` for the Billboard Tracker; blank for none |
 
 | Role | Can |
 | --- | --- |
@@ -274,6 +275,38 @@ Flags: Zimkings approaching/at the 5-contract limit, contracts longer than a
 year, casuals approaching/at the 6-contract limit, casuals in the waiting
 period, casuals eligible for rehire, rehires inside the waiting period, renewals
 marked but not captured, missing employee ID or manager email, unusable dates.
+
+## Billboard Tracker
+
+The same link also hosts the **Billboard Tracker** for Trade Kings billboard
+sites. Switch between the two with the menu under **Trade Kings · Zimkings** in
+the sidebar; people only see the trackers they have access to.
+
+| Page | What it does |
+| --- | --- |
+| **Map** (`/billboards`) | Every site as a marker coloured by status, a red ring on sites needing follow-up. Search by ID, road, area, city or brand; filter by status, city and lease. Selecting a site shows a summary and opens its profile. |
+| **Dashboard** | Total, active, inactive and under-maintenance sites, expired leases, leases expiring within 30 and 90 days, and sites requiring follow-up — each number opens the list behind it. |
+| **All billboards** | The searchable list; filters live in the URL. Archived sites are one click away. |
+| **Profile** | Basic information, lease, contacts, current usage with campaign history, maintenance with history, photos and documents, and an activity log of every change. |
+| **Setup & access** | Billboard administrators prepare the billboard sheet and see who has access. |
+
+**Setting it up:** create an empty spreadsheet, share it with the service
+account as an Editor, set `GOOGLE_BILLBOARDS_SHEET_ID`, then press **Prepare the
+billboard sheet** on Setup & access. It creates the **Billboards**, **Campaigns**,
+**Maintenance**, **Documents** and **Activity Log** tabs. Without it the tracker
+runs on a sample network in `data/billboards.local.json`.
+
+**Access** is the **Billboards** column on the Users tab: `Administrator`
+(everything, including archiving and removing documents), `Editor` (add and
+update) or `Viewer` (read-only). Blank means no billboard access, and the
+contract **Role** may be blank for someone who only works on billboards.
+
+**History is kept.** Campaigns, maintenance visits, documents and the Activity
+Log only ever gain rows. Archiving a billboard hides it from the map and
+dashboard; removing a document hides it from the profile; the rows stay.
+
+**Photos and documents are links** — upload the file to a shared Google Drive
+folder and paste its share link. Only `https://` links are accepted.
 
 ## Look and feel
 

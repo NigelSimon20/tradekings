@@ -197,6 +197,7 @@ export default async function SettingsPage() {
                   <Th>Name</Th>
                   <Th>Email</Th>
                   <Th>Role</Th>
+                  <Th className="hidden md:table-cell">Billboards</Th>
                   <Th>Can sign in</Th>
                   <Th className="hidden sm:table-cell">Last signed in</Th>
                 </Tr>
@@ -211,11 +212,18 @@ export default async function SettingsPage() {
                         <Badge tone="neutral" title={describeRole(person.parsedRole)}>
                           {person.parsedRole}
                         </Badge>
+                      ) : !person.role.trim() && person.parsedBillboardRole ? (
+                        <span className="text-slate-400" title="Billboard tracker only">
+                          —
+                        </span>
                       ) : (
                         <Badge tone="critical" title="Should be Administrator, HR or Manager">
                           {person.role || "not set"}
                         </Badge>
                       )}
+                    </Td>
+                    <Td className="hidden text-slate-500 md:table-cell">
+                      {person.parsedBillboardRole ?? (person.billboards || "—")}
                     </Td>
                     <Td>
                       <Badge tone={person.active ? "success" : "neutral"}>
@@ -235,7 +243,8 @@ export default async function SettingsPage() {
             <p className="text-sm text-slate-500">
               Nobody is listed yet. Use <strong>Prepare the Google Sheet</strong> above to create the
               Users tab in the users spreadsheet, then add a row for each person: their email, their name, a role of
-              Administrator, HR or Manager, and Yes under Active.
+              Administrator, HR or Manager (or blank), Yes under Active, and — for the billboard
+              tracker — Administrator, Editor or Viewer under Billboards.
             </p>
           </CardBody>
         )}

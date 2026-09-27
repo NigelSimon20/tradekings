@@ -62,6 +62,7 @@ export async function signInAction(_previous: LoginState, formData: FormData): P
       email: "",
       name: "Administrator",
       role: "Administrator",
+      billboardRole: "Administrator",
       via: "password",
     }),
     {

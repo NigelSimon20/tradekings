@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import { BillboardsUnavailable } from "@/components/billboards/billboards-unavailable";
@@ -8,6 +9,11 @@ import { requireBillboardViewer } from "@/lib/services/auth";
 import { loadBillboards } from "@/lib/services/billboards";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Billboard Tracker · Trade Kings",
+  description: "Trade Kings billboard sites, leases, campaigns and maintenance on one map.",
+};
 
 /**
  * Every billboard-tracker page: the shared shell with the billboard

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 
@@ -8,6 +9,12 @@ import { getCurrentUser } from "@/lib/services/auth";
 import { loadSnapshot } from "@/lib/services/contracts";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Contract Tracker · Trade Kings & Zimkings",
+  description:
+    "Automated contract tracking, contract-limit monitoring and weekly reporting for blue collar and casual employees.",
+};
 
 /**
  * Every contract-tracker page shares the navigation shell. The database is

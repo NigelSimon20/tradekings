@@ -8,10 +8,10 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 /** Raleway is the Trade Kings brand typeface, used here for headings. */
 const raleway = Raleway({ variable: "--font-raleway", subsets: ["latin"], weight: ["500", "600", "700"] });
 
+/** Neutral here (the sign-in page serves both apps); each app's layout names itself. */
 export const metadata: Metadata = {
-  title: "Contract Tracker · Trade Kings & Zimkings",
-  description:
-    "Automated contract tracking, contract-limit monitoring and weekly reporting for blue collar and casual employees.",
+  title: "Sign in · Trade Kings & Zimkings",
+  description: "Contract and billboard trackers for Trade Kings & Zimkings.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

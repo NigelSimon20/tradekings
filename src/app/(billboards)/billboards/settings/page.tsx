@@ -34,7 +34,6 @@ export default async function BillboardSettingsPage({ searchParams }: PageSearch
     getRoleTable(),
   ]);
   const describe = (name: string) => roleTable.billboards.find((role) => role.name === name)?.description ?? "";
-  const serviceAccount = config.billboards.google?.clientEmail ?? config.google?.clientEmail ?? "";
   // Everyone given a Billboard Tracker role, including any the tab does not
   // recognise (shown in red so they can be fixed); "Not allowed" is no access.
   const withAccess = users.filter(
@@ -167,23 +166,6 @@ export default async function BillboardSettingsPage({ searchParams }: PageSearch
               accounts) — personal Gmail accounts cannot have Shared drives.
               {photos.connectedAccount ? " A connected account (Option 1) takes priority; disconnect it to switch." : ""}
             </p>
-            <ol className="list-decimal space-y-1 pl-5">
-              <li>In Google Cloud, enable the <strong>Google Drive API</strong> for the tracker&rsquo;s project.</li>
-              <li>In Google Drive, create a <strong>Shared drive</strong> (for example &ldquo;Billboard Photos&rdquo;).</li>
-              <li>
-                Add the tracker to it as a <strong>Content manager</strong>
-                {serviceAccount ? (
-                  <>
-                    : <code className="rounded bg-slate-100 px-1 py-0.5 text-xs break-all">{serviceAccount}</code>
-                  </>
-                ) : null}
-                .
-              </li>
-              <li>
-                Copy the last part of the Shared drive&rsquo;s address (after <code>/folders/</code>), put it in
-                GOOGLE_BILLBOARDS_PHOTOS_FOLDER_ID and restart the app.
-              </li>
-            </ol>
           </section>
         </CardBody>
       </Card>

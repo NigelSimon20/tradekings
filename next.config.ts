@@ -33,7 +33,9 @@ const SECURITY_HEADERS = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), interest-cohort=()" },
+  // Location is allowed for this site only: the billboard form's "Use my
+  // location" button fills in the coordinates when someone is at the site.
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self), interest-cohort=()" },
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
   ...(process.env.NODE_ENV === "production"
     ? [{ key: "Content-Security-Policy", value: CONTENT_SECURITY_POLICY }]

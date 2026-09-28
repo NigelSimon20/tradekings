@@ -313,6 +313,7 @@ sign out and choose the other one.
 | **Map** (`/billboards`) | Every site as a marker coloured by status, a red ring on sites needing follow-up. Search by ID, road, area, city or brand; filter by status, city and lease. Selecting a site shows a summary and opens its profile. |
 | **Dashboard** | Total, active, inactive and under-maintenance sites, expired leases, leases expiring within 30 and 90 days, and sites requiring follow-up — each number opens the list behind it. |
 | **All billboards** | The searchable list; filters live in the URL. Archived sites are one click away. |
+| **Add / edit** | Only the site name and town are required. **Pick on map** fills in the GPS coordinates: search for the place (suggestions appear as you type — Photon, an OpenStreetMap search, through the tracker's server, Zimbabwe first), click or drag the pin, or press **Use my location** when standing at the site. A **View in Google Maps** link checks the spot. |
 | **Profile** | Basic information, lease, contacts, current usage with campaign history, maintenance with history, photos and documents, and an activity log of every change. |
 | **Setup & access** | Billboard administrators prepare the billboard sheet and see who has access. |
 

@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { startTransition, useActionState, useEffect, type FormEvent, type ReactNode } from "react";
+import { startTransition, useActionState, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { saveBillboardAction } from "@/app/(billboards)/billboards/actions";
+import { LocationPicker } from "@/components/billboards/location-picker";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -35,6 +36,20 @@ export function BillboardForm({
 }) {
   const router = useRouter();
   const [state, dispatch, pending] = useActionState(saveBillboardAction, EMPTY_BILLBOARD_FORM_STATE);
+  const form = useRef<HTMLFormElement>(null);
+  // Coordinates are typed or picked on the map, so the two stay in step.
+  const [latitude, setLatitude] = useState(defaults.latitude?.toString() ?? "");
+  const [longitude, setLongitude] = useState(defaults.longitude?.toString() ?? "");
+  const pinned =
+    latitude.trim() && longitude.trim() && Number.isFinite(Number(latitude)) && Number.isFinite(Number(longitude))
+      ? { latitude: Number(latitude), longitude: Number(longitude) }
+      : null;
+  /** Road, area and town as typed so far — the picker's first search. */
+  const placeSoFar = () => {
+    const field = (name: string) =>
+      String((form.current?.elements.namedItem(name) as HTMLInputElement | null)?.value ?? "").trim();
+    return [field("road"), field("area"), field("city")].filter(Boolean).join(", ") || field("address");
+  };
 
   useEffect(() => {
     if (state.status === "success" && state.billboardId) {
@@ -93,7 +108,7 @@ export function BillboardForm({
   );
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5">
+    <form ref={form} onSubmit={onSubmit} className="space-y-5">
       <input type="hidden" name="existingId" value={mode === "edit" ? text("id") : ""} />
       <datalist id="billboard-cities">
         {cities.map((city) => (
@@ -133,12 +148,36 @@ export function BillboardForm({
           {input("city", "City / town", { required: true })}
           {input("area", "Area / suburb")}
           {input("road", "Road", { wide: true })}
-          {input("latitude", "Latitude", {
-            type: "number",
-            placeholder: "-17.8292",
-            hint: "In Google Maps, right-click the site and click the numbers to copy them.",
-          })}
-          {input("longitude", "Longitude", { type: "number", placeholder: "31.0522" })}
+          <Field label="Latitude" htmlFor="latitude" error={error("latitude")}>
+            <Input
+              id="latitude"
+              name="latitude"
+              type="number"
+              step="any"
+              value={latitude}
+              onChange={(event) => setLatitude(event.target.value)}
+              placeholder="-17.8292"
+            />
+          </Field>
+          <Field label="Longitude" htmlFor="longitude" error={error("longitude")}>
+            <Input
+              id="longitude"
+              name="longitude"
+              type="number"
+              step="any"
+              value={longitude}
+              onChange={(event) => setLongitude(event.target.value)}
+              placeholder="31.0522"
+            />
+          </Field>
+          <LocationPicker
+            value={pinned}
+            suggestedSearch={placeSoFar}
+            onPick={(point) => {
+              setLatitude(String(point.latitude));
+              setLongitude(String(point.longitude));
+            }}
+          />
         </>,
       )}
 

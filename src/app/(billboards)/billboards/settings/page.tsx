@@ -5,11 +5,12 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { SettingsIcon } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
-import { TBody, THead, Table, TableWrap, Td, Th, Tr } from "@/components/ui/table";
-import { BILLBOARD_PERMISSION_INFO, NOT_ALLOWED } from "@/lib/auth/roles";
+import { BILLBOARD_PERMISSION_INFO } from "@/lib/auth/roles";
 import { RoleMatrix } from "@/components/ui/role-matrix";
 import { BILLBOARD_TABLES } from "@/lib/billboards/data/sheet-tables";
-import { getRoleTable, listSignInUsers, requireBillboardViewer } from "@/lib/services/auth";
+import { getRoleTable, requireBillboardViewer } from "@/lib/services/auth";
+import { loadUsersEditor } from "@/lib/services/users";
+import { UsersEditor } from "@/components/settings/users-editor";
 import { getConfig } from "@/lib/config/env";
 import { formatTimestamp } from "@/lib/date/dates";
 import type { PageSearchParams } from "@/lib/domain/filters";
@@ -27,18 +28,12 @@ export default async function BillboardSettingsPage({ searchParams }: PageSearch
   const timezone = config.timezone;
   const googleSignIn = config.auth.google !== null;
   const secretIsTemporary = config.auth.secretIsTemporary;
-  const [health, photos, users, roleTable] = await Promise.all([
+  const [health, photos, people, roleTable] = await Promise.all([
     checkBillboardSource(),
     checkPhotoStore(),
-    listSignInUsers(),
+    loadUsersEditor(),
     getRoleTable(),
   ]);
-  const describe = (name: string) => roleTable.billboards.find((role) => role.name === name)?.description ?? "";
-  // Everyone given a Billboard Tracker role, including any the tab does not
-  // recognise (shown in red so they can be fixed); "Not allowed" is no access.
-  const withAccess = users.filter(
-    (user) => user.billboards.trim() && user.parsedBillboardRole !== NOT_ALLOWED,
-  );
 
   return (
     <div className="space-y-6">
@@ -180,58 +175,30 @@ export default async function BillboardSettingsPage({ searchParams }: PageSearch
 
       <Card>
         <CardHeader
-          title="Who can use the billboard tracker"
-          description="Set in the Billboards column of the Users tab in the users spreadsheet. Blank means no access to billboards."
-          action={<Badge tone="info">{withAccess.length} people</Badge>}
+          icon={<SettingsIcon className="size-4" />}
+          title="Who can sign in"
+          description={
+            people.rights.contracts || people.rights.billboards
+              ? "Change someone's access to each app, or add a person. Saved to the Users tab of the users spreadsheet; applies within about 30 seconds."
+              : "Set on the Users tab of the users spreadsheet. Only administrators can change it."
+          }
         />
-        {withAccess.length ? (
-          <TableWrap>
-            <Table>
-              <THead>
-                <Tr className="hover:bg-transparent">
-                  <Th>Name</Th>
-                  <Th>Email</Th>
-                  <Th>Billboards</Th>
-                  <Th className="hidden md:table-cell">Contracts</Th>
-                  <Th>Can sign in</Th>
-                </Tr>
-              </THead>
-              <TBody>
-                {withAccess.map((person) => (
-                  <Tr key={person.email}>
-                    <Td className="font-medium text-slate-900">{person.name}</Td>
-                    <Td>{person.email}</Td>
-                    <Td>
-                      {person.parsedBillboardRole ? (
-                        <Badge tone="neutral" title={describe(person.parsedBillboardRole)}>
-                          {person.parsedBillboardRole}
-                        </Badge>
-                      ) : (
-                        <Badge tone="critical" title="Not a role on the Billboard Roles tab">
-                          {person.billboards}
-                        </Badge>
-                      )}
-                    </Td>
-                    <Td className="hidden text-slate-500 md:table-cell">
-                      {person.parsedRole && person.parsedRole !== NOT_ALLOWED ? person.parsedRole : "—"}
-                    </Td>
-                    <Td>
-                      <Badge tone={person.active ? "success" : "neutral"}>{person.active ? "Yes" : "No"}</Badge>
-                    </Td>
-                  </Tr>
-                ))}
-              </TBody>
-            </Table>
-          </TableWrap>
+        {people.editable ? (
+          <UsersEditor
+            users={people.users}
+            contractRoles={people.contractRoles}
+            billboardRoles={people.billboardRoles}
+            rights={people.rights}
+            currentEmail={people.currentEmail}
+          />
         ) : (
           <CardBody>
             <p className="text-sm text-slate-500">
-              Nobody has billboard access on the Users tab yet. The addresses in ADMIN_EMAILS can always
-              sign in as administrators.
+              The tracker is running on sample data, so there is no Users tab yet. Once the Google Sheet is
+              connected, people can be added and given access here.
             </p>
           </CardBody>
         )}
-
       </Card>
     </div>
   );

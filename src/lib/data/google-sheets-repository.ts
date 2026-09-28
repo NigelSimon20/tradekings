@@ -14,6 +14,7 @@ import {
   isBlankRow,
   neutraliseFormula,
   parseUserRows,
+  indexUserColumns,
   BILLBOARD_ROLES_TAB,
   CONTRACT_ROLES_TAB,
   missingColumns,
@@ -30,6 +31,7 @@ import {
 } from "@/lib/auth/roles";
 import {
   RepositoryError,
+  type UserAccessInput,
   stampNewContract,
   type ContractRepository,
   type RepositoryHealth,
@@ -534,6 +536,60 @@ export class GoogleSheetsRepository implements ContractRepository {
     const workbook = await this.readWorkbook();
     if (workbook.usersError) throw new RepositoryError(workbook.usersError);
     return workbook.roleTable;
+  }
+
+  async saveUser(input: UserAccessInput): Promise<void> {
+    const email = input.email.trim().toLowerCase();
+    const response = await this.call(() =>
+      this.api().spreadsheets.values.get({
+        spreadsheetId: this.config.usersSpreadsheetId,
+        range: this.tabRange(this.config.usersSheet),
+      }),
+    );
+    const rows = (response.data.values ?? []) as unknown[][];
+    const index = indexUserColumns(rows[0] ?? []);
+    const position = rows.findIndex(
+      (row, at) => at > 0 && String(row?.[index.email] ?? "").trim().toLowerCase() === email,
+    );
+
+    // Cells are written as plain text: names typed in the app must never run as formulas.
+    const cells: [number, string][] = [];
+    if (input.name !== undefined) cells.push([index.name, String(neutraliseFormula(input.name.trim()))]);
+    if (input.role !== undefined) cells.push([index.role, input.role]);
+    if (input.billboards !== undefined) cells.push([index.billboards, input.billboards]);
+    if (input.active !== undefined) cells.push([index.active, input.active ? "Yes" : "No"]);
+
+    if (position === -1) {
+      const width = Math.max(...Object.values(index)) + 1;
+      const row: (string | null)[] = new Array(width).fill(null);
+      row[index.email] = email;
+      for (const [column, value] of cells) row[column] = value;
+      if (input.active === undefined) row[index.active] = "Yes";
+      await this.call(() =>
+        this.api().spreadsheets.values.append({
+          spreadsheetId: this.config.usersSpreadsheetId,
+          range: this.tabRange(this.config.usersSheet, "!A1"),
+          valueInputOption: "RAW",
+          insertDataOption: "INSERT_ROWS",
+          requestBody: { values: [row] },
+        }),
+      );
+    } else if (cells.length) {
+      await this.call(() =>
+        this.api().spreadsheets.values.batchUpdate({
+          spreadsheetId: this.config.usersSpreadsheetId,
+          requestBody: {
+            valueInputOption: "RAW",
+            data: cells.map(([column, value]) => ({
+              range: this.tabRange(this.config.usersSheet, `!${columnLetter(column)}${position + 1}`),
+              values: [[value]],
+            })),
+          },
+        }),
+      );
+    }
+    // The next page load sees the change straight away.
+    this.invalidate();
   }
 
   async recordSignIn(user: SheetUser, at: string): Promise<void> {

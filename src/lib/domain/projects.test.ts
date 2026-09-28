@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { DEFAULT_ROLE_TABLE, accessForRoles } from "@/lib/auth/roles";
-import { canOpenProject, landingFor, projectForPath } from "@/lib/domain/projects";
+import { accessibleProjects, landingAfterSignIn, canOpenProject, landingFor, projectForPath } from "@/lib/domain/projects";
 
 describe("choosing a tracker at sign-in", () => {
   it("knows which tracker a page belongs to", () => {
@@ -29,5 +29,28 @@ describe("choosing a tracker at sign-in", () => {
     expect(canOpenProject(accessForRoles(null, "Viewer", DEFAULT_ROLE_TABLE), "billboards")).toBe(true);
     expect(canOpenProject(accessForRoles(null, "Viewer", DEFAULT_ROLE_TABLE), "contracts")).toBe(false);
     expect(canOpenProject(accessForRoles("Manager", null, DEFAULT_ROLE_TABLE), "contracts")).toBe(true);
+  });
+});
+
+describe("one sign-in for both apps", () => {
+  const both = accessForRoles("HR", "Viewer", DEFAULT_ROLE_TABLE);
+  const contractsOnly = accessForRoles("HR", "Not allowed", DEFAULT_ROLE_TABLE);
+  const billboardsOnly = accessForRoles(null, "Editor", DEFAULT_ROLE_TABLE);
+
+  it("sends someone with one app straight into it", () => {
+    expect(landingAfterSignIn(billboardsOnly, "/")).toBe("/billboards");
+    expect(landingAfterSignIn(contractsOnly, "/billboards/list")).toBe("/");
+  });
+
+  it("takes someone with both apps where they were going, or the Contract Tracker", () => {
+    expect(landingAfterSignIn(both, "/billboards/BB-004")).toBe("/billboards/BB-004");
+    expect(landingAfterSignIn(both, "/")).toBe("/");
+  });
+
+  it("offers the switcher only to people with both apps", () => {
+    expect(accessibleProjects(both).map((project) => project.id)).toEqual(["contracts", "billboards"]);
+    expect(accessibleProjects(contractsOnly).map((project) => project.id)).toEqual(["contracts"]);
+    expect(accessibleProjects(billboardsOnly).map((project) => project.id)).toEqual(["billboards"]);
+    expect(accessibleProjects(null)).toEqual([]);
   });
 });

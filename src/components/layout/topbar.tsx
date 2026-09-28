@@ -9,7 +9,7 @@ import { PlusIcon } from "@/components/ui/icons";
 import { getConfig } from "@/lib/config/env";
 import { formatDate, todayIn } from "@/lib/date/dates";
 import { can, canBillboards } from "@/lib/auth/roles";
-import type { ProjectId } from "@/lib/domain/projects";
+import { accessibleProjects, type ProjectId } from "@/lib/domain/projects";
 import { loadAlerts } from "@/lib/services/alerts";
 import { getCurrentUser, getRoleTable } from "@/lib/services/auth";
 
@@ -31,6 +31,7 @@ export async function Topbar({ project }: { project: ProjectId }) {
       <div className="mx-auto flex h-16 w-full max-w-[1500px] items-center gap-2 px-3 sm:gap-3 sm:px-4 lg:px-8">
         <MobileNav
           project={project}
+          projects={accessibleProjects(user)}
           hrefs={navItemsFor(project, user).map((item) => item.href)}
           signInEnabled={config.auth.enabled}
         />

@@ -3,8 +3,9 @@ import type { SessionUser } from "@/lib/auth/session";
 
 /**
  * The trackers that live behind the one link. Each has its own navigation,
- * its own spreadsheet and its own access level on the Users tab. People pick
- * one on the sign-in page.
+ * its own spreadsheet and its own access level on the Users tab. There is one
+ * sign-in; access decides which apps someone gets, and the switcher under the
+ * wordmark moves between them when they have more than one.
  */
 export const PROJECT_IDS = ["contracts", "billboards"] as const;
 export type ProjectId = (typeof PROJECT_IDS)[number];
@@ -53,8 +54,30 @@ export function canOpenProject(
     : canBillboards(user, "viewBillboards");
 }
 
+/** The apps this person can open, in switcher order. */
+export function accessibleProjects(
+  user: Pick<SessionUser, "permissions" | "billboardPermissions"> | null,
+): Project[] {
+  if (!user) return [];
+  return PROJECT_IDS.filter((id) => canOpenProject(user, id)).map((id) => PROJECTS[id]);
+}
+
 /**
- * Where to land after signing in to a tracker: the page that was asked for if
+ * After signing in: the page that was asked for if this person can open its
+ * app, otherwise the front page of the first app they can open.
+ */
+export function landingAfterSignIn(
+  user: Pick<SessionUser, "permissions" | "billboardPermissions">,
+  requested: string,
+): string {
+  const wanted = projectForPath(requested);
+  if (canOpenProject(user, wanted)) return landingFor(wanted, requested);
+  const open = PROJECT_IDS.find((id) => canOpenProject(user, id));
+  return open ? PROJECTS[open].href : "/";
+}
+
+/**
+ * Where to land in a given tracker: the page that was asked for if
  * it belongs to that tracker, otherwise the tracker's front page.
  */
 export function landingFor(project: ProjectId, requested: string | null | undefined): string {

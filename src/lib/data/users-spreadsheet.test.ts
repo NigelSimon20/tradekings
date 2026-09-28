@@ -81,6 +81,18 @@ function fakeClient(books: Books): sheets_v4.Sheets {
           });
           return { data: {} };
         },
+        batchUpdate: async ({
+          spreadsheetId,
+          requestBody,
+        }: {
+          spreadsheetId: string;
+          requestBody: { data: { range: string; values: unknown[][] }[] };
+        }) => {
+          for (const entry of requestBody.data) {
+            await client.spreadsheets.values.update({ spreadsheetId, range: entry.range, requestBody: { values: entry.values } });
+          }
+          return { data: {} };
+        },
         append: async ({
           spreadsheetId,
           range,
@@ -460,6 +472,21 @@ describe("reading users from the users spreadsheet", () => {
     expect(table.billboards[0]).toMatchObject({ name: "Administrator", locked: true });
     // No Contract Roles tab yet: the built-in contract roles apply.
     expect(table.contracts.map((role) => role.name)).toEqual(["Administrator", "HR", "Manager", "Not allowed"]);
+  });
+
+  it("saves access changes made in the app to the right cells, leaving the rest alone", async () => {
+    books[USERS_ID] = usersBook([
+      ["Email", "Name", "Active", "Contracts", "Billboards", "Last Signed In"],
+      ["hr@tkzim.co.zw", "HR", "Yes", "HR", "", "2026-09-01"],
+    ]);
+    const repo = await repository();
+
+    await repo.saveUser({ email: "HR@tkzim.co.zw", billboards: "Viewer" });
+    expect(books[USERS_ID].tabs.get("Users")?.[1]).toEqual(["hr@tkzim.co.zw", "HR", "Yes", "HR", "Viewer", "2026-09-01"]);
+
+    await repo.saveUser({ email: "new@tkzim.co.zw", name: "=HYPERLINK(1)", role: "Manager" });
+    expect(books[USERS_ID].tabs.get("Users")?.[2]).toEqual(["new@tkzim.co.zw", "'=HYPERLINK(1)", "Yes", "Manager", null, null]);
+    expect((await repo.listUsers()).map((user) => user.email)).toEqual(["hr@tkzim.co.zw", "new@tkzim.co.zw"]);
   });
 
   it("warns about the old Users tab left in the contracts spreadsheet", async () => {

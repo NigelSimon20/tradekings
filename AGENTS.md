@@ -15,10 +15,10 @@ A Google Sheet is the database; this app applies the contract rules, shows a
 dashboard and sends the weekly reports. See README.md for setup.
 
 The same app also hosts the **Billboard Tracker** (map, profiles, leases,
-campaigns, maintenance). The two share one link and one shell. People choose
-the app on the sign-in page; the callback refuses a sign-in to an app the
-account cannot open (`canOpenProject`, `landingFor` in `lib/domain/projects.ts`).
-There is no switcher inside the apps — to change app, sign out and choose again.
+campaigns, maintenance). The two share one link, one sign-in and one shell.
+Access decides where someone lands (`landingAfterSignIn`); the switcher under
+the wordmark (`ProjectSwitcher`) lists only `accessibleProjects(user)` and is a
+plain label when that is a single app (`lib/domain/projects.ts`).
 
 ## The billboard tracker
 
@@ -102,6 +102,10 @@ There is no switcher inside the apps — to change app, sign out and choose agai
   resolved per request. A new permission is a new entry in `PERMISSION_INFO` or
   `BILLBOARD_PERMISSION_INFO` (label = the tab's column heading); setup adds the
   column, unticked.
+- People's access can be edited in the app (`UsersEditor`, `saveUserAccessAction`).
+  Who may change what is `planUserChange` in `lib/auth/user-admin.ts` — each app's
+  admins their column, Active needs both, never your own row — and is enforced
+  on the server, not by what the page shows.
 - Permissions live in `src/lib/auth/roles.ts`. Pages call `requireViewer`, API
   routes call `guardApi`, and server actions check `can(...)` — never rely on
   hiding a button alone.

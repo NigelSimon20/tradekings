@@ -14,3 +14,11 @@ export interface ContractFormState {
 }
 
 export const EMPTY_FORM_STATE: ContractFormState = { status: "idle", message: "", errors: {} };
+
+/** Result of adding or changing a person on the Users tab from the app. */
+export interface UserAccessState {
+  status: "idle" | "success" | "error";
+  message: string;
+}
+
+export const EMPTY_USER_ACCESS_STATE: UserAccessState = { status: "idle", message: "" };

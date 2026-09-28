@@ -185,6 +185,10 @@ export class LocalJsonRepository implements ContractRepository {
     return DEFAULT_ROLE_TABLE;
   }
 
+  async saveUser(): Promise<void> {
+    throw new RepositoryError("The sample data has no Users tab. People are managed once the Google Sheet is connected.");
+  }
+
   async recordSignIn(): Promise<void> {
     // Nothing to stamp without a sheet.
   }

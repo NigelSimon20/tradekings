@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { DefinitionList } from "@/components/ui/definition-list";
 import { ContractsIcon, ReportsIcon, SettingsIcon } from "@/components/ui/icons";
-import { NOT_ALLOWED, PERMISSION_INFO } from "@/lib/auth/roles";
+import { PERMISSION_INFO } from "@/lib/auth/roles";
 import { RoleMatrix } from "@/components/ui/role-matrix";
 import { PageHeader } from "@/components/ui/page-header";
 import { RuleSummary } from "@/components/ui/rule-summary";
@@ -17,7 +17,9 @@ import { duplicateEnvKeys } from "@/lib/config/env-file";
 import { CONTRACT_COLUMNS } from "@/lib/data/sheet-schema";
 import { getMailer } from "@/lib/email/mailer";
 import { can } from "@/lib/auth/roles";
-import { getRoleTable, listSignInUsers, requireViewer } from "@/lib/services/auth";
+import { getRoleTable, requireViewer } from "@/lib/services/auth";
+import { loadUsersEditor } from "@/lib/services/users";
+import { UsersEditor } from "@/components/settings/users-editor";
 import { checkDataSource } from "@/lib/services/contracts";
 import { getReportSettings, getRulesConfig } from "@/lib/services/settings";
 
@@ -30,8 +32,7 @@ export default async function SettingsPage() {
   const health = await checkDataSource();
   const settings = await getReportSettings();
   const { rules, fromSheet: rulesFromSheet } = await getRulesConfig();
-  const [signInUsers, roleTable] = await Promise.all([listSignInUsers(), getRoleTable()]);
-  const describe = (name: string) => roleTable.contracts.find((role) => role.name === name)?.description ?? "";
+  const [people, roleTable] = await Promise.all([loadUsersEditor(), getRoleTable()]);
   const duplicateSettings = duplicateEnvKeys();
   const mailer = getMailer();
 
@@ -197,69 +198,25 @@ export default async function SettingsPage() {
         <CardHeader
           icon={<SettingsIcon className="size-4" />}
           title="Who can sign in"
-          description="Managed on the Users tab of the separate users spreadsheet, which only administrators should be able to open — add a row to give someone access, or set Active to No to take it away."
-          action={<Badge tone={signInUsers.length ? "info" : "caution"}>{signInUsers.length} people</Badge>}
+          description={
+            people.rights.contracts || people.rights.billboards
+              ? "Change someone's access to each app, or add a person. Saved to the Users tab of the users spreadsheet; applies within about 30 seconds."
+              : "Set on the Users tab of the users spreadsheet. Only administrators can change it."
+          }
         />
-        {signInUsers.length ? (
-          <TableWrap>
-            <Table>
-              <THead>
-                <Tr className="hover:bg-transparent">
-                  <Th>Name</Th>
-                  <Th>Email</Th>
-                  <Th>Contract Tracker</Th>
-                  <Th className="hidden md:table-cell">Billboard Tracker</Th>
-                  <Th>Can sign in</Th>
-                  <Th className="hidden sm:table-cell">Last signed in</Th>
-                </Tr>
-              </THead>
-              <TBody>
-                {signInUsers.map((person) => (
-                  <Tr key={person.email}>
-                    <Td className="font-medium text-slate-900">{person.name}</Td>
-                    <Td>{person.email}</Td>
-                    <Td>
-                      {person.parsedRole === NOT_ALLOWED ? (
-                        <span className="text-slate-400" title="Kept out of the Contract Tracker">
-                          Not allowed
-                        </span>
-                      ) : person.parsedRole ? (
-                        <Badge tone="neutral" title={describe(person.parsedRole)}>
-                          {person.parsedRole}
-                        </Badge>
-                      ) : !person.role.trim() && person.parsedBillboardRole ? (
-                        <span className="text-slate-400" title="Billboard tracker only">
-                          —
-                        </span>
-                      ) : (
-                        <Badge tone="critical" title="Not a role on the Contract Roles tab">
-                          {person.role || "not set"}
-                        </Badge>
-                      )}
-                    </Td>
-                    <Td className="hidden text-slate-500 md:table-cell">
-                      {person.parsedBillboardRole ?? (person.billboards || "—")}
-                    </Td>
-                    <Td>
-                      <Badge tone={person.active ? "success" : "neutral"}>
-                        {person.active ? "Yes" : "No"}
-                      </Badge>
-                    </Td>
-                    <Td className="hidden text-slate-500 sm:table-cell">
-                      {person.lastSignedIn || "never"}
-                    </Td>
-                  </Tr>
-                ))}
-              </TBody>
-            </Table>
-          </TableWrap>
+        {people.editable ? (
+          <UsersEditor
+            users={people.users}
+            contractRoles={people.contractRoles}
+            billboardRoles={people.billboardRoles}
+            rights={people.rights}
+            currentEmail={people.currentEmail}
+          />
         ) : (
           <CardBody>
             <p className="text-sm text-slate-500">
-              Nobody is listed yet. Use <strong>Prepare the Google Sheet</strong> above to create the
-              Users tab in the users spreadsheet, then add a row for each person: their email, their name, a
-              Contract Tracker role under Contracts and a Billboard Tracker role under Billboards
-              (choose &ldquo;Not allowed&rdquo; to keep them out of an app), and Yes under Active.
+              The tracker is running on sample data, so there is no Users tab yet. Once the Google Sheet is
+              connected, people can be added and given access here.
             </p>
           </CardBody>
         )}

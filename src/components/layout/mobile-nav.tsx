@@ -7,7 +7,8 @@ import { signOutAction } from "@/app/login/actions";
 import { PROJECT_NAV } from "@/components/layout/nav-items";
 import { CloseIcon, MenuIcon, SignOutIcon } from "@/components/ui/icons";
 import { Portal } from "@/components/ui/portal";
-import { PROJECTS, type ProjectId } from "@/lib/domain/projects";
+import { ProjectSwitcher } from "@/components/layout/project-switcher";
+import type { Project, ProjectId } from "@/lib/domain/projects";
 import { useDismissable } from "@/lib/ui/use-dismissable";
 import { cn } from "@/lib/ui/cn";
 
@@ -17,10 +18,13 @@ import { cn } from "@/lib/ui/cn";
  */
 export function MobileNav({
   project,
+  projects,
   hrefs,
   signInEnabled = false,
 }: {
   project: ProjectId;
+  /** The apps this person may open, for the switcher. */
+  projects: Project[];
   hrefs: string[];
   signInEnabled?: boolean;
 }) {
@@ -61,9 +65,8 @@ export function MobileNav({
               </button>
             </div>
 
-            <div className="mt-4 px-3">
-              <p className="text-sm font-medium text-white/85">{PROJECTS[project].name}</p>
-              <p className="text-xs text-white/50">{PROJECTS[project].description}</p>
+            <div className="mt-4">
+              <ProjectSwitcher current={project} projects={projects} />
             </div>
 
             <ul className="mt-4 space-y-1">

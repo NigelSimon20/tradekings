@@ -52,6 +52,11 @@ export interface ContractRepository {
    * the built-in default when its tab is missing. Throws when unreadable.
    */
   readRoleTable(): Promise<RoleTable>;
+  /**
+   * Adds a person to the Users tab, or updates their row (found by email).
+   * Only the given fields are written; the rest of the row is left alone.
+   */
+  saveUser(user: UserAccessInput): Promise<void>;
   /** Stamps the moment someone signed in, so access can be reviewed. */
   recordSignIn(user: SheetUser, at: string): Promise<void>;
   appendRunLog(entry: RunLogEntry): Promise<void>;
@@ -59,6 +64,16 @@ export interface ContractRepository {
   healthCheck(): Promise<RepositoryHealth>;
   /** Creates the tabs, headings and formatting the system expects. */
   setUpStorage(options?: { seedAdmins?: string[] }): Promise<SheetSetupResult>;
+}
+
+export interface UserAccessInput {
+  email: string;
+  name?: string;
+  /** Contracts column. */
+  role?: string;
+  /** Billboards column. */
+  billboards?: string;
+  active?: boolean;
 }
 
 export class RepositoryError extends Error {

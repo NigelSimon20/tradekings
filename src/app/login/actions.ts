@@ -74,7 +74,7 @@ export async function signInAction(_previous: LoginState, formData: FormData): P
     },
   );
 
-  redirect(next.startsWith("/") ? next : "/");
+  redirect(next.startsWith("/") && !next.startsWith("//") ? next : "/");
 }
 
 export async function signOutAction(): Promise<void> {

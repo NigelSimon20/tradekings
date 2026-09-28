@@ -12,7 +12,7 @@ import {
 import { canBillboards } from "@/lib/auth/roles";
 import { SESSION_COOKIE, SESSION_TTL_SECONDS, createSessionToken } from "@/lib/auth/session";
 import { getConfig } from "@/lib/config/env";
-import { PROJECTS, PROJECT_IDS, canOpenProject, projectForPath } from "@/lib/domain/projects";
+import { landingAfterSignIn } from "@/lib/domain/projects";
 import { getCurrentUser, resolveSignIn } from "@/lib/services/auth";
 import { connectDriveAccount } from "@/lib/services/billboards";
 
@@ -23,10 +23,8 @@ export async function GET(request: Request): Promise<Response> {
   const params = new URL(request.url).searchParams;
   const store = await cookies();
 
-  const fail = (message: string, app?: string) =>
-    NextResponse.redirect(
-      new URL(`/login?error=${encodeURIComponent(message)}${app ? `&app=${app}` : ""}`, origin),
-    );
+  const fail = (message: string) =>
+    NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(message)}`, origin));
 
   if (!config.auth.google) return fail("Google sign-in is not set up.");
   if (params.get("error")) return fail("Sign-in was cancelled.");
@@ -60,17 +58,8 @@ export async function GET(request: Request): Promise<Response> {
     const { user, reason } = await resolveSignIn(identity.email, identity.name, "google");
     if (!user) return fail(reason ?? "That account may not use the tracker.");
 
-    // Signed in for the tracker chosen on the sign-in page, or not at all.
-    const project = projectForPath(parsed.next);
-    if (!canOpenProject(user, project)) {
-      const other = PROJECT_IDS.find((id) => id !== project && canOpenProject(user, id));
-      return fail(
-        `${identity.email} does not have access to the ${PROJECTS[project].name}.${
-          other ? ` It can open the ${PROJECTS[other].name} — choose that instead.` : ""
-        } Ask an administrator if you need access.`,
-        project,
-      );
-    }
+    // One sign-in for both apps: access decides where they land.
+    const landing = landingAfterSignIn(user, parsed.next);
 
     store.set(SESSION_COOKIE, await createSessionToken(config.auth.secret, user), {
       httpOnly: true,
@@ -80,7 +69,7 @@ export async function GET(request: Request): Promise<Response> {
       maxAge: SESSION_TTL_SECONDS,
     });
 
-    return NextResponse.redirect(new URL(parsed.next, origin));
+    return NextResponse.redirect(new URL(landing, origin));
   } catch (error) {
     return fail((error as Error).message);
   }

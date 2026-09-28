@@ -189,8 +189,14 @@ changed by anyone who edits contracts, and would let them point sign-in at a
 list of their own. Left blank, the Users tab stays in the contracts spreadsheet
 and Rules & settings shows a warning.
 
-**Managing access** is then a spreadsheet job — a row per person on the Users
-tab of the users spreadsheet:
+**Managing access** can be done in the app: **Who can sign in** on either app's
+settings page lists everyone, and administrators can change access or add a
+person there — it is saved to the Users tab. Contract Tracker administrators
+change the Contract Tracker column, Billboard Tracker administrators the
+Billboard Tracker column, and only someone who administers both can switch a
+person off (Active), because that affects both apps. Nobody can change their own
+access. Everyone else sees the list read-only. The Users tab of the users
+spreadsheet holds a row per person:
 
 | Column | What to put |
 | --- | --- |
@@ -303,10 +309,10 @@ marked but not captured, missing employee ID or manager email, unusable dates.
 ## Billboard Tracker
 
 The same link also hosts the **Billboard Tracker** for Trade Kings billboard
-sites. People choose **Contract Tracker** or **Billboard Tracker** on the sign-in
-page and then continue with Google. If their account has no access to the app
-they chose, the sign-in page says so and they are not signed in. To change app,
-sign out and choose the other one.
+sites. There is one sign-in: people continue with Google and land in the app
+their access allows. Someone with access to both apps gets a dropdown under
+**Trade Kings · Zimkings** to switch between them; someone with one app sees just
+its name and goes straight into it.
 
 | Page | What it does |
 | --- | --- |

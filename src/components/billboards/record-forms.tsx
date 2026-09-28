@@ -7,6 +7,7 @@ import {
   addFileAction,
   addMaintenanceAction,
   archiveBillboardAction,
+  disconnectDriveAction,
   removeFileAction,
   setUpBillboardSheetAction,
 } from "@/app/(billboards)/billboards/actions";
@@ -244,6 +245,22 @@ export function ArchiveButton({ billboardId, archived }: { billboardId: string; 
       </Button>
       {state.status === "error" ? <p className={cn("mt-1 text-xs", TONE_CLASSES.critical.text)}>{state.message}</p> : null}
     </form>
+  );
+}
+
+export function DisconnectDriveButton() {
+  const [state, dispatch, pending] = useActionState(disconnectDriveAction, EMPTY_BILLBOARD_FORM_STATE);
+  const disconnect = () => {
+    if (!window.confirm("Stop storing uploads in this Google account? Files already uploaded stay in its Drive.")) return;
+    startTransition(() => dispatch());
+  };
+  return (
+    <div>
+      <Button type="button" variant="secondary" size="sm" onClick={disconnect} disabled={pending}>
+        {pending ? "Disconnecting…" : "Disconnect"}
+      </Button>
+      <Result state={state} />
+    </div>
   );
 }
 

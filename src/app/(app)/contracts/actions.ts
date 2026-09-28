@@ -17,7 +17,7 @@ export async function saveContractAction(
   formData: FormData,
 ): Promise<ContractFormState> {
   const user = await getCurrentUser();
-  if (!user || !can(user.role, "editContracts")) {
+  if (!user || !can(user, "editContracts")) {
     return {
       status: "error",
       message: "Your account does not have permission to change contracts.",

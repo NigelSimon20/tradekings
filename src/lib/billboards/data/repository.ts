@@ -31,6 +31,12 @@ export interface BillboardRepository {
   /** Inserts the document, or replaces the row with the same id. */
   saveFile(file: BillboardFile): Promise<void>;
   appendActivity(entries: ActivityEntry[]): Promise<void>;
+  /**
+   * Small pieces of system state (such as the sealed Drive connection), kept
+   * out of the way of the records. `null` clears a setting.
+   */
+  readSetting(key: string): Promise<string | null>;
+  saveSetting(key: string, value: string | null): Promise<void>;
   /** Appends many records at once — one write per tab. Used to load sample data. */
   appendAll(data: BillboardData): Promise<void>;
   healthCheck(): Promise<RepositoryHealth>;

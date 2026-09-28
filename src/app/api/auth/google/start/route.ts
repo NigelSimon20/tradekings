@@ -4,16 +4,20 @@ import { NextResponse } from "next/server";
 import { OAUTH_STATE_COOKIE, authorizeUrl, createState } from "@/lib/auth/google-oauth";
 import { originFromRequest } from "@/lib/api/origin";
 import { getConfig } from "@/lib/config/env";
+import { isProjectId, landingFor, projectForPath } from "@/lib/domain/projects";
 
-/** Starts the Google sign-in. */
+/** Starts the Google sign-in, for the tracker chosen on the sign-in page. */
 export async function GET(request: Request): Promise<Response> {
   const config = getConfig();
   if (!config.auth.google) {
     return NextResponse.redirect(new URL("/login?error=google-not-configured", originFromRequest(request)));
   }
 
-  const requested = new URL(request.url).searchParams.get("next") ?? "/";
-  const next = requested.startsWith("/") ? requested : "/";
+  const params = new URL(request.url).searchParams;
+  const requested = params.get("next") ?? "/";
+  const chosen = params.get("app");
+  // Where to land decides which tracker the sign-in is for.
+  const next = landingFor(isProjectId(chosen) ? chosen : projectForPath(requested), requested);
   const nonce = crypto.randomUUID();
   const origin = originFromRequest(request);
 

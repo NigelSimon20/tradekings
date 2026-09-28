@@ -102,8 +102,8 @@ export const PROJECT_NAV: Record<ProjectId, readonly NavItem[]> = {
 export function navItemsFor(project: ProjectId, user: SessionUser | null): NavItem[] {
   return PROJECT_NAV[project].filter((item) => {
     if (!user) return true;
-    if (item.permission) return can(user.role, item.permission);
-    if (item.billboardPermission) return canBillboards(user.billboardRole, item.billboardPermission);
+    if (item.permission) return can(user, item.permission);
+    if (item.billboardPermission) return canBillboards(user, item.billboardPermission);
     return true;
   });
 }

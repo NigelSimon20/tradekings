@@ -1,9 +1,8 @@
 import { BrandWordmark } from "@/components/layout/brand-wordmark";
 import { navItemsFor } from "@/components/layout/nav-items";
 import { NavLink } from "@/components/layout/nav-link";
-import { ProjectSwitcher } from "@/components/layout/project-switcher";
 import { getConfig } from "@/lib/config/env";
-import { accessibleProjects, type ProjectId } from "@/lib/domain/projects";
+import { PROJECTS, type ProjectId } from "@/lib/domain/projects";
 import { getCurrentUser } from "@/lib/services/auth";
 import { formatDate, todayIn } from "@/lib/date/dates";
 
@@ -31,9 +30,8 @@ export async function Sidebar({ project }: { project: ProjectId }) {
       <div className="relative flex h-full flex-col">
         <div className="px-6 pt-7 pb-6">
           <BrandWordmark tone="light" size="lg" />
-          <div className="mt-3 -mx-3">
-            <ProjectSwitcher current={project} projects={accessibleProjects(user)} />
-          </div>
+          <p className="mt-2 text-sm font-medium text-white/80">{PROJECTS[project].name}</p>
+          <p className="text-xs text-white/50">{PROJECTS[project].description}</p>
         </div>
 
         <nav className="flex flex-1 flex-col gap-1 px-6">

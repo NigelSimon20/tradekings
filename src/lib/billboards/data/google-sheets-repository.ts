@@ -29,6 +29,13 @@ import { columnLetter } from "@/lib/data/sheet-schema";
 
 const SCOPES = ["https://www.googleapis.com/auth/spreadsheets"];
 
+/**
+ * System state lives on its own hidden tab, created the first time something
+ * is saved. It is not part of the batched read, so a sheet prepared before the
+ * tab existed keeps working.
+ */
+const SETTINGS_TAB = "Tracker Settings";
+
 interface TabValues {
   header: unknown[];
   rows: unknown[][];
@@ -206,6 +213,73 @@ export class GoogleSheetsBillboardRepository implements BillboardRepository {
 
   appendActivity(entries: ActivityEntry[]): Promise<void> {
     return this.append(ACTIVITY_TABLE, entries);
+  }
+
+  private async settingRows(): Promise<string[][] | null> {
+    try {
+      const response = await this.api().spreadsheets.values.get({
+        spreadsheetId: this.config.spreadsheetId,
+        range: this.range(SETTINGS_TAB, "!A:B"),
+      });
+      return (response.data.values ?? []) as string[][];
+    } catch (error) {
+      if (/Unable to parse range/i.test(String((error as Error).message))) return null;
+      throw new RepositoryError(describeGoogleError(error), { cause: error });
+    }
+  }
+
+  async readSetting(key: string): Promise<string | null> {
+    const rows = await this.settingRows();
+    const value = rows?.find((row) => row[0] === key)?.[1];
+    return value ? String(value) : null;
+  }
+
+  async saveSetting(key: string, value: string | null): Promise<void> {
+    let rows = await this.settingRows();
+    if (rows === null) {
+      if (value === null) return;
+      await this.call(() =>
+        this.api().spreadsheets.batchUpdate({
+          spreadsheetId: this.config.spreadsheetId,
+          requestBody: {
+            requests: [{ addSheet: { properties: { title: SETTINGS_TAB, hidden: true } } }],
+          },
+        }),
+      );
+      rows = [["Setting", "Value — written by the tracker, do not edit"]];
+      await this.call(() =>
+        this.api().spreadsheets.values.update({
+          spreadsheetId: this.config.spreadsheetId,
+          range: this.range(SETTINGS_TAB, "!A1"),
+          valueInputOption: "RAW",
+          requestBody: { values: rows },
+        }),
+      );
+    }
+
+    const position = rows.findIndex((row) => row[0] === key);
+    // RAW: the stored values are never interpreted as formulas or dates.
+    if (position === -1) {
+      if (value === null) return;
+      await this.call(() =>
+        this.api().spreadsheets.values.append({
+          spreadsheetId: this.config.spreadsheetId,
+          range: this.range(SETTINGS_TAB, "!A1"),
+          valueInputOption: "RAW",
+          insertDataOption: "INSERT_ROWS",
+          requestBody: { values: [[key, value]] },
+        }),
+      );
+    } else {
+      await this.call(() =>
+        this.api().spreadsheets.values.update({
+          spreadsheetId: this.config.spreadsheetId,
+          range: this.range(SETTINGS_TAB, `!B${position + 1}`),
+          valueInputOption: "RAW",
+          requestBody: { values: [[value ?? ""]] },
+        }),
+      );
+    }
   }
 
   async appendAll(data: BillboardData): Promise<void> {

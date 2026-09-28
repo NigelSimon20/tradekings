@@ -187,6 +187,8 @@ export function buildSeedBillboards(today: ISODate): BillboardData {
       addedAt: STAMP,
       addedBy: "Sample data",
       removed: false,
+      storedFileId: "",
+      mimeType: "",
     });
     if (position % 3 === 0) {
       files.push({
@@ -199,6 +201,8 @@ export function buildSeedBillboards(today: ISODate): BillboardData {
         addedAt: STAMP,
         addedBy: "Sample data",
         removed: false,
+        storedFileId: "",
+        mimeType: "",
       });
     }
   });

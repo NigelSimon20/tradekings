@@ -58,7 +58,7 @@ export function Select({
   ...props
 }: SelectHTMLAttributes<HTMLSelectElement> & { options: SelectOption[]; placeholder?: string }) {
   return (
-    <select {...props} className={cn(CONTROL, "cursor-pointer appearance-none pr-8", className)}>
+    <select {...props} className={cn(CONTROL, "select-chevron cursor-pointer appearance-none pr-9", className)}>
       {placeholder !== undefined ? <option value="">{placeholder}</option> : null}
       {options.map((option) => (
         <option key={option.value} value={option.value}>

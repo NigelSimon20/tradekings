@@ -140,6 +140,13 @@ const fileSchema = z.object({
   documentDate: optionalDate,
 });
 
+const uploadSchema = z.object({
+  billboardId: text.min(1),
+  category: z.enum(FILE_CATEGORIES),
+  title: text,
+  documentDate: optionalDate,
+});
+
 export interface ParsedBillboardForm<T> {
   ok: boolean;
   values: T | null;
@@ -205,6 +212,18 @@ export function parseMaintenanceForm(formData: FormData): ParsedBillboardForm<Ne
     photoUrl: raw.photoUrl ?? "",
     nextInspection: raw.nextInspection ?? "",
   }) as ParsedBillboardForm<NewMaintenanceRecord>;
+}
+
+/** The fields sent with an uploaded file; the file itself is checked by the service. */
+export function parseUploadForm(formData: FormData): ParsedBillboardForm<NewBillboardFile> {
+  const raw = formValues(formData);
+  const parsed = parse(uploadSchema, {
+    billboardId: raw.billboardId ?? "",
+    category: raw.category ?? "",
+    title: raw.title ?? "",
+    documentDate: raw.documentDate ?? "",
+  });
+  return parsed.ok && parsed.values ? { ...parsed, values: { ...parsed.values, url: "" } } : { ...parsed, values: null };
 }
 
 export function parseFileForm(formData: FormData): ParsedBillboardForm<NewBillboardFile> {

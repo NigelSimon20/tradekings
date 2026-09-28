@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { DEFAULT_ROLE_TABLE, type RoleTable } from "@/lib/auth/roles";
 import { isServerless } from "@/lib/config/env";
 import {
   RepositoryError,
@@ -177,6 +178,11 @@ export class LocalJsonRepository implements ContractRepository {
   /** Sample data has no user list; the bootstrap administrators apply. */
   async listUsers(): Promise<SheetUser[]> {
     return [];
+  }
+
+  /** Sample data has no roles tabs; the built-in roles apply. */
+  async readRoleTable(): Promise<RoleTable> {
+    return DEFAULT_ROLE_TABLE;
   }
 
   async recordSignIn(): Promise<void> {

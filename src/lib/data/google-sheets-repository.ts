@@ -13,12 +13,21 @@ import {
   inputCellValue,
   isBlankRow,
   neutraliseFormula,
-  parseUserRow,
+  parseUserRows,
+  BILLBOARD_ROLES_TAB,
+  CONTRACT_ROLES_TAB,
   missingColumns,
   parseContractRow,
   type ColumnKey,
 } from "@/lib/data/sheet-schema";
 import { setUpSheet, type SheetSetupResult } from "@/lib/data/sheet-setup";
+import {
+  BILLBOARD_PERMISSION_INFO,
+  DEFAULT_ROLE_TABLE,
+  PERMISSION_INFO,
+  parseRoleTab,
+  type RoleTable,
+} from "@/lib/auth/roles";
 import {
   RepositoryError,
   stampNewContract,
@@ -48,6 +57,7 @@ interface Workbook {
   users: SheetUser[];
   /** Why the users spreadsheet could not be read, when it is a separate one. */
   usersError: string | null;
+  roleTable: RoleTable;
   runLog: RunLogEntry[];
 }
 
@@ -79,6 +89,8 @@ export class GoogleSheetsRepository implements ContractRepository {
    * request rather than starting four identical ones.
    */
   private workbook: Workbook | null = null;
+  /** Where "Last Signed In" is on the Users tab, found from its heading. */
+  private signInColumn = 4;
   private inflight: Promise<Workbook> | null = null;
   /** The spreadsheet's name and tab list, which change about once a year. */
   private spreadsheetInfo: { at: number; title: string; tabs: string[] } | null = null;
@@ -134,6 +146,23 @@ export class GoogleSheetsRepository implements ContractRepository {
     // A separate users spreadsheet is read alongside, not after, so it costs no
     // extra waiting. If it cannot be read the tracker still works and only the
     // ADMIN_EMAILS addresses can sign in.
+    // The roles tabs sit next to Users. Read alongside; a missing tab means
+    // "use the built-in roles", never an error.
+    const rolesRead = Promise.all(
+      [CONTRACT_ROLES_TAB, BILLBOARD_ROLES_TAB].map((tab) =>
+        this.api()
+          .spreadsheets.values.get({
+            spreadsheetId: this.config.usersSpreadsheetId,
+            range: this.tabRange(tab),
+            valueRenderOption: "UNFORMATTED_VALUE",
+          })
+          .then(
+            (result) => (result.data.values ?? []) as unknown[][],
+            () => null,
+          ),
+      ),
+    );
+
     const [response, separateUsers] = await Promise.all([
       this.call(() =>
         this.api().spreadsheets.values.batchGet({
@@ -158,6 +187,7 @@ export class GoogleSheetsRepository implements ContractRepository {
     ]);
 
     const ranges = response.data.valueRanges ?? [];
+    const [contractRoles, billboardRoles] = await rolesRead;
     const values = (position: number) => (ranges[position]?.values ?? []) as unknown[][];
 
     const contractValues = values(0);
@@ -183,10 +213,12 @@ export class GoogleSheetsRepository implements ContractRepository {
       if (key && value) settings[key] = value;
     }
 
-    const users = (separateUsers ? separateUsers.rows : values(3))
-      .slice(1)
-      .map((row, offset) => parseUserRow(row, offset + 2))
-      .filter((user): user is SheetUser => user !== null);
+    const roleTable: RoleTable = {
+      contracts: parseRoleTab(contractRoles, PERMISSION_INFO) ?? DEFAULT_ROLE_TABLE.contracts,
+      billboards: parseRoleTab(billboardRoles, BILLBOARD_PERMISSION_INFO) ?? DEFAULT_ROLE_TABLE.billboards,
+    };
+    const { users, index: usersIndex } = parseUserRows(separateUsers ? separateUsers.rows : values(3));
+    this.signInColumn = usersIndex.lastSignedIn;
 
     const runLog = values(2)
       .slice(1)
@@ -213,6 +245,7 @@ export class GoogleSheetsRepository implements ContractRepository {
       settings,
       users,
       usersError: separateUsers?.error ?? null,
+      roleTable,
       runLog,
     };
   }
@@ -486,20 +519,28 @@ export class GoogleSheetsRepository implements ContractRepository {
   }
 
   /** Everyone allowed to sign in, from the Users tab of the users spreadsheet. */
+  /**
+   * Throws when the list cannot be read, rather than answering "nobody": a
+   * caller must be able to tell an outage from an empty list, or checking
+   * access on every request would sign everyone out whenever Google blinks.
+   */
   async listUsers(): Promise<SheetUser[]> {
-    try {
-      return (await this.readWorkbook()).users;
-    } catch {
-      // Without the list only the bootstrap administrators can sign in.
-      return [];
-    }
+    const workbook = await this.readWorkbook();
+    if (workbook.usersError) throw new RepositoryError(workbook.usersError);
+    return workbook.users;
+  }
+
+  async readRoleTable(): Promise<RoleTable> {
+    const workbook = await this.readWorkbook();
+    if (workbook.usersError) throw new RepositoryError(workbook.usersError);
+    return workbook.roleTable;
   }
 
   async recordSignIn(user: SheetUser, at: string): Promise<void> {
     this.invalidate();
     await this.api().spreadsheets.values.update({
       spreadsheetId: this.config.usersSpreadsheetId,
-      range: this.tabRange(this.config.usersSheet, `!E${user.rowNumber}`),
+      range: this.tabRange(this.config.usersSheet, `!${columnLetter(this.signInColumn)}${user.rowNumber}`),
       valueInputOption: "RAW",
       requestBody: { values: [[at]] },
     });

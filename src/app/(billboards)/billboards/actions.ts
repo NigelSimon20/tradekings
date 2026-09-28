@@ -16,6 +16,7 @@ import {
   addCampaign,
   addFile,
   addMaintenance,
+  disconnectDriveAccount,
   removeFile,
   saveBillboard,
   setBillboardArchived,
@@ -30,7 +31,7 @@ import {
 
 async function actorWith(permission: BillboardPermission): Promise<string | null> {
   const user = await getCurrentUser();
-  if (!user || !canBillboards(user.billboardRole, permission)) return null;
+  if (!user || !canBillboards(user, permission)) return null;
   return user.email || user.name;
 }
 
@@ -139,7 +140,7 @@ export async function removeFileAction(
   _previous: BillboardFormState,
   formData: FormData,
 ): Promise<BillboardFormState> {
-  const actor = await actorWith("manageBillboards");
+  const actor = await actorWith("removeDocuments");
   if (!actor) return refused("remove documents");
   try {
     await removeFile(String(formData.get("fileId") ?? ""), actor);
@@ -154,7 +155,7 @@ export async function archiveBillboardAction(
   _previous: BillboardFormState,
   formData: FormData,
 ): Promise<BillboardFormState> {
-  const actor = await actorWith("manageBillboards");
+  const actor = await actorWith("archiveBillboards");
   if (!actor) return refused("archive billboards");
 
   const id = String(formData.get("billboardId") ?? "");
@@ -167,6 +168,18 @@ export async function archiveBillboardAction(
       message: archive ? "Billboard archived. Its history is kept." : "Billboard restored.",
       errors: {},
     };
+  } catch (error) {
+    return failed(error);
+  }
+}
+
+export async function disconnectDriveAction(): Promise<BillboardFormState> {
+  const actor = await actorWith("manageBillboards");
+  if (!actor) return refused("disconnect Google Drive");
+  try {
+    await disconnectDriveAccount(actor);
+    refresh();
+    return { status: "success", message: "Disconnected. Files already uploaded stay in Drive.", errors: {} };
   } catch (error) {
     return failed(error);
   }

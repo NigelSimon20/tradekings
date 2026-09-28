@@ -1,9 +1,10 @@
+import { can, canBillboards } from "@/lib/auth/roles";
 import type { SessionUser } from "@/lib/auth/session";
 
 /**
  * The trackers that live behind the one link. Each has its own navigation,
- * its own spreadsheet and its own access level on the Users tab; the switcher
- * under the wordmark moves between them.
+ * its own spreadsheet and its own access level on the Users tab. People pick
+ * one on the sign-in page.
  */
 export const PROJECT_IDS = ["contracts", "billboards"] as const;
 export type ProjectId = (typeof PROJECT_IDS)[number];
@@ -31,10 +32,32 @@ export const PROJECTS: Record<ProjectId, Project> = {
   },
 };
 
-/** The trackers this person may open, in switcher order. */
-export function accessibleProjects(user: SessionUser | null): Project[] {
-  if (!user) return [];
-  return PROJECT_IDS.filter((id) => (id === "contracts" ? user.role : user.billboardRole)).map(
-    (id) => PROJECTS[id],
-  );
+export function isProjectId(value: unknown): value is ProjectId {
+  return typeof value === "string" && (PROJECT_IDS as readonly string[]).includes(value);
+}
+
+/** Which tracker a page belongs to. */
+export function projectForPath(path: string): ProjectId {
+  return path === "/billboards" || path.startsWith("/billboards/") || path.startsWith("/billboards?")
+    ? "billboards"
+    : "contracts";
+}
+
+/** Opening an app needs a role there that is allowed to see something in it. */
+export function canOpenProject(
+  user: Pick<SessionUser, "permissions" | "billboardPermissions">,
+  project: ProjectId,
+): boolean {
+  return project === "contracts"
+    ? can(user, "viewAll") || can(user, "viewOwn")
+    : canBillboards(user, "viewBillboards");
+}
+
+/**
+ * Where to land after signing in to a tracker: the page that was asked for if
+ * it belongs to that tracker, otherwise the tracker's front page.
+ */
+export function landingFor(project: ProjectId, requested: string | null | undefined): string {
+  const next = requested && requested.startsWith("/") && !requested.startsWith("//") ? requested : "";
+  return next && projectForPath(next) === project ? next : PROJECTS[project].href;
 }

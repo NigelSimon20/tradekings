@@ -51,6 +51,13 @@ export interface AppConfig {
     /** Null runs the billboard tracker on the local sample file. */
     google: BillboardSheetConfig | null;
     localDataFile: string;
+    /**
+     * The Shared drive (or a folder inside one) that uploaded photos and
+     * documents are filed into. Empty means uploads are off.
+     */
+    photosFolderId: string;
+    /** Where uploads go while running on the sample data. */
+    localUploadsDir: string;
   };
   smtp: SmtpConfig | null;
   /** Resend API key; the preferred way to send when it is set. */
@@ -207,6 +214,8 @@ export function getConfig(): AppConfig {
     billboards: {
       google: billboardsGoogle,
       localDataFile: str("LOCAL_BILLBOARDS_FILE", "data/billboards.local.json"),
+      photosFolderId: str("GOOGLE_BILLBOARDS_PHOTOS_FOLDER_ID"),
+      localUploadsDir: str("LOCAL_BILLBOARDS_UPLOADS_DIR", "data/billboard-uploads"),
     },
     smtp,
     resendApiKey: str("RESEND_API_KEY"),

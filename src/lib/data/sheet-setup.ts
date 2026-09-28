@@ -7,10 +7,14 @@ import {
   SETTINGS_HEADERS,
   SETTINGS_ROWS,
   USERS_HEADERS,
+  BILLBOARD_ROLES_TAB,
+  CONTRACT_ROLES_TAB,
   buildColumnIndex,
+  indexUserColumns,
   columnLetter,
   settingKeyFor,
 } from "@/lib/data/sheet-schema";
+import { BILLBOARD_PERMISSION_INFO, DEFAULT_ROLE_TABLE, NOT_ALLOWED, PERMISSION_INFO } from "@/lib/auth/roles";
 import { STATUS_META } from "@/lib/domain/meta";
 import { CONTRACT_STATUSES } from "@/lib/domain/types";
 import { TONE_COLORS } from "@/lib/ui/tones";
@@ -305,6 +309,8 @@ export async function setUpSheet(
   // 8. Users tab — who may sign in.
   try {
     await setUpUsersTab(client, config, options.seedAdmins ?? [], result);
+    await setUpRoleTabs(client, config, result);
+    await addUserDropdowns(client, config);
   } catch {
     result.ok = false;
     result.messages.push(
@@ -376,6 +382,24 @@ async function setUpUsersTab(
   if (currentRows.length) {
     // Lists made before a column existed get its heading, and nothing else.
     const header = currentRows[0] ?? [];
+
+    // The contracts access column was first called "Role". Its heading was
+    // written by the tracker, so it is renamed to sit alongside "Billboards".
+    const roleAt = header.findIndex((cell) => String(cell ?? "").trim().toLowerCase() === "role");
+    const hasContracts = header.some((cell) =>
+      ["contracts", "contract tracker", "contract tracker access"].includes(String(cell ?? "").trim().toLowerCase()),
+    );
+    if (roleAt !== -1 && !hasContracts) {
+      await client.spreadsheets.values.update({
+        spreadsheetId: usersSpreadsheetId,
+        range: `'${usersSheet}'!${columnLetter(roleAt)}1`,
+        valueInputOption: "RAW",
+        requestBody: { values: [["Contracts"]] },
+      });
+      header[roleAt] = "Contracts";
+      result.messages.push(`Renamed the ${usersSheet} tab's Role column to Contracts, next to Billboards.`);
+    }
+
     const missing = USERS_HEADERS.slice(header.length);
     if (missing.length) {
       await client.spreadsheets.values.update({
@@ -427,6 +451,271 @@ async function setUpUsersTab(
   } else if (!carried.length) {
     result.messages.push(`Set up the ${usersSheet} tab — add the people who may sign in.`);
   }
+}
+
+/**
+ * What may go in each access column, and the note shown on its heading. The
+ * two role columns offer whatever roles are on the roles tabs, so a role added
+ * there appears in the dropdown straight away.
+ */
+const USER_DROPDOWNS = [
+  {
+    column: "role",
+    source: { range: CONTRACT_ROLES_TAB },
+    note: `Contract Tracker role — one of the roles on the ${CONTRACT_ROLES_TAB} tab. Choose "Not allowed" (or leave blank) to keep this person out of the Contract Tracker.`,
+  },
+  {
+    column: "active",
+    source: { values: ["Yes", "No"] },
+    note: "No switches the person off for both apps without deleting their row.",
+  },
+  {
+    column: "billboards",
+    source: { range: BILLBOARD_ROLES_TAB },
+    note: `Billboard Tracker role — one of the roles on the ${BILLBOARD_ROLES_TAB} tab. Choose "Not allowed" (or leave blank) to keep this person out of the Billboard Tracker.`,
+  },
+] as const;
+
+const ROLE_TABS = [
+  { title: CONTRACT_ROLES_TAB, app: "Contract Tracker", catalogue: PERMISSION_INFO, defaults: DEFAULT_ROLE_TABLE.contracts },
+  {
+    title: BILLBOARD_ROLES_TAB,
+    app: "Billboard Tracker",
+    catalogue: BILLBOARD_PERMISSION_INFO,
+    defaults: DEFAULT_ROLE_TABLE.billboards,
+  },
+] as const;
+
+const ROLE_ROWS = 200;
+
+/**
+ * The tabs that say what each role may do: one row per role, a tickbox per
+ * permission. Created with today's roles; afterwards only missing permission
+ * columns are added, so administrators' ticks are never changed.
+ */
+async function setUpRoleTabs(client: sheets_v4.Sheets, config: GoogleConfig, result: SheetSetupResult): Promise<void> {
+  const spreadsheetId = config.usersSpreadsheetId;
+  const before = await client.spreadsheets.get({ spreadsheetId, fields: "sheets.properties(sheetId,title)" });
+  const existing = new Set((before.data.sheets ?? []).map((tab) => tab.properties?.title ?? ""));
+
+  const missing = ROLE_TABS.filter((tab) => !existing.has(tab.title));
+  if (missing.length) {
+    await client.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: { requests: missing.map((tab) => ({ addSheet: { properties: { title: tab.title } } })) },
+    });
+    for (const tab of missing) {
+      const permissions = tab.catalogue as readonly { key: string; label: string }[];
+      await client.spreadsheets.values.update({
+        spreadsheetId,
+        range: `'${tab.title}'!A1`,
+        valueInputOption: "RAW",
+        requestBody: {
+          values: [
+            ["Role", "Description", ...permissions.map((permission) => permission.label)],
+            ...tab.defaults.map((role) => [
+              role.name,
+              role.description,
+              ...permissions.map((permission) => (role.permissions as string[]).includes(permission.key)),
+            ]),
+          ],
+        },
+      });
+      result.messages.push(`Created the ${tab.title} tab — tick what each role may do.`);
+    }
+  }
+
+  const after = await client.spreadsheets.get({ spreadsheetId, fields: "sheets.properties(sheetId,title)" });
+  const sheetIdOf = (title: string) =>
+    (after.data.sheets ?? []).find((tab) => tab.properties?.title === title)?.properties?.sheetId;
+
+  const requests: sheets_v4.Schema$Request[] = [];
+  for (const tab of ROLE_TABS) {
+    const sheetId = sheetIdOf(tab.title);
+    if (sheetId === null || sheetId === undefined) continue;
+    const permissions = tab.catalogue as readonly { key: string; label: string; description: string }[];
+
+    const heading = await client.spreadsheets.values.get({ spreadsheetId, range: `'${tab.title}'!1:1` });
+    const header = ((heading.data.values?.[0] ?? []) as unknown[]).map((cell) => String(cell ?? ""));
+    const normalise = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const has = (permission: { key: string; label: string }) =>
+      header.some((cell) => normalise(cell) === normalise(permission.label) || normalise(cell) === normalise(permission.key));
+
+    // New permissions from a later version of the tracker arrive unticked.
+    const added = permissions.filter((permission) => !has(permission));
+    if (added.length) {
+      await client.spreadsheets.values.update({
+        spreadsheetId,
+        range: `'${tab.title}'!${columnLetter(header.length)}1`,
+        valueInputOption: "RAW",
+        requestBody: { values: [added.map((permission) => permission.label)] },
+      });
+      result.messages.push(
+        `Added ${added.map((permission) => permission.label).join(", ")} to the ${tab.title} tab (unticked for every role).`,
+      );
+      header.push(...added.map((permission) => permission.label));
+    }
+
+    // "Not allowed" must be a row for the Users dropdown to offer it, and it
+    // belongs straight under the last role. (Appending is no good: the
+    // tickboxes make Sheets treat ~200 empty rows as used, so an appended row
+    // lands far below the roles.) Nobody's ticks are touched.
+    const names = await client.spreadsheets.values.get({ spreadsheetId, range: `'${tab.title}'!A:A` });
+    const column = ((names.data.values ?? []) as unknown[][]).map((row) => String(row?.[0] ?? "").trim());
+    const isBlocked = (name: string) => name.toLowerCase() === NOT_ALLOWED.toLowerCase();
+    const blockedAt = column.findIndex(isBlocked);
+    let lastRole = 0;
+    column.forEach((name, position) => {
+      if (position > 0 && name && !isBlocked(name)) lastRole = position;
+    });
+    if (blockedAt === -1 || blockedAt > lastRole + 1) {
+      const blocked = tab.defaults.find((role) => role.blocks)!;
+      if (blockedAt !== -1) {
+        await client.spreadsheets.values.update({
+          spreadsheetId,
+          range: `'${tab.title}'!A${blockedAt + 1}`,
+          valueInputOption: "RAW",
+          requestBody: { values: [["", ""]] },
+        });
+      }
+      await client.spreadsheets.values.update({
+        spreadsheetId,
+        range: `'${tab.title}'!A${lastRole + 2}`,
+        valueInputOption: "RAW",
+        requestBody: { values: [[blocked.name, blocked.description]] },
+      });
+      result.messages.push(
+        blockedAt === -1
+          ? `Added "${NOT_ALLOWED}" to the ${tab.title} tab — choose it on the Users tab to keep someone out of that app.`
+          : `Moved "${NOT_ALLOWED}" up under the other roles on the ${tab.title} tab, so the Users dropdown offers it.`,
+      );
+    }
+
+    // Any further "Not allowed" rows (e.g. typed in by hand) are cleared, so
+    // the dropdown offers it once. Only their name and description go.
+    const keptAt = blockedAt === -1 || blockedAt > lastRole + 1 ? lastRole + 1 : blockedAt;
+    const extras = column
+      .map((name, position) => (isBlocked(name) && position !== keptAt ? position : -1))
+      .filter((position) => position > 0);
+    for (const position of extras) {
+      await client.spreadsheets.values.update({
+        spreadsheetId,
+        range: `'${tab.title}'!A${position + 1}`,
+        valueInputOption: "RAW",
+        requestBody: { values: [["", ""]] },
+      });
+    }
+    if (extras.length) {
+      result.messages.push(`Removed ${extras.length} duplicate "${NOT_ALLOWED}" row(s) from the ${tab.title} tab.`);
+    }
+
+    const cell = (column: number, note: string): sheets_v4.Schema$Request => ({
+      repeatCell: {
+        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: column, endColumnIndex: column + 1 },
+        cell: { note },
+        fields: "note",
+      },
+    });
+    requests.push(
+      {
+        updateSheetProperties: {
+          properties: { sheetId, gridProperties: { frozenRowCount: 1, frozenColumnCount: 1 } },
+          fields: "gridProperties(frozenRowCount,frozenColumnCount)",
+        },
+      },
+      {
+        repeatCell: {
+          range: { sheetId, startRowIndex: 0, endRowIndex: 1 },
+          cell: { userEnteredFormat: { textFormat: { bold: true }, wrapStrategy: "WRAP" } },
+          fields: "userEnteredFormat(textFormat.bold,wrapStrategy)",
+        },
+      },
+      cell(
+        0,
+        `One row per ${tab.app} role. Add a row to create a role — it then appears in the Users tab's dropdown. ` +
+          "Administrator always has every permission, whatever its ticks say. Changes apply within about 30 seconds.",
+      ),
+      cell(1, "A sentence about the role, shown in the tracker."),
+      {
+        updateDimensionProperties: {
+          range: { sheetId, dimension: "COLUMNS", startIndex: 0, endIndex: 1 },
+          properties: { pixelSize: 180 },
+          fields: "pixelSize",
+        },
+      },
+      {
+        updateDimensionProperties: {
+          range: { sheetId, dimension: "COLUMNS", startIndex: 1, endIndex: 2 },
+          properties: { pixelSize: 320 },
+          fields: "pixelSize",
+        },
+      },
+    );
+
+    for (const permission of permissions) {
+      const at = header.findIndex(
+        (heading) => normalise(heading) === normalise(permission.label) || normalise(heading) === normalise(permission.key),
+      );
+      if (at === -1) continue;
+      requests.push(cell(at, permission.description), {
+        setDataValidation: {
+          range: { sheetId, startRowIndex: 1, endRowIndex: ROLE_ROWS, startColumnIndex: at, endColumnIndex: at + 1 },
+          rule: { condition: { type: "BOOLEAN" }, strict: true },
+        },
+      });
+    }
+  }
+  if (requests.length) await client.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests } });
+}
+
+/**
+ * Puts dropdowns on the Users tab's access columns and explains each on its
+ * heading. The dropdowns reject anything else, so a typo can no longer lock
+ * someone out. Values already typed are left as they are.
+ */
+async function addUserDropdowns(client: sheets_v4.Sheets, config: GoogleConfig): Promise<void> {
+  const { usersSpreadsheetId, usersSheet } = config;
+  const book = await client.spreadsheets.get({
+    spreadsheetId: usersSpreadsheetId,
+    fields: "sheets.properties(sheetId,title)",
+  });
+  const sheetId = (book.data.sheets ?? []).find((tab) => tab.properties?.title === usersSheet)?.properties?.sheetId;
+  if (sheetId === null || sheetId === undefined) return;
+
+  const heading = await client.spreadsheets.values.get({
+    spreadsheetId: usersSpreadsheetId,
+    range: `'${usersSheet}'!1:1`,
+  });
+  const index = indexUserColumns((heading.data.values?.[0] ?? []) as unknown[]);
+
+  await client.spreadsheets.batchUpdate({
+    spreadsheetId: usersSpreadsheetId,
+    requestBody: {
+      requests: USER_DROPDOWNS.flatMap(({ column, source, note }) => {
+        const at = index[column];
+        const condition: sheets_v4.Schema$BooleanCondition =
+          "range" in source
+            ? // The whole column, so every role on the tab is offered however many there are.
+              { type: "ONE_OF_RANGE", values: [{ userEnteredValue: `='${source.range}'!$A$2:$A` }] }
+            : { type: "ONE_OF_LIST", values: source.values.map((value) => ({ userEnteredValue: value })) };
+        return [
+          {
+            setDataValidation: {
+              range: { sheetId, startRowIndex: 1, endRowIndex: 1000, startColumnIndex: at, endColumnIndex: at + 1 },
+              rule: { condition, showCustomUi: true, strict: true },
+            },
+          },
+          {
+            repeatCell: {
+              range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: at, endColumnIndex: at + 1 },
+              cell: { note },
+              fields: "note",
+            },
+          },
+        ];
+      }),
+    },
+  });
 }
 
 function hexToRgb(hex: string): { red: number; green: number; blue: number } {

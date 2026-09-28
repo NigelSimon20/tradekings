@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
 
-import { LoginForm } from "@/app/login/login-form";
+import { AppSignIn } from "@/app/login/app-sign-in";
 import { BrandWordmark } from "@/components/layout/brand-wordmark";
 import { Alert } from "@/components/ui/alert";
 import { getConfig } from "@/lib/config/env";
 import type { PageSearchParams } from "@/lib/domain/filters";
+import { isProjectId, projectForPath } from "@/lib/domain/projects";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,8 @@ export default async function LoginPage({
   const error = typeof params.error === "string" ? params.error : "";
   const signedOut = params.signedOut === "1";
   const google = config.auth.google !== null;
+  // The app picked last time (after a refused sign-in), or the one the person was trying to open.
+  const initialApp = isProjectId(params.app) ? params.app : projectForPath(next);
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-brand-950 px-4 py-10">
@@ -35,7 +38,7 @@ export default async function LoginPage({
       <div className="relative w-full max-w-md">
         <div className="mb-8 text-center">
           <BrandWordmark tone="light" size="lg" />
-          <p className="mt-3 text-sm text-white/60">Blue Collar Contract Tracker</p>
+          <p className="mt-3 text-sm text-white/60">Contract &amp; Billboard Trackers</p>
         </div>
 
         <div className="rounded-3xl bg-white/95 p-7 shadow-panel ring-1 ring-white/20 backdrop-blur sm:p-9">
@@ -43,8 +46,8 @@ export default async function LoginPage({
             <h1 className="font-display text-xl font-semibold text-slate-900">Sign in</h1>
             <p className="mx-auto mt-2 max-w-xs text-sm text-slate-500">
               {google
-                ? "Use the Google account your employer gave you."
-                : "Enter the access password provided by the system administrator."}
+                ? "Choose the app, then continue with the Google account your employer gave you."
+                : "Choose the app, then enter the access password provided by the system administrator."}
             </p>
           </div>
 
@@ -60,22 +63,12 @@ export default async function LoginPage({
           ) : null}
 
           <div className="mt-7">
-            {google ? (
-              <a
-                href={`/api/auth/google/start?next=${encodeURIComponent(next)}`}
-                className="group flex h-12 w-full items-center justify-center gap-3 rounded-xl bg-white text-sm font-medium text-slate-700 shadow-sm ring-1 ring-slate-300 transition hover:-translate-y-0.5 hover:shadow-md hover:ring-slate-400 active:translate-y-0"
-              >
-                <GoogleMark />
-                Continue with Google
-              </a>
-            ) : (
-              <LoginForm next={next} />
-            )}
+            <AppSignIn initialApp={initialApp} next={next} google={google} googleMark={<GoogleMark />} />
           </div>
 
           <p className="mt-7 border-t border-slate-100 pt-5 text-center text-xs leading-relaxed text-slate-500">
-            Access is limited to the people listed on the contract sheet. If you cannot get in, ask
-            an administrator to add you.
+            Access is set per app by an administrator. If you cannot get in to the app you need,
+            ask them to add you.
           </p>
         </div>
 

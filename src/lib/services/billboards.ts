@@ -3,6 +3,19 @@ import "server-only";
 import { cache } from "react";
 
 import { getBillboardRepository } from "@/lib/billboards/data";
+import { getPhotoStore, resetPhotoStore, resolvePhotoStore } from "@/lib/billboards/photos";
+import {
+  clearDriveConnection,
+  saveDriveConnection,
+} from "@/lib/billboards/photos/connection";
+import { ensureConnectedRootFolder, ROOT_FOLDER_NAME } from "@/lib/billboards/photos/drive-store";
+import {
+  MAX_UPLOAD_BYTES,
+  detectFileType,
+  storedFileName,
+  titleFromFileName,
+} from "@/lib/billboards/photos/files";
+import type { FileContent } from "@/lib/billboards/photos/store";
 import { BILLBOARDS_TABLE } from "@/lib/billboards/data/sheet-tables";
 import { evaluateBillboards } from "@/lib/billboards/evaluate";
 import type {
@@ -274,9 +287,143 @@ export async function addMaintenance(input: NewMaintenanceRecord, actor: string)
 export async function addFile(input: NewBillboardFile, actor: string): Promise<void> {
   const repository = getBillboardRepository();
   await requireBillboard(input.billboardId);
-  const file: BillboardFile = { ...input, id: newId(`${input.billboardId}-F`), addedAt: stamp(), addedBy: actor, removed: false };
+  const file: BillboardFile = {
+    ...input,
+    id: newId(`${input.billboardId}-F`),
+    addedAt: stamp(),
+    addedBy: actor,
+    removed: false,
+    storedFileId: "",
+    mimeType: "",
+  };
   await repository.saveFile(file);
   await repository.appendActivity([activity(input.billboardId, actor, "Document added", `${file.category}: ${file.title}`)]);
+}
+
+/** How uploads are set up, for Setup & access. Never includes the stored token. */
+export async function checkPhotoStore() {
+  const { store, connection } = await resolvePhotoStore();
+  return {
+    kind: store.kind,
+    label: store.label,
+    ...(await store.healthCheck()),
+    connectedAccount: connection
+      ? {
+          email: connection.email,
+          connectedAt: connection.connectedAt,
+          connectedBy: connection.connectedBy,
+          folderName: ROOT_FOLDER_NAME,
+        }
+      : null,
+  };
+}
+
+/**
+ * Finishes connecting a Google account for uploads: makes (or finds) the
+ * tracker's folder in its Drive and keeps the sealed token.
+ */
+export async function connectDriveAccount(
+  grant: { email: string; refreshToken: string },
+  clientId: string,
+  clientSecret: string,
+  actor: string,
+): Promise<void> {
+  const folderId = await ensureConnectedRootFolder({ type: "connected-account", clientId, clientSecret, ...grant });
+  await saveDriveConnection({
+    email: grant.email,
+    refreshToken: grant.refreshToken,
+    folderId,
+    connectedAt: stamp(),
+    connectedBy: actor,
+  });
+  resetPhotoStore();
+  await getBillboardRepository().appendActivity([
+    activity("", actor, "Uploads connected", `Photos will be stored in the Google Drive of ${grant.email}.`),
+  ]);
+}
+
+export async function disconnectDriveAccount(actor: string): Promise<void> {
+  await clearDriveConnection();
+  resetPhotoStore();
+  await getBillboardRepository().appendActivity([
+    activity("", actor, "Uploads disconnected", "Files already uploaded stay in Drive."),
+  ]);
+}
+
+/** `2026-09-27 1405` in the app's timezone, for ordering uploaded files by name. */
+function fileStamp(): string {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: getConfig().timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+  const part = (type: string) => parts.find((entry) => entry.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")} ${part("hour")}${part("minute")}${part("second")}`;
+}
+
+/**
+ * Stores an uploaded photo or document in the site's folder (City / Site) and
+ * records it against the billboard. The file's type comes from its contents,
+ * never from its name.
+ */
+export async function uploadBillboardFile(
+  input: NewBillboardFile,
+  upload: { name: string; bytes: Uint8Array },
+  actor: string,
+): Promise<BillboardFile> {
+  if (upload.bytes.byteLength > MAX_UPLOAD_BYTES) {
+    throw new Error("That file is larger than 4 MB. Photos are shrunk automatically; for a PDF, scan it at a lower resolution.");
+  }
+  const type = detectFileType(upload.bytes);
+  if (!type) throw new Error("Only photos (JPG, PNG, WebP) and PDF documents can be uploaded.");
+
+  const billboard = await requireBillboard(input.billboardId);
+  const title = input.title.trim() || titleFromFileName(upload.name) || input.category;
+  const stored = await (await getPhotoStore()).save(billboard, {
+    name: storedFileName(fileStamp(), input.category, title, type.extension),
+    mimeType: type.mimeType,
+    bytes: upload.bytes,
+  });
+
+  const file: BillboardFile = {
+    ...input,
+    title,
+    url: stored.url,
+    id: newId(`${input.billboardId}-F`),
+    addedAt: stamp(),
+    addedBy: actor,
+    removed: false,
+    storedFileId: stored.id,
+    mimeType: type.mimeType,
+  };
+  const repository = getBillboardRepository();
+  await repository.saveFile(file);
+  await repository.appendActivity([
+    activity(input.billboardId, actor, type.isImage ? "Photo uploaded" : "Document uploaded", `${file.category}: ${title}`),
+  ]);
+  return file;
+}
+
+/**
+ * The content of an uploaded file, for previews. Only files recorded against
+ * a billboard can be read this way — the tracker's Drive access is never a way
+ * to open anything else.
+ */
+export async function readBillboardFile(recordId: string): Promise<(FileContent & { name: string }) | null> {
+  const { data } = await loadBillboards();
+  const file = data.files.find((entry) => entry.id === recordId);
+  if (!file || file.removed || !file.storedFileId) return null;
+
+  const content = await (await getPhotoStore()).read(file.storedFileId);
+  // Serve what the file really is, whatever the store says.
+  const type = detectFileType(content.bytes);
+  if (!type) return null;
+  return { ...content, mimeType: type.mimeType, name: `${file.title}.${type.extension}` };
 }
 
 export async function removeFile(fileId: string, actor: string): Promise<string> {

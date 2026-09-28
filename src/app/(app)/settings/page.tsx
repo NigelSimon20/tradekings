@@ -4,7 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { DefinitionList } from "@/components/ui/definition-list";
 import { ContractsIcon, ReportsIcon, SettingsIcon } from "@/components/ui/icons";
-import { describeRole } from "@/lib/auth/roles";
+import { NOT_ALLOWED, PERMISSION_INFO } from "@/lib/auth/roles";
+import { RoleMatrix } from "@/components/ui/role-matrix";
 import { PageHeader } from "@/components/ui/page-header";
 import { RuleSummary } from "@/components/ui/rule-summary";
 import { TBody, THead, Table, TableWrap, Td, Th, Tr } from "@/components/ui/table";
@@ -16,7 +17,7 @@ import { duplicateEnvKeys } from "@/lib/config/env-file";
 import { CONTRACT_COLUMNS } from "@/lib/data/sheet-schema";
 import { getMailer } from "@/lib/email/mailer";
 import { can } from "@/lib/auth/roles";
-import { listSignInUsers, requireViewer } from "@/lib/services/auth";
+import { getRoleTable, listSignInUsers, requireViewer } from "@/lib/services/auth";
 import { checkDataSource } from "@/lib/services/contracts";
 import { getReportSettings, getRulesConfig } from "@/lib/services/settings";
 
@@ -29,7 +30,8 @@ export default async function SettingsPage() {
   const health = await checkDataSource();
   const settings = await getReportSettings();
   const { rules, fromSheet: rulesFromSheet } = await getRulesConfig();
-  const signInUsers = await listSignInUsers();
+  const [signInUsers, roleTable] = await Promise.all([listSignInUsers(), getRoleTable()]);
+  const describe = (name: string) => roleTable.contracts.find((role) => role.name === name)?.description ?? "";
   const duplicateSettings = duplicateEnvKeys();
   const mailer = getMailer();
 
@@ -164,7 +166,7 @@ export default async function SettingsPage() {
             </Alert>
           ))}
 
-          {can(viewer.role, "manageSystem") ? (
+          {can(viewer, "manageSystem") ? (
             <SetupSheetButton connected={config.dataSource === "google-sheets"} />
           ) : null}
 
@@ -185,6 +187,15 @@ export default async function SettingsPage() {
       <Card>
         <CardHeader
           icon={<SettingsIcon className="size-4" />}
+          title="Contract Tracker roles"
+          description="What each role may do. Change the ticks — or add a row for a new role — on the Contract Roles tab of the users spreadsheet; changes apply within about 30 seconds."
+        />
+        <RoleMatrix roles={roleTable.contracts} catalogue={PERMISSION_INFO} />
+      </Card>
+
+      <Card>
+        <CardHeader
+          icon={<SettingsIcon className="size-4" />}
           title="Who can sign in"
           description="Managed on the Users tab of the separate users spreadsheet, which only administrators should be able to open — add a row to give someone access, or set Active to No to take it away."
           action={<Badge tone={signInUsers.length ? "info" : "caution"}>{signInUsers.length} people</Badge>}
@@ -196,8 +207,8 @@ export default async function SettingsPage() {
                 <Tr className="hover:bg-transparent">
                   <Th>Name</Th>
                   <Th>Email</Th>
-                  <Th>Role</Th>
-                  <Th className="hidden md:table-cell">Billboards</Th>
+                  <Th>Contract Tracker</Th>
+                  <Th className="hidden md:table-cell">Billboard Tracker</Th>
                   <Th>Can sign in</Th>
                   <Th className="hidden sm:table-cell">Last signed in</Th>
                 </Tr>
@@ -208,8 +219,12 @@ export default async function SettingsPage() {
                     <Td className="font-medium text-slate-900">{person.name}</Td>
                     <Td>{person.email}</Td>
                     <Td>
-                      {person.parsedRole ? (
-                        <Badge tone="neutral" title={describeRole(person.parsedRole)}>
+                      {person.parsedRole === NOT_ALLOWED ? (
+                        <span className="text-slate-400" title="Kept out of the Contract Tracker">
+                          Not allowed
+                        </span>
+                      ) : person.parsedRole ? (
+                        <Badge tone="neutral" title={describe(person.parsedRole)}>
                           {person.parsedRole}
                         </Badge>
                       ) : !person.role.trim() && person.parsedBillboardRole ? (
@@ -217,7 +232,7 @@ export default async function SettingsPage() {
                           —
                         </span>
                       ) : (
-                        <Badge tone="critical" title="Should be Administrator, HR or Manager">
+                        <Badge tone="critical" title="Not a role on the Contract Roles tab">
                           {person.role || "not set"}
                         </Badge>
                       )}
@@ -242,9 +257,9 @@ export default async function SettingsPage() {
           <CardBody>
             <p className="text-sm text-slate-500">
               Nobody is listed yet. Use <strong>Prepare the Google Sheet</strong> above to create the
-              Users tab in the users spreadsheet, then add a row for each person: their email, their name, a role of
-              Administrator, HR or Manager (or blank), Yes under Active, and — for the billboard
-              tracker — Administrator, Editor or Viewer under Billboards.
+              Users tab in the users spreadsheet, then add a row for each person: their email, their name, a
+              Contract Tracker role under Contracts and a Billboard Tracker role under Billboards
+              (choose &ldquo;Not allowed&rdquo; to keep them out of an app), and Yes under Active.
             </p>
           </CardBody>
         )}

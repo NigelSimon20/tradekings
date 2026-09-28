@@ -9,9 +9,9 @@ import { PlusIcon } from "@/components/ui/icons";
 import { getConfig } from "@/lib/config/env";
 import { formatDate, todayIn } from "@/lib/date/dates";
 import { can, canBillboards } from "@/lib/auth/roles";
-import { accessibleProjects, type ProjectId } from "@/lib/domain/projects";
+import type { ProjectId } from "@/lib/domain/projects";
 import { loadAlerts } from "@/lib/services/alerts";
-import { getCurrentUser } from "@/lib/services/auth";
+import { getCurrentUser, getRoleTable } from "@/lib/services/auth";
 
 /**
  * Sticky application header: context on the left, alerts and actions on the
@@ -20,9 +20,10 @@ import { getCurrentUser } from "@/lib/services/auth";
  */
 export async function Topbar({ project }: { project: ProjectId }) {
   const config = getConfig();
-  const [alerts, user] = await Promise.all([
+  const [alerts, user, roles] = await Promise.all([
     project === "contracts" ? loadAlerts() : null,
     getCurrentUser(),
+    getRoleTable(),
   ]);
 
   return (
@@ -30,7 +31,6 @@ export async function Topbar({ project }: { project: ProjectId }) {
       <div className="mx-auto flex h-16 w-full max-w-[1500px] items-center gap-2 px-3 sm:gap-3 sm:px-4 lg:px-8">
         <MobileNav
           project={project}
-          projects={accessibleProjects(user)}
           hrefs={navItemsFor(project, user).map((item) => item.href)}
           signInEnabled={config.auth.enabled}
         />
@@ -47,7 +47,7 @@ export async function Topbar({ project }: { project: ProjectId }) {
           {/* Shown only alongside the desktop navigation: on a phone the top
               bar is for context and alerts, and the contracts page carries its
               own "Add contract" button. */}
-          {project === "contracts" && user && can(user.role, "editContracts") ? (
+          {project === "contracts" && user && can(user, "editContracts") ? (
             // Wrapped: the button's own inline-flex would override "hidden".
             <span className="hidden lg:block">
               <ButtonLink href="/contracts/new" size="sm">
@@ -56,7 +56,7 @@ export async function Topbar({ project }: { project: ProjectId }) {
               </ButtonLink>
             </span>
           ) : null}
-          {project === "billboards" && user && canBillboards(user.billboardRole, "editBillboards") ? (
+          {project === "billboards" && user && canBillboards(user, "editBillboards") ? (
             // Wrapped: the button's own inline-flex would override "hidden".
             <span className="hidden lg:block">
               <ButtonLink href="/billboards/new" size="sm">
@@ -73,8 +73,19 @@ export async function Topbar({ project }: { project: ProjectId }) {
               user={{
                 name: user.name,
                 email: user.email,
-                role: user.role,
-                billboardRole: user.billboardRole,
+                // Only the role in the app that is open — what they have in
+                // the other app is not this app's business.
+                ...(project === "contracts"
+                  ? {
+                      role: user.role ?? "",
+                      roleDescription:
+                        roles.contracts.find((role) => role.name === user.role)?.description ?? "",
+                    }
+                  : {
+                      role: user.billboardRole ?? "",
+                      roleDescription:
+                        roles.billboards.find((role) => role.name === user.billboardRole)?.description ?? "",
+                    }),
               }}
               signInEnabled={config.auth.enabled}
             />

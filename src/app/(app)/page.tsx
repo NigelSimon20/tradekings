@@ -25,7 +25,7 @@ export default async function DashboardPage({
   const denied = (await searchParams).denied === "1";
   const config = getConfig();
   const { contracts, latest, today, source, user } = await loadVisibleSnapshot();
-  const mayRun = user ? can(user.role, "runReports") : false;
+  const mayRun = user ? can(user, "runReports") : false;
   const attention = topPriority(latest, 8);
   const breakdown = breakdownByCompany(latest);
   const runs = mayRun ? await listRunLog(5) : [];

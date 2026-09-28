@@ -18,7 +18,7 @@ export interface SetupState {
  */
 export async function setUpSheetAction(): Promise<SetupState> {
   const user = await getCurrentUser();
-  if (!user || !can(user.role, "manageSystem")) {
+  if (!user || !can(user, "manageSystem")) {
     return { status: "error", messages: ["Only an administrator can set the sheet up."] };
   }
 

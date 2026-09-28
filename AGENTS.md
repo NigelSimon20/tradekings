@@ -15,8 +15,10 @@ A Google Sheet is the database; this app applies the contract rules, shows a
 dashboard and sends the weekly reports. See README.md for setup.
 
 The same app also hosts the **Billboard Tracker** (map, profiles, leases,
-campaigns, maintenance). The two share one link, one sign-in and one shell;
-the switcher under the wordmark moves between them (`lib/domain/projects.ts`).
+campaigns, maintenance). The two share one link and one shell. People choose
+the app on the sign-in page; the callback refuses a sign-in to an app the
+account cannot open (`canOpenProject`, `landingFor` in `lib/domain/projects.ts`).
+There is no switcher inside the apps — to change app, sign out and choose again.
 
 ## The billboard tracker
 
@@ -30,9 +32,15 @@ the switcher under the wordmark moves between them (`lib/domain/projects.ts`).
 - History is kept, not overwritten: campaigns, maintenance, documents and the
   Activity Log are append-only; every change records who and when. Deleting a
   billboard means archiving it; removing a document hides it.
-- Files are stored as links (e.g. Google Drive). Every link must pass
-  `isSafeUrl` on save and is re-checked on render (`ExternalLink`), because
-  cells typed straight into the sheet skip the form.
+- Uploads go through `PhotoStore` (`lib/billboards/photos/`), chosen by
+  `resolvePhotoStore`: a connected Google account (`drive.file` only, token
+  sealed with `secret-box.ts`, never sent to a page), else the Shared drive,
+  else local on sample data. Filed City / Site by `files.ts`. The file type comes from
+  `detectFileType` (its bytes), never the name. Previews are served by
+  `/api/billboards/files/[id]`, which only serves files recorded in the
+  Documents tab — never an arbitrary Drive id.
+- Pasted links must pass `isSafeUrl` on save and are re-checked on render
+  (`ExternalLink`), because cells typed straight into the sheet skip the form.
 
 ## Where things belong
 
@@ -65,7 +73,9 @@ the switcher under the wordmark moves between them (`lib/domain/projects.ts`).
 ## Access
 
 - Who may sign in comes from the Users tab (`listUsers`), resolved by
-  `resolveSignIn`; `ADMIN_EMAILS` is the lock-out escape hatch.
+  `resolveSignIn`; `ADMIN_EMAILS` is the lock-out escape hatch — it follows its
+  own Users row when that row grants access, and gets `FULL_ACCESS` only when
+  it has no usable row or the sheet is unreadable (`accessFromRow`).
 - Each person has two independent levels: **Role** (contracts: Administrator /
   HR / Manager) and **Billboards** (Administrator / Editor / Viewer). Either may
   be blank, not both (`resolveAccess`). `SessionUser.role` can be null, so use
@@ -75,6 +85,23 @@ the switcher under the wordmark moves between them (`lib/domain/projects.ts`).
   `usersSpreadsheetId`) so contract editors cannot grant themselves access.
   That ID is an environment variable on purpose — never make it a Settings-tab
   row, or an editor of the contracts sheet could point sign-in at their own list.
+- The session cookie only says who someone is. `getCurrentUser` re-applies the
+  Users tab on every request (`refreshSessionAccess`), so removing access takes
+  effect within ~30 seconds; an unreadable list keeps the session (no mass
+  sign-out on a Google blip). `listUsers` therefore throws on failure — never
+  make it return `[]` for an outage.
+- Check access next to the data, not only in a layout (layouts do not re-run
+  on client-side navigation): `loadVisibleSnapshot`/`requireContractUser` for
+  contract pages, `requireBillboardViewer` at the top of every billboard page.
+- What each role may do comes from the **Contract Roles** / **Billboard Roles**
+  tabs next to Users (`parseRoleTab`), falling back to `DEFAULT_ROLE_TABLE`.
+  Two rows are fixed whatever their ticks: Administrator (everything) and
+  `NOT_ALLOWED` (nothing — keeps the person out of that app).
+  Check with `can(user, permission)` / `canBillboards(user, permission)` —
+  never compare role names. The cookie stores role names only; permissions are
+  resolved per request. A new permission is a new entry in `PERMISSION_INFO` or
+  `BILLBOARD_PERMISSION_INFO` (label = the tab's column heading); setup adds the
+  column, unticked.
 - Permissions live in `src/lib/auth/roles.ts`. Pages call `requireViewer`, API
   routes call `guardApi`, and server actions check `can(...)` — never rely on
   hiding a button alone.

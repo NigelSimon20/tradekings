@@ -20,7 +20,7 @@ import { LinkRow, TBody, THead, Table, TableWrap, Td, Th, Tr } from "@/component
 import { getConfig } from "@/lib/config/env";
 import { describeDays, formatDate, formatTimestamp } from "@/lib/date/dates";
 import { can } from "@/lib/auth/roles";
-import { getCurrentUser } from "@/lib/services/auth";
+import { requireContractUser } from "@/lib/services/auth";
 import { getContractById, getEmployeeHistory } from "@/lib/services/contracts";
 import { getRulesConfig } from "@/lib/services/settings";
 
@@ -36,12 +36,11 @@ export default async function ContractDetailPage({
   if (!contract) notFound();
 
   // A manager may only open the employees their weekly report covers.
-  const viewer = await getCurrentUser();
-  const mine =
-    viewer && contract.managerEmail.trim().toLowerCase() === viewer.email.trim().toLowerCase();
-  if (viewer && !can(viewer.role, "viewAll") && !mine) notFound();
+  const viewer = await requireContractUser();
+  const mine = contract.managerEmail.trim().toLowerCase() === viewer.email.trim().toLowerCase();
+  if (!can(viewer, "viewAll") && !mine) notFound();
 
-  const canEdit = viewer ? can(viewer.role, "editContracts") : false;
+  const canEdit = can(viewer, "editContracts");
 
   const config = getConfig();
   const { rules } = await getRulesConfig();

@@ -2,6 +2,8 @@
 
 import "leaflet/dist/leaflet.css";
 
+import Image from "next/image";
+
 import type { LayerGroup, Map as LeafletMap } from "leaflet";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -17,6 +19,7 @@ import {
   type BillboardFilters,
 } from "@/lib/billboards/filters";
 import { BILLBOARD_STATUS_META } from "@/lib/billboards/meta";
+import { filePreviewUrl } from "@/lib/billboards/photos/files";
 import { BILLBOARD_STATUSES, type EvaluatedBillboard } from "@/lib/billboards/types";
 import { describeDays } from "@/lib/date/dates";
 import { TONE_CLASSES, TONE_COLORS } from "@/lib/ui/tones";
@@ -281,7 +284,19 @@ function SummaryCard({ billboard, onClose }: { billboard: EvaluatedBillboard; on
       : null;
 
   return (
-    <div className="absolute inset-x-3 bottom-3 z-[500] rounded-2xl bg-white p-4 shadow-panel ring-1 ring-slate-200 sm:right-auto sm:w-96">
+    <div className="absolute inset-x-3 bottom-3 z-[500] overflow-hidden rounded-2xl bg-white p-4 shadow-panel ring-1 ring-slate-200 sm:right-auto sm:w-96">
+      {billboard.computed.coverPhotoId ? (
+        <div className="relative -mx-4 -mt-4 mb-3 aspect-[16/7] bg-slate-100">
+          <Image
+            src={filePreviewUrl({ id: billboard.computed.coverPhotoId })}
+            alt={`${billboard.name} — latest site photo`}
+            fill
+            unoptimized
+            sizes="24rem"
+            className="object-cover"
+          />
+        </div>
+      ) : null}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-medium text-slate-500">{billboard.id}</p>

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { AppShell } from "@/components/layout/app-shell";
 import { DatabaseUnavailable } from "@/components/layout/database-unavailable";
+import { canOpenProject } from "@/lib/domain/projects";
 import { getCurrentUser } from "@/lib/services/auth";
 import { loadSnapshot } from "@/lib/services/contracts";
 
@@ -14,10 +15,13 @@ export const dynamic = "force-dynamic";
  * connection problem costs nothing and keeps the answer in one place.
  */
 export default async function AppLayout({ children }: { children: ReactNode }) {
-  // Someone with billboard access only lands here after signing in; send them
-  // to their tracker before the contract database is even read.
+  // A signed cookie is not enough: access is re-checked against the Users tab
+  // on every request, so someone removed there is sent to sign in again here,
+  // before the contract database is even read.
   const user = await getCurrentUser();
-  if (user && !user.role) redirect(user.billboardRole ? "/billboards" : "/login");
+  if (!user) redirect("/login");
+  // Someone with billboard access only lands here after signing in.
+  if (!canOpenProject(user, "contracts")) redirect(canOpenProject(user, "billboards") ? "/billboards" : "/login");
 
   const { error } = await loadSnapshot();
 

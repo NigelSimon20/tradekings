@@ -196,10 +196,32 @@ tab of the users spreadsheet:
 | --- | --- |
 | Email | The Google address they sign in with |
 | Name | Shown in the tracker and against their changes |
-| Role | `Administrator`, `HR` or `Manager` for the Contract Tracker; blank for none |
+| Contracts | A Contract Tracker role (`Administrator`, `HR`, `Manager`, or any role added on the Contract Roles tab); `Not allowed` or blank keeps them out |
 | Active | `No` takes access away without deleting the history |
 | Last Signed In | Filled in by the system |
-| Billboards | `Administrator`, `Editor` or `Viewer` for the Billboard Tracker; blank for none |
+| Billboards | A Billboard Tracker role (`Administrator`, `Editor`, `Viewer`, or any added on the Billboard Roles tab); `Not allowed` or blank keeps them out |
+
+The Contracts column was first called **Role**; that heading still works, and
+**Prepare the Google Sheet** renames it. **Not allowed** is a fixed row on each
+roles tab: choosing it keeps someone out of that app, and no tick can change
+that. Someone Not allowed in both apps cannot sign in.
+
+**What each role may do** is set on two more tabs in the same spreadsheet,
+**Contract Roles** and **Billboard Roles**: one row per role, a tickbox per
+permission, a note on each heading saying what it allows. Untick a box to take a
+permission away, tick one to give it, or add a row to create a new role — it
+appears in the Users tab's dropdown at once. Administrator always has every
+permission, whatever its row says, so nobody can be locked out by a stray untick.
+Changes apply within about 30 seconds, including to people already signed in.
+Both tables are also shown (read-only) on each app's settings page. Without the
+tabs, the built-in roles apply.
+
+Columns are found by their heading, so they can be moved; **Contract Tracker**
+and **Billboard Tracker** are also accepted as headings for the two access columns.
+**Prepare the Google Sheet** adds dropdowns to the access and Active columns
+(anything else is rejected, so a typo cannot lock someone out) and a note on
+each heading. Changes apply to people already signed in within about 30
+seconds — removing someone signs them out on their next click.
 
 | Role | Can |
 | --- | --- |
@@ -208,8 +230,10 @@ tab of the users spreadsheet:
 | **Manager** | Only their own employees — the same list their weekly email covers — read-only |
 
 Managers are off until you add one: give someone the Manager role and they see
-their team and nothing else. `ADMIN_EMAILS` always works whatever the Users tab
-says, so a bad edit there cannot lock everyone out. `APP_PASSWORD` still works
+their team and nothing else. An `ADMIN_EMAILS` address follows its own row on the
+Users tab like anyone else (so roles can be tried out with it), but can never be
+locked out: with no usable row, or when the sheet cannot be read, it gets full
+Administrator access. `APP_PASSWORD` still works
 as a fallback if you set it, and every change is now recorded against the person
 who made it in the **Last Updated By** column and the run log.
 
@@ -279,8 +303,10 @@ marked but not captured, missing employee ID or manager email, unusable dates.
 ## Billboard Tracker
 
 The same link also hosts the **Billboard Tracker** for Trade Kings billboard
-sites. Switch between the two with the menu under **Trade Kings · Zimkings** in
-the sidebar; people only see the trackers they have access to.
+sites. People choose **Contract Tracker** or **Billboard Tracker** on the sign-in
+page and then continue with Google. If their account has no access to the app
+they chose, the sign-in page says so and they are not signed in. To change app,
+sign out and choose the other one.
 
 | Page | What it does |
 | --- | --- |
@@ -305,8 +331,40 @@ contract **Role** may be blank for someone who only works on billboards.
 Log only ever gain rows. Archiving a billboard hides it from the map and
 dashboard; removing a document hides it from the profile; the rows stay.
 
-**Photos and documents are links** — upload the file to a shared Google Drive
-folder and paste its share link. Only `https://` links are accepted.
+**Photos and documents** are uploaded from the billboard's profile and filed in
+a Google **Shared drive**, one folder per city and one per site:
+
+```
+Billboard Photos / Harare / BB-001 – Samora Machel / 2026-09-27 140512 Site photo – Front view.jpg
+```
+
+Files are named by the date and time they were added, so each folder lists in
+order. The tracker shows previews itself (through `/api/billboards/files/<id>`,
+signed-in billboard users only), so nothing is shared publicly. Photos are
+shrunk to 2000px in the browser before upload, which also strips the phone's
+location data; PDFs up to 4 MB. Files are checked by their contents, not their
+name — only JPG, PNG, WebP and PDF are accepted.
+
+There are two ways to switch uploads on, both on **Setup & access** (enable the
+**Google Drive API** in the Google Cloud project first):
+
+1. **Connect a Google account** — a billboard administrator presses *Connect
+   Google Drive* and signs in once; any account works, Gmail included. Files go
+   to that account's *My Drive / Trade Kings Billboard Photos*. The tracker asks
+   only for `drive.file`, so it can see nothing in that Drive except what it
+   created. The refresh token is sealed with `AUTH_SECRET` (AES-GCM) in a hidden
+   *Tracker Settings* tab. It reuses the sign-in OAuth client and callback, so
+   nothing new is registered — but publish the OAuth app (Audience → Publish),
+   because Google expires access for apps left in *Testing* after 7 days.
+2. **Company Shared drive** (for the live system; needs Google Workspace) —
+   create a Shared drive, add the service account as a **Content manager**, and
+   put its ID in `GOOGLE_BILLBOARDS_PHOTOS_FOLDER_ID`. A folder in someone's own
+   Drive will not work: Google gives service accounts no storage there.
+
+A connected account takes priority over the Shared drive; disconnect it to
+switch. Until
+then, files can still be added as `https://` links. On sample data, uploads go
+to `data/billboard-uploads/` in the same City / Site layout.
 
 ## Look and feel
 

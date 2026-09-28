@@ -179,6 +179,22 @@ describe("setting up the users spreadsheet", () => {
     expect(result.messages.join(" ")).toMatch(/Copied 2 people/);
   });
 
+  it("renames the old Role column to Contracts, changing nobody's access", async () => {
+    const books: Books = {
+      [CONTRACTS_ID]: contractsBook(),
+      [USERS_ID]: usersBook([
+        ["Email", "Name", "Role", "Active", "Last Signed In", "Billboards"],
+        ["hr@tkzim.co.zw", "HR", "HR", "Yes", "", ""],
+      ]),
+    };
+    const result = await setUpSheet(fakeClient(books), config(), { seedAdmins: [] });
+
+    const users = books[USERS_ID].tabs.get("Users")!;
+    expect(users[0]).toEqual(["Email", "Name", "Contracts", "Active", "Last Signed In", "Billboards"]);
+    expect(users[1]).toEqual(["hr@tkzim.co.zw", "HR", "HR", "Yes", "", ""]);
+    expect(result.messages.join(" ")).toMatch(/Renamed .* Role column to Contracts/);
+  });
+
   it("never overwrites a users list that is already there", async () => {
     const existing = [[...USERS_HEADERS], ["hr@tkzim.co.zw", "HR", "HR", "Yes", ""]];
     const books: Books = { [CONTRACTS_ID]: contractsBook(), [USERS_ID]: usersBook(existing) };
@@ -203,6 +219,146 @@ describe("setting up the users spreadsheet", () => {
       [...USERS_HEADERS],
       ["hr@tkzim.co.zw", "HR", "HR", "Yes", ""],
     ]);
+  });
+
+  it("puts strict dropdowns on the access columns, wherever they are", async () => {
+    const books: Books = {
+      [CONTRACTS_ID]: contractsBook(),
+      [USERS_ID]: usersBook([["Email", "Billboard Tracker", "Name", "Contract Tracker", "Active", "Last Signed In"]]),
+    };
+    const client = fakeClient(books);
+    const requests: sheets_v4.Schema$Request[] = [];
+    const original = client.spreadsheets.batchUpdate.bind(client.spreadsheets);
+    client.spreadsheets.batchUpdate = (async (params: { requestBody: sheets_v4.Schema$BatchUpdateSpreadsheetRequest }) => {
+      requests.push(...(params.requestBody.requests ?? []));
+      return original(params as never);
+    }) as never;
+
+    await setUpSheet(client, config(), { seedAdmins: [] });
+
+    const dropdowns = requests
+      .filter((request) => request.setDataValidation?.rule?.condition?.type?.startsWith("ONE_OF"))
+      .map((request) => ({
+        column: request.setDataValidation!.range!.startColumnIndex,
+        type: request.setDataValidation!.rule!.condition!.type,
+        values: request.setDataValidation!.rule!.condition!.values!.map((value) => value.userEnteredValue),
+        strict: request.setDataValidation!.rule!.strict,
+      }));
+    expect(dropdowns).toEqual(
+      expect.arrayContaining([
+        // The role columns offer whatever roles are on the roles tabs.
+        { column: 3, type: "ONE_OF_RANGE", values: ["='Contract Roles'!$A$2:$A"], strict: true },
+        { column: 4, type: "ONE_OF_LIST", values: ["Yes", "No"], strict: true },
+        { column: 1, type: "ONE_OF_RANGE", values: ["='Billboard Roles'!$A$2:$A"], strict: true },
+      ]),
+    );
+  });
+
+  it("creates the roles tabs with today's roles, ticked as they work now", async () => {
+    const books: Books = { [CONTRACTS_ID]: contractsBook(), [USERS_ID]: usersBook() };
+    await setUpSheet(fakeClient(books), config(), { seedAdmins: [] });
+
+    const contracts = books[USERS_ID].tabs.get("Contract Roles")!;
+    expect(contracts[0].slice(0, 3)).toEqual(["Role", "Description", "See all employees"]);
+    expect(contracts.map((row) => row[0])).toEqual(["Role", "Administrator", "HR", "Manager", "Not allowed"]);
+    const manager = contracts.find((row) => row[0] === "Manager")!;
+    expect(manager.slice(2)).toEqual([false, true, false, false, false, false]);
+    expect(books[USERS_ID].tabs.get("Billboard Roles")!.map((row) => row[0])).toEqual([
+      "Role",
+      "Administrator",
+      "Editor",
+      "Viewer",
+      "Not allowed",
+    ]);
+    const notAllowed = contracts.find((row) => row[0] === "Not allowed")!;
+    expect(notAllowed.slice(2).every((cell) => cell === false)).toBe(true);
+  });
+
+  it("moves a Not allowed row stranded below the tickbox rows up under the roles", async () => {
+    const header = ["Role", "Description", "See billboards", "Add & edit billboards"];
+    const stranded = [
+      header,
+      ["Administrator", "All", true, true],
+      ["Editor", "Edits", true, true],
+      ...Array.from({ length: 5 }, () => ["", "", false, false]),
+      ["Not allowed", "Cannot open the Billboard Tracker, whatever else is set.", false, false],
+    ];
+    const books: Books = {
+      [CONTRACTS_ID]: contractsBook(),
+      [USERS_ID]: {
+        title: "Tracker users",
+        tabs: new Map<string, unknown[][]>([
+          ["Users", [[...USERS_HEADERS]]],
+          ["Billboard Roles", stranded.map((row) => [...row])],
+        ]),
+      },
+    };
+    const result = await setUpSheet(fakeClient(books), config(), { seedAdmins: [] });
+    const tab = books[USERS_ID].tabs.get("Billboard Roles")!;
+    expect(tab[3].slice(0, 2)).toEqual(["Not allowed", "Cannot open the Billboard Tracker, whatever else is set."]);
+    expect(tab[8].slice(0, 2)).toEqual(["", ""]);
+    // Ticks on the real roles are untouched.
+    expect(tab[2]).toEqual(["Editor", "Edits", true, true]);
+    expect(result.messages.join(" ")).toMatch(/Moved "Not allowed" up/);
+  });
+
+  it("keeps a single Not allowed row, clearing duplicates further down", async () => {
+    const rows = [
+      ["Role", "Description", "See billboards"],
+      ["Administrator", "All", true],
+      ["Viewer", "Reads", true],
+      ["Not allowed", "Typed by hand", false],
+      ...Array.from({ length: 4 }, () => ["", "", false]),
+      ["Not allowed", "Stranded", false],
+    ];
+    const books: Books = {
+      [CONTRACTS_ID]: contractsBook(),
+      [USERS_ID]: {
+        title: "Tracker users",
+        tabs: new Map<string, unknown[][]>([
+          ["Users", [[...USERS_HEADERS]]],
+          ["Billboard Roles", rows.map((row) => [...row])],
+        ]),
+      },
+    };
+    await setUpSheet(fakeClient(books), config(), { seedAdmins: [] });
+    const tab = books[USERS_ID].tabs.get("Billboard Roles")!;
+    expect(tab.filter((row) => row[0] === "Not allowed")).toHaveLength(1);
+    expect(tab[3].slice(0, 2)).toEqual(["Not allowed", "Typed by hand"]);
+  });
+
+  it("never changes ticks on roles tabs that already exist", async () => {
+    const edited = [
+      ["Role", "Description", "See all employees", "See own team only"],
+      ["HR Clerk", "Custom", true, false],
+    ];
+    const books: Books = {
+      [CONTRACTS_ID]: contractsBook(),
+      [USERS_ID]: {
+        title: "Tracker users",
+        tabs: new Map<string, unknown[][]>([
+          ["Users", [[...USERS_HEADERS]]],
+          ["Contract Roles", edited.map((row) => [...row])],
+        ]),
+      },
+    };
+    await setUpSheet(fakeClient(books), config(), { seedAdmins: [] });
+    const tab = books[USERS_ID].tabs.get("Contract Roles")!;
+    // Missing permission columns are added, unticked; nothing else moves.
+    expect(tab[0]).toEqual([
+      "Role",
+      "Description",
+      "See all employees",
+      "See own team only",
+      "Add & edit contracts",
+      "Export data",
+      "Run reports",
+      "Manage settings",
+    ]);
+    expect(tab[1]).toEqual(["HR Clerk", "Custom", true, false]);
+    // A tab made before "Not allowed" existed gets it as a new last row.
+    expect(tab.at(-1)).toEqual(["Not allowed", "Cannot open the Contract Tracker, whatever else is set."]);
+    expect(tab).toHaveLength(3);
   });
 
   it("reports a users spreadsheet the tracker cannot open, without failing the rest", async () => {
@@ -269,11 +425,41 @@ describe("reading users from the users spreadsheet", () => {
     delete books[USERS_ID];
     const repo = await repository();
 
-    expect(await repo.listUsers()).toEqual([]);
+    // An outage is reported as one, never as "nobody may sign in".
+    await expect(repo.listUsers()).rejects.toThrow();
     expect(await repo.listContracts()).toEqual([]);
     const health = await repo.healthCheck();
     expect(health.ok).toBe(true);
     expect(health.warnings.join(" ")).toMatch(/users spreadsheet could not be read/);
+  });
+
+  it("finds the columns by heading, so reordering them breaks nothing", async () => {
+    books[USERS_ID] = usersBook([
+      ["Billboard Tracker", "Email", "Active", "Name", "Last Signed In", "Contract Tracker"],
+      ["Viewer", "hr@tkzim.co.zw", "Yes", "HR Officer", "", "HR"],
+    ]);
+    const repo = await repository();
+    const [user] = await repo.listUsers();
+    expect(user).toMatchObject({ email: "hr@tkzim.co.zw", name: "HR Officer", role: "HR", billboards: "Viewer" });
+
+    await repo.recordSignIn(user, "2026-09-28T08:00:00Z");
+    expect(books[USERS_ID].tabs.get("Users")?.[1]?.[4]).toBe("2026-09-28T08:00:00Z");
+  });
+
+  it("reads what each role may do from the roles tabs next to Users", async () => {
+    books[USERS_ID].tabs.set("Billboard Roles", [
+      ["Role", "Description", "See billboards", "Add & edit billboards", "Remove documents"],
+      ["Photographer", "Adds site photos", true, true, false],
+    ]);
+    const table = await (await repository()).readRoleTable();
+    expect(table.billboards.find((role) => role.name === "Photographer")?.permissions).toEqual([
+      "viewBillboards",
+      "editBillboards",
+    ]);
+    // Administrator is always there and always complete.
+    expect(table.billboards[0]).toMatchObject({ name: "Administrator", locked: true });
+    // No Contract Roles tab yet: the built-in contract roles apply.
+    expect(table.contracts.map((role) => role.name)).toEqual(["Administrator", "HR", "Manager", "Not allowed"]);
   });
 
   it("warns about the old Users tab left in the contracts spreadsheet", async () => {

@@ -1,22 +1,20 @@
-import { parseBillboardRole, parseRole, type BillboardRole, type Role } from "@/lib/auth/roles";
+import { DEFAULT_ROLE_TABLE, accessForRoles, type Access } from "@/lib/auth/roles";
 
 /**
  * Sign-in sessions.
  *
- * The cookie carries who the person is and what they may do, signed with
- * AUTH_SECRET so it cannot be edited in the browser. Web Crypto is used so the
- * same code runs in the proxy and in server actions.
+ * The cookie carries who the person is and the names of their roles, signed
+ * with AUTH_SECRET so it cannot be edited in the browser. What those roles may
+ * do is not stored: it is looked up on every request from the roles tabs
+ * (`refreshSessionAccess`). Web Crypto is used so the same code runs in the
+ * proxy and in server actions.
  */
 export const SESSION_COOKIE = "tkzim_contract_session";
 export const SESSION_TTL_SECONDS = 60 * 60 * 12;
 
-export interface SessionUser {
+export interface SessionUser extends Access {
   email: string;
   name: string;
-  /** Access to the contract tracker; null when the person only has billboards. */
-  role: Role | null;
-  /** Access to the billboard tracker; null when the person only has contracts. */
-  billboardRole: BillboardRole | null;
   /** How the person signed in, for the run log. */
   via: "google" | "password";
 }
@@ -57,10 +55,14 @@ function safeEqual(a: string, b: string): boolean {
   return mismatch === 0;
 }
 
-export async function createSessionToken(secret: string, user: SessionUser): Promise<string> {
+/** Who someone is, plus their role names; never their permissions. */
+export type SessionIdentity = Pick<SessionUser, "email" | "name" | "via" | "role" | "billboardRole">;
+
+export async function createSessionToken(secret: string, user: SessionIdentity): Promise<string> {
+  const { email, name, via, role, billboardRole } = user;
   const payload = toBase64Url(
     encoder.encode(
-      JSON.stringify({ ...user, exp: Date.now() + SESSION_TTL_SECONDS * 1000 }),
+      JSON.stringify({ email, name, via, role, billboardRole, exp: Date.now() + SESSION_TTL_SECONDS * 1000 }),
     ),
   );
   return `${payload}.${await sign(payload, secret)}`;
@@ -81,16 +83,19 @@ export async function readSessionToken(
     const data = JSON.parse(decoder.decode(fromBase64Url(payload))) as Partial<SessionUser> & {
       exp?: number;
     };
-    const role = parseRole(String(data.role ?? ""));
-    const billboardRole = parseBillboardRole(String(data.billboardRole ?? ""));
+    const role = typeof data.role === "string" && data.role.trim() ? data.role : null;
+    const billboardRole =
+      typeof data.billboardRole === "string" && data.billboardRole.trim() ? data.billboardRole : null;
     if ((!role && !billboardRole) || !data.email || !data.exp || data.exp <= Date.now()) return null;
 
     return {
       email: String(data.email),
       name: String(data.name ?? data.email),
+      via: data.via === "password" ? "password" : "google",
+      // Provisional: getCurrentUser replaces this with the roles tabs' answer.
+      ...accessForRoles(role, billboardRole, DEFAULT_ROLE_TABLE),
       role,
       billboardRole,
-      via: data.via === "password" ? "password" : "google",
     };
   } catch {
     return null;

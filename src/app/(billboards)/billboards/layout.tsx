@@ -19,7 +19,7 @@ export default async function BillboardsLayout({ children }: { children: ReactNo
   const { error } = await loadBillboards();
   const canSetUp =
     getBillboardRepository().kind === "google-sheets" &&
-    canBillboards(user.billboardRole, "manageBillboards");
+    canBillboards(user, "manageBillboards");
 
   return (
     <AppShell project="billboards">

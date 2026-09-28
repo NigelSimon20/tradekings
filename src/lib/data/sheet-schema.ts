@@ -426,8 +426,12 @@ export function parseSheetBoolean(value: string, fallback: boolean): boolean {
   return fallback;
 }
 
+/** The tabs, next to Users, that say what each role may do. */
+export const CONTRACT_ROLES_TAB = "Contract Roles";
+export const BILLBOARD_ROLES_TAB = "Billboard Roles";
+
 /** Headings for the tab that decides who may sign in. */
-export const USERS_HEADERS = ["Email", "Name", "Role", "Active", "Last Signed In", "Billboards"] as const;
+export const USERS_HEADERS = ["Email", "Name", "Contracts", "Active", "Last Signed In", "Billboards"] as const;
 
 export interface SheetUser {
   email: string;
@@ -442,20 +446,78 @@ export interface SheetUser {
   rowNumber: number;
 }
 
+type UserColumn = "email" | "name" | "role" | "active" | "lastSignedIn" | "billboards";
+
+/**
+ * Users-tab columns are found by their heading, so someone inserting or
+ * reordering columns cannot quietly break sign-in. Clearer names for the two
+ * access columns are accepted as well as the originals.
+ */
+const USER_COLUMN_HEADINGS: Record<UserColumn, string[]> = {
+  email: ["Email", "Email Address"],
+  name: ["Name", "Full Name"],
+  role: ["Contracts", "Contract Tracker", "Contract Tracker Access", "Role"],
+  active: ["Active"],
+  lastSignedIn: ["Last Signed In"],
+  billboards: ["Billboards", "Billboard Tracker", "Billboard Tracker Access"],
+};
+
+/** Where each column sits when a heading is missing: the original layout. */
+const USER_COLUMN_DEFAULTS: Record<UserColumn, number> = {
+  email: 0,
+  name: 1,
+  role: 2,
+  active: 3,
+  lastSignedIn: 4,
+  billboards: 5,
+};
+
+export type UserColumnIndex = Record<UserColumn, number>;
+
+export function indexUserColumns(header: unknown[]): UserColumnIndex {
+  const positions = new Map<string, number>();
+  header.forEach((cell, position) => {
+    const key = normaliseHeader(String(cell ?? ""));
+    if (key && !positions.has(key)) positions.set(key, position);
+  });
+  const index = { ...USER_COLUMN_DEFAULTS };
+  for (const column of Object.keys(USER_COLUMN_HEADINGS) as UserColumn[]) {
+    const found = USER_COLUMN_HEADINGS[column]
+      .map((heading) => positions.get(normaliseHeader(heading)))
+      .find((position) => position !== undefined);
+    if (found !== undefined) index[column] = found;
+  }
+  return index;
+}
+
 /** Reads one row of the Users tab. */
-export function parseUserRow(row: unknown[], rowNumber: number): SheetUser | null {
-  const email = String(row?.[0] ?? "").trim().toLowerCase();
+export function parseUserRow(
+  row: unknown[],
+  rowNumber: number,
+  index: UserColumnIndex = USER_COLUMN_DEFAULTS,
+): SheetUser | null {
+  const cell = (column: UserColumn) => String(row?.[index[column]] ?? "").trim();
+  const email = cell("email").toLowerCase();
   if (!email || !email.includes("@")) return null;
 
-  const active = String(row?.[3] ?? "").trim();
   return {
     email,
-    name: String(row?.[1] ?? "").trim() || email,
-    role: String(row?.[2] ?? "").trim(),
+    name: cell("name") || email,
+    role: cell("role"),
     // Blank means active: a row someone has just added should work.
-    active: parseSheetBoolean(active, true),
-    lastSignedIn: String(row?.[4] ?? "").trim(),
-    billboards: String(row?.[5] ?? "").trim(),
+    active: parseSheetBoolean(cell("active"), true),
+    lastSignedIn: cell("lastSignedIn"),
+    billboards: cell("billboards"),
     rowNumber,
   };
+}
+
+/** Every person on the Users tab, reading the heading row first. */
+export function parseUserRows(values: unknown[][]): { users: SheetUser[]; index: UserColumnIndex } {
+  const index = indexUserColumns(values[0] ?? []);
+  const users = values
+    .slice(1)
+    .map((row, offset) => parseUserRow(row, offset + 2, index))
+    .filter((user): user is SheetUser => user !== null);
+  return { users, index };
 }

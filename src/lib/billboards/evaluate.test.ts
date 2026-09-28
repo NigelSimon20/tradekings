@@ -194,6 +194,8 @@ describe("maintenance and follow-up", () => {
       addedAt: "",
       addedBy: "",
       removed: false,
+      storedFileId: "",
+      mimeType: "",
     };
     const [site] = evaluate([billboard({ leaseDocumentUrl: "" })], [], [lease]);
     expect(site.computed.flags.map((flag) => flag.code)).not.toContain("NO_LEASE_DOCUMENT");
@@ -201,6 +203,32 @@ describe("maintenance and follow-up", () => {
 
     const [removed] = evaluate([billboard({ leaseDocumentUrl: "" })], [], [{ ...lease, removed: true }]);
     expect(removed.computed.documentCount).toBe(0);
+  });
+
+  it("uses the newest uploaded site photo as the cover, never a pasted link", () => {
+    const photo = (id: string, addedAt: string, extra: Partial<BillboardFile> = {}): BillboardFile => ({
+      id,
+      billboardId: "BB-001",
+      category: "Site photo",
+      title: id,
+      url: "",
+      documentDate: null,
+      addedAt,
+      addedBy: "",
+      removed: false,
+      storedFileId: `drive-${id}`,
+      mimeType: "image/jpeg",
+      ...extra,
+    });
+    const files = [
+      photo("old", "2026-01-01T08:00:00Z"),
+      photo("new", "2026-09-01T08:00:00Z"),
+      photo("link", "2026-09-20T08:00:00Z", { storedFileId: "", url: "https://example.com/x.jpg" }),
+      photo("gone", "2026-09-21T08:00:00Z", { removed: true }),
+      photo("art", "2026-09-22T08:00:00Z", { category: "Campaign artwork" }),
+    ];
+    expect(evaluate([billboard()], [], files)[0].computed.coverPhotoId).toBe("new");
+    expect(evaluate([billboard()])[0].computed.coverPhotoId).toBeNull();
   });
 });
 

@@ -30,8 +30,8 @@ export default async function ContractsPage({
 }: PageSearchParams) {
   const filters = parseFilters(await searchParams);
   const { contracts, user } = await loadVisibleSnapshot();
-  const mayEdit = user ? can(user.role, "editContracts") : false;
-  const mayExport = user ? can(user.role, "exportData") : false;
+  const mayEdit = user ? can(user, "editContracts") : false;
+  const mayExport = user ? can(user, "exportData") : false;
 
   const view = getView(filters.view);
   const matching = sortByUrgency(applyFilters(contracts, filters));

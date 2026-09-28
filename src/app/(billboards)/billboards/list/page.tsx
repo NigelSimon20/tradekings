@@ -2,9 +2,9 @@ import Link from "next/link";
 
 import { BillboardTable } from "@/components/billboards/billboard-table";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { Card, CardToolbar } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Input, Select } from "@/components/ui/field";
-import { PlusIcon } from "@/components/ui/icons";
+import { PlusIcon, SearchIcon } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { canBillboards } from "@/lib/auth/roles";
 import {
@@ -17,7 +17,7 @@ import {
 import { BILLBOARD_STATUSES } from "@/lib/billboards/types";
 import { BILLBOARD_VIEWS, getBillboardView } from "@/lib/billboards/views";
 import type { PageSearchParams } from "@/lib/domain/filters";
-import { getCurrentUser } from "@/lib/services/auth";
+import { requireBillboardViewer } from "@/lib/services/auth";
 import { loadBillboards } from "@/lib/services/billboards";
 
 export const dynamic = "force-dynamic";
@@ -28,12 +28,13 @@ export default async function BillboardListPage({ searchParams }: PageSearchPara
   const filters = parseBillboardFilters(params);
   const showArchived = params.archived === "1";
 
-  const [{ billboards, archived }, user] = await Promise.all([loadBillboards(), getCurrentUser()]);
+  const user = await requireBillboardViewer("viewBillboards");
+  const { billboards, archived } = await loadBillboards();
   const source = showArchived ? archived : billboards;
   const rows = sortBillboardsByUrgency(filterBillboards(source, filters));
   const cities = [...new Set(billboards.map((billboard) => billboard.city).filter(Boolean))].sort();
   const view = filters.view ? getBillboardView(filters.view) : undefined;
-  const mayEdit = user ? canBillboards(user.billboardRole, "editBillboards") : false;
+  const mayEdit = canBillboards(user, "editBillboards");
 
   return (
     <div className="space-y-5">
@@ -56,17 +57,23 @@ export default async function BillboardListPage({ searchParams }: PageSearchPara
       />
 
       <Card>
-        <CardToolbar>
-          <form className="flex w-full flex-wrap items-center gap-2" action="/billboards/list">
+        <div className="space-y-2 border-b border-slate-100 bg-slate-50/60 px-4 py-3">
+          <form
+            action="/billboards/list"
+            className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(14rem,1.6fr)_repeat(4,minmax(0,1fr))_auto]"
+          >
             {showArchived ? <input type="hidden" name="archived" value="1" /> : null}
-            <Input
-              type="search"
-              name="q"
-              defaultValue={filters.q}
-              placeholder="Search ID, road, area, city or brand"
-              aria-label="Search"
-              className="w-full sm:w-72"
-            />
+            <label className="relative block sm:col-span-2 lg:col-span-1">
+              <span className="sr-only">Search</span>
+              <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                type="search"
+                name="q"
+                defaultValue={filters.q}
+                placeholder="Search ID, road, area, city or brand"
+                className="pl-9"
+              />
+            </label>
             <Select
               name="view"
               aria-label="Dashboard view"
@@ -76,7 +83,6 @@ export default async function BillboardListPage({ searchParams }: PageSearchPara
                 value: option.id,
                 label: option.label,
               }))}
-              className="w-auto"
             />
             <Select
               name="status"
@@ -84,7 +90,6 @@ export default async function BillboardListPage({ searchParams }: PageSearchPara
               defaultValue={filters.status}
               placeholder="Any status"
               options={BILLBOARD_STATUSES.map((status) => ({ value: status, label: status }))}
-              className="w-auto"
             />
             <Select
               name="city"
@@ -92,7 +97,6 @@ export default async function BillboardListPage({ searchParams }: PageSearchPara
               defaultValue={filters.city}
               placeholder="Any city"
               options={cities.map((city) => ({ value: city, label: city }))}
-              className="w-auto"
             />
             <Select
               name="lease"
@@ -100,31 +104,34 @@ export default async function BillboardListPage({ searchParams }: PageSearchPara
               defaultValue={filters.lease}
               placeholder="Any lease"
               options={LEASE_FILTER_OPTIONS}
-              className="w-auto"
             />
-            <Button type="submit" variant="secondary" size="sm">
+            <Button type="submit" className="sm:col-span-2 lg:col-span-1">
               Apply
             </Button>
-            {countActiveBillboardFilters(filters) ? (
-              <Link
-                href={showArchived ? "/billboards/list?archived=1" : "/billboards/list"}
-                className="text-xs font-medium text-brand-700 hover:underline"
-              >
-                Clear
-              </Link>
-            ) : null}
-            <span className="ml-auto text-xs text-slate-500">
-              {rows.length} of {source.length}
-              {" · "}
-              <Link
-                href={showArchived ? "/billboards/list" : "/billboards/list?archived=1"}
-                className="font-medium text-brand-700 hover:underline"
-              >
-                {showArchived ? "Back to sites in use" : `Archived (${archived.length})`}
-              </Link>
-            </span>
           </form>
-        </CardToolbar>
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+            <span>
+              Showing {rows.length} of {source.length}
+              {countActiveBillboardFilters(filters) ? (
+                <>
+                  {" · "}
+                  <Link
+                    href={showArchived ? "/billboards/list?archived=1" : "/billboards/list"}
+                    className="font-medium text-brand-700 hover:underline"
+                  >
+                    Clear filters
+                  </Link>
+                </>
+              ) : null}
+            </span>
+            <Link
+              href={showArchived ? "/billboards/list" : "/billboards/list?archived=1"}
+              className="font-medium text-brand-700 hover:underline"
+            >
+              {showArchived ? "Back to sites in use" : `Archived (${archived.length})`}
+            </Link>
+          </div>
+        </div>
         <BillboardTable billboards={rows} />
       </Card>
     </div>

@@ -93,6 +93,12 @@ export function evaluateBillboards(
     }
 
     const photoCount = files.filter((file) => PHOTO_CATEGORIES.includes(file.category)).length;
+    const cover = latestBy(
+      files.filter(
+        (file) => file.category === "Site photo" && file.storedFileId && file.mimeType.startsWith("image/"),
+      ),
+      (file) => file.addedAt,
+    );
 
     return {
       ...billboard,
@@ -108,6 +114,7 @@ export function evaluateBillboards(
         needsFollowUp: flags.some((flag) => BILLBOARD_FLAG_META[flag.code].followUp),
         photoCount,
         documentCount: files.length - photoCount,
+        coverPhotoId: cover?.id ?? null,
       },
     };
   });

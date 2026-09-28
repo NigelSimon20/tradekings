@@ -1,3 +1,4 @@
+import type { RoleTable } from "@/lib/auth/roles";
 import type { SheetSetupResult } from "@/lib/data/sheet-setup";
 import type { SheetUser } from "@/lib/data/sheet-schema";
 import type {
@@ -46,6 +47,11 @@ export interface ContractRepository {
   readSettings(): Promise<Record<string, string>>;
   /** Everyone allowed to sign in, from the Users tab. */
   listUsers(): Promise<SheetUser[]>;
+  /**
+   * What each role may do, from the roles tabs next to Users. Either half is
+   * the built-in default when its tab is missing. Throws when unreadable.
+   */
+  readRoleTable(): Promise<RoleTable>;
   /** Stamps the moment someone signed in, so access can be reviewed. */
   recordSignIn(user: SheetUser, at: string): Promise<void>;
   appendRunLog(entry: RunLogEntry): Promise<void>;

@@ -12,11 +12,13 @@ import { sortBillboardsByUrgency } from "@/lib/billboards/filters";
 import { BILLBOARD_VIEWS, getBillboardView } from "@/lib/billboards/views";
 import { getConfig } from "@/lib/config/env";
 import { formatDate, formatTimestamp } from "@/lib/date/dates";
+import { requireBillboardViewer } from "@/lib/services/auth";
 import { loadBillboards, recentBillboardActivity } from "@/lib/services/billboards";
 
 export const dynamic = "force-dynamic";
 
 export default async function BillboardDashboardPage() {
+  await requireBillboardViewer("viewBillboards");
   const config = getConfig();
   const [{ billboards, today }, activity] = await Promise.all([loadBillboards(), recentBillboardActivity(8)]);
 

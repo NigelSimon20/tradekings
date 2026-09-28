@@ -141,8 +141,14 @@ export interface BillboardFile {
   billboardId: string;
   category: FileCategory;
   title: string;
-  /** A link to where the file is stored, e.g. a Google Drive share link. */
+  /** Where to open the file: a Drive link, or any https link pasted in. */
   url: string;
+  /**
+   * Set when the file was uploaded through the tracker: the id the photo store
+   * gave it (a Google Drive file id). The tracker shows these as previews.
+   */
+  storedFileId: string;
+  mimeType: string;
   documentDate: ISODate | null;
   addedAt: string;
   addedBy: string;
@@ -169,7 +175,10 @@ export interface BillboardData {
 
 export type NewCampaign = Omit<Campaign, "id" | "recordedAt" | "recordedBy">;
 export type NewMaintenanceRecord = Omit<MaintenanceRecord, "id" | "recordedAt" | "recordedBy">;
-export type NewBillboardFile = Omit<BillboardFile, "id" | "addedAt" | "addedBy" | "removed">;
+export type NewBillboardFile = Omit<
+  BillboardFile,
+  "id" | "addedAt" | "addedBy" | "removed" | "storedFileId" | "mimeType"
+>;
 
 export const LEASE_STATUSES = ["EXPIRED", "EXPIRING_30", "EXPIRING_90", "ACTIVE", "NO_LEASE"] as const;
 export type LeaseStatus = (typeof LEASE_STATUSES)[number];
@@ -208,6 +217,8 @@ export interface BillboardComputed {
   needsFollowUp: boolean;
   photoCount: number;
   documentCount: number;
+  /** The newest uploaded site photo, shown on the map and the profile. */
+  coverPhotoId: string | null;
 }
 
 export interface EvaluatedBillboard extends Billboard {

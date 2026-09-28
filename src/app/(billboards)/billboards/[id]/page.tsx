@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
@@ -9,6 +10,8 @@ import {
   LeaseBadge,
 } from "@/components/billboards/badges";
 import { ExternalLink } from "@/components/billboards/external-link";
+import { FileUpload } from "@/components/billboards/file-upload";
+import { PhotoGallery } from "@/components/billboards/photo-gallery";
 import {
   AddPanel,
   ArchiveButton,
@@ -26,10 +29,18 @@ import { ArrowLeftIcon, BillboardIcon, ContractsIcon, PinIcon, SettingsIcon } fr
 import { PageHeader } from "@/components/ui/page-header";
 import { TBody, THead, Table, TableWrap, Td, Th, Tr } from "@/components/ui/table";
 import { canBillboards } from "@/lib/auth/roles";
-import { PHOTO_CATEGORIES, FILE_CATEGORIES, type Campaign } from "@/lib/billboards/types";
+import { getPhotoStore } from "@/lib/billboards/photos";
+import { cityFolderName, filePreviewUrl, siteFolderName } from "@/lib/billboards/photos/files";
+import { isSafeUrl } from "@/lib/billboards/schema";
+import {
+  PHOTO_CATEGORIES,
+  FILE_CATEGORIES,
+  type BillboardFile,
+  type Campaign,
+} from "@/lib/billboards/types";
 import { getConfig } from "@/lib/config/env";
 import { describeDays, formatDate, formatTimestamp } from "@/lib/date/dates";
-import { getCurrentUser } from "@/lib/services/auth";
+import { requireBillboardViewer } from "@/lib/services/auth";
 import { getBillboardProfile } from "@/lib/services/billboards";
 
 export const dynamic = "force-dynamic";
@@ -71,6 +82,7 @@ function campaignLabel(campaign: Campaign): string {
 }
 
 export default async function BillboardProfilePage({ params }: { params: Promise<{ id: string }> }) {
+  const user = await requireBillboardViewer("viewBillboards");
   const { id } = await params;
   const profile = await getBillboardProfile(decodeURIComponent(id));
   if (!profile) notFound();
@@ -78,12 +90,17 @@ export default async function BillboardProfilePage({ params }: { params: Promise
   const { billboard, campaigns, maintenance, files, activity } = profile;
   const { computed } = billboard;
   const config = getConfig();
-  const user = await getCurrentUser();
-  const mayEdit = user ? canBillboards(user.billboardRole, "editBillboards") : false;
-  const mayManage = user ? canBillboards(user.billboardRole, "manageBillboards") : false;
+  const mayEdit = canBillboards(user, "editBillboards");
+  const mayArchive = canBillboards(user, "archiveBillboards");
+  const mayRemove = canBillboards(user, "removeDocuments");
 
-  const photos = files.filter((file) => PHOTO_CATEGORIES.includes(file.category));
-  const documents = files.filter((file) => !PHOTO_CATEGORIES.includes(file.category));
+  const isPhoto = (file: BillboardFile) => PHOTO_CATEGORIES.includes(file.category);
+  // Uploaded photos get previews; everything else (PDFs, pasted links) is listed.
+  const uploadedPhotos = files.filter(
+    (file) => file.storedFileId && file.mimeType.startsWith("image/"),
+  );
+  const linkedFiles = files.filter((file) => !uploadedPhotos.includes(file));
+  const uploadsOn = (await getPhotoStore()).kind !== "none";
   const mapLink =
     billboard.latitude !== null && billboard.longitude !== null
       ? `https://www.google.com/maps/search/?api=1&query=${billboard.latitude},${billboard.longitude}`
@@ -120,7 +137,7 @@ export default async function BillboardProfilePage({ params }: { params: Promise
       {billboard.archived ? (
         <Alert tone="neutral" title="This billboard is archived">
           It is hidden from the map and dashboard. Everything recorded against it is kept below.
-          {mayManage ? (
+          {mayArchive ? (
             <div className="mt-3">
               <ArchiveButton billboardId={billboard.id} archived />
             </div>
@@ -144,6 +161,18 @@ export default async function BillboardProfilePage({ params }: { params: Promise
             title="Basic information"
             action={<BillboardStatusBadge status={billboard.status} />}
           />
+          {computed.coverPhotoId ? (
+            <div className="relative aspect-[16/7] bg-slate-100">
+              <Image
+                src={filePreviewUrl({ id: computed.coverPhotoId })}
+                alt={`${billboard.name} — latest site photo`}
+                fill
+                unoptimized
+                sizes="(min-width: 1280px) 40rem, 100vw"
+                className="object-cover"
+              />
+            </div>
+          ) : null}
           <CardBody>
             <DefinitionList
               columns={2}
@@ -356,43 +385,87 @@ export default async function BillboardProfilePage({ params }: { params: Promise
       <Card>
         <CardHeader
           title="Photos & documents"
-          description="Links to the files where they are stored. Removing one hides it here; the record stays in the sheet."
+          description={
+            uploadsOn
+              ? `Uploads are filed in Google Drive under ${cityFolderName(billboard.city)} / ${siteFolderName(billboard)}. Removing one hides it here; the file and its record are kept.`
+              : "Removing one hides it here; the record stays in the sheet."
+          }
           action={<Badge tone="neutral">{files.length}</Badge>}
         />
         <CardBody className="space-y-5">
-          {[
-            { title: "Photos", items: photos },
-            { title: "Documents", items: documents },
-          ].map((group) => (
-            <div key={group.title}>
-              <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">{group.title}</p>
-              {group.items.length ? (
-                <ul className="mt-2 divide-y divide-slate-100 rounded-xl ring-1 ring-slate-200/70">
-                  {[...group.items]
-                    .sort((a, b) => FILE_CATEGORIES.indexOf(a.category) - FILE_CATEGORIES.indexOf(b.category))
-                    .map((file) => (
-                      <li key={file.id} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5">
-                        <div className="min-w-0">
+          <div>
+            <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">Photos</p>
+            {uploadedPhotos.length ? (
+              <div className="mt-2">
+                <PhotoGallery photos={uploadedPhotos} canRemove={mayRemove} />
+              </div>
+            ) : null}
+            {!uploadedPhotos.length && !linkedFiles.some(isPhoto) ? (
+              <p className="mt-2 text-sm text-slate-400">No photos yet.</p>
+            ) : null}
+          </div>
+
+          {linkedFiles.length ? (
+            <div>
+              <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                {uploadedPhotos.length ? "Documents and linked files" : "Documents and links"}
+              </p>
+              <ul className="mt-2 divide-y divide-slate-100 rounded-xl ring-1 ring-slate-200/70">
+                {[...linkedFiles]
+                  .sort((a, b) => FILE_CATEGORIES.indexOf(a.category) - FILE_CATEGORIES.indexOf(b.category))
+                  .map((file) => (
+                    <li key={file.id} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5">
+                      <div className="min-w-0">
+                        {file.storedFileId ? (
+                          <a
+                            href={filePreviewUrl(file)}
+                            target="_blank"
+                            rel="noopener"
+                            className="inline-flex items-center gap-1 font-medium break-all text-brand-700 hover:underline"
+                          >
+                            <ContractsIcon className="size-3.5 shrink-0" />
+                            {file.title}
+                          </a>
+                        ) : (
                           <ExternalLink href={file.url}>{file.title}</ExternalLink>
-                          <p className="text-xs text-slate-500">
-                            {file.category}
-                            {file.documentDate ? ` · ${formatDate(file.documentDate)}` : ""} · added by{" "}
-                            {file.addedBy || "—"}
-                          </p>
-                        </div>
-                        {mayManage ? <RemoveFileButton fileId={file.id} title={file.title} /> : null}
-                      </li>
-                    ))}
-                </ul>
-              ) : (
-                <p className="mt-2 text-sm text-slate-400">None yet.</p>
-              )}
+                        )}
+                        <p className="text-xs text-slate-500">
+                          {file.category}
+                          {file.documentDate ? ` · ${formatDate(file.documentDate)}` : ""} · added by{" "}
+                          {file.addedBy || "—"}
+                          {file.storedFileId && isSafeUrl(file.url) ? (
+                            <>
+                              {" · "}
+                              <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-brand-700 hover:underline">
+                                Drive
+                              </a>
+                            </>
+                          ) : null}
+                        </p>
+                      </div>
+                      {mayRemove ? <RemoveFileButton fileId={file.id} title={file.title} /> : null}
+                    </li>
+                  ))}
+              </ul>
             </div>
-          ))}
+          ) : null}
+
           {mayEdit && !billboard.archived ? (
-            <AddPanel label="Add a photo or document">
-              <FileForm billboardId={billboard.id} />
-            </AddPanel>
+            <div className="space-y-2">
+              {uploadsOn ? (
+                <AddPanel label="Upload photos or documents">
+                  <FileUpload billboardId={billboard.id} />
+                </AddPanel>
+              ) : (
+                <p className="text-sm text-slate-500">
+                  Uploading is not set up yet, so files are added as links. A billboard administrator can
+                  connect a Google Shared drive from Setup &amp; access.
+                </p>
+              )}
+              <AddPanel label={uploadsOn ? "Add a link instead" : "Add a photo or document link"}>
+                <FileForm billboardId={billboard.id} />
+              </AddPanel>
+            </div>
           ) : null}
         </CardBody>
       </Card>
@@ -420,7 +493,7 @@ export default async function BillboardProfilePage({ params }: { params: Promise
         </CardBody>
       </Card>
 
-      {mayManage && !billboard.archived ? (
+      {mayArchive && !billboard.archived ? (
         <div className="flex justify-end">
           <ArchiveButton billboardId={billboard.id} archived={false} />
         </div>

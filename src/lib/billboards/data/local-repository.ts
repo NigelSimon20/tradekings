@@ -17,6 +17,7 @@ import { todayIn } from "@/lib/date/dates";
 
 interface LocalBillboardStore extends BillboardData {
   version: 1;
+  settings?: Record<string, string>;
 }
 
 /**
@@ -59,6 +60,7 @@ export class LocalBillboardRepository implements BillboardRepository {
         maintenance: parsed.maintenance ?? [],
         files: parsed.files ?? [],
         activity: parsed.activity ?? [],
+        settings: parsed.settings ?? {},
       };
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") {
@@ -121,6 +123,19 @@ export class LocalBillboardRepository implements BillboardRepository {
 
   appendActivity(entries: ActivityEntry[]): Promise<void> {
     return this.mutate((store) => void store.activity.push(...entries));
+  }
+
+  async readSetting(key: string): Promise<string | null> {
+    return (await this.read()).settings?.[key] ?? null;
+  }
+
+  saveSetting(key: string, value: string | null): Promise<void> {
+    return this.mutate((store) => {
+      const settings = { ...store.settings };
+      if (value === null) delete settings[key];
+      else settings[key] = value;
+      store.settings = settings;
+    });
   }
 
   appendAll(data: BillboardData): Promise<void> {

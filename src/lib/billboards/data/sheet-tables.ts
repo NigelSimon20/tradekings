@@ -143,6 +143,8 @@ export const FILES_TABLE: TableSpec<BillboardFile> = {
     col<BillboardFile>("addedAt", "Added At", "timestamp"),
     col<BillboardFile>("addedBy", "Added By"),
     col<BillboardFile>("removed", "Removed", "boolean", { options: ["Yes", "No"] }),
+    col<BillboardFile>("storedFileId", "Drive File ID"),
+    col<BillboardFile>("mimeType", "File Type"),
   ],
 };
 

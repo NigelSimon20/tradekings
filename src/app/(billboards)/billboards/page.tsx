@@ -5,7 +5,7 @@ import { AlertIcon, PlusIcon } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { canBillboards } from "@/lib/auth/roles";
 import type { PageSearchParams } from "@/lib/domain/filters";
-import { getCurrentUser } from "@/lib/services/auth";
+import { requireBillboardViewer } from "@/lib/services/auth";
 import { loadBillboards } from "@/lib/services/billboards";
 
 export const dynamic = "force-dynamic";
@@ -15,9 +15,10 @@ export default async function BillboardMapPage({ searchParams }: PageSearchParam
   const params = await searchParams;
   const denied = params.denied === "1";
   const focus = typeof params.focus === "string" ? params.focus : undefined;
-  const [{ billboards, source }, user] = await Promise.all([loadBillboards(), getCurrentUser()]);
+  const user = await requireBillboardViewer("viewBillboards");
+  const { billboards, source } = await loadBillboards();
   const cities = [...new Set(billboards.map((billboard) => billboard.city).filter(Boolean))].sort();
-  const mayEdit = user ? canBillboards(user.billboardRole, "editBillboards") : false;
+  const mayEdit = canBillboards(user, "editBillboards");
 
   return (
     <div className="space-y-4">

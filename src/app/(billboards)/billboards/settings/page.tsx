@@ -133,7 +133,7 @@ export default async function BillboardSettingsPage({ searchParams }: PageSearch
                   Drive and use its storage. The tracker can only see the folder it creates there.
                 </p>
                 {googleSignIn ? (
-                  <a href="/api/billboards/drive/connect" className={buttonClasses("primary", "sm")}>
+                  <a href="/api/drive/connect?app=billboards" className={buttonClasses("primary", "sm")}>
                     Connect Google Drive
                   </a>
                 ) : (
@@ -188,6 +188,7 @@ export default async function BillboardSettingsPage({ searchParams }: PageSearch
             users={people.users}
             contractRoles={people.contractRoles}
             billboardRoles={people.billboardRoles}
+            licenseRoles={people.licenseRoles}
             rights={people.rights}
             currentEmail={people.currentEmail}
           />

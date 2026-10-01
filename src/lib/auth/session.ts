@@ -56,13 +56,21 @@ function safeEqual(a: string, b: string): boolean {
 }
 
 /** Who someone is, plus their role names; never their permissions. */
-export type SessionIdentity = Pick<SessionUser, "email" | "name" | "via" | "role" | "billboardRole">;
+export type SessionIdentity = Pick<SessionUser, "email" | "name" | "via" | "role" | "billboardRole" | "licenseRole">;
 
 export async function createSessionToken(secret: string, user: SessionIdentity): Promise<string> {
-  const { email, name, via, role, billboardRole } = user;
+  const { email, name, via, role, billboardRole, licenseRole } = user;
   const payload = toBase64Url(
     encoder.encode(
-      JSON.stringify({ email, name, via, role, billboardRole, exp: Date.now() + SESSION_TTL_SECONDS * 1000 }),
+      JSON.stringify({
+        email,
+        name,
+        via,
+        role,
+        billboardRole,
+        licenseRole,
+        exp: Date.now() + SESSION_TTL_SECONDS * 1000,
+      }),
     ),
   );
   return `${payload}.${await sign(payload, secret)}`;
@@ -86,16 +94,19 @@ export async function readSessionToken(
     const role = typeof data.role === "string" && data.role.trim() ? data.role : null;
     const billboardRole =
       typeof data.billboardRole === "string" && data.billboardRole.trim() ? data.billboardRole : null;
-    if ((!role && !billboardRole) || !data.email || !data.exp || data.exp <= Date.now()) return null;
+    const licenseRole =
+      typeof data.licenseRole === "string" && data.licenseRole.trim() ? data.licenseRole : null;
+    if ((!role && !billboardRole && !licenseRole) || !data.email || !data.exp || data.exp <= Date.now()) return null;
 
     return {
       email: String(data.email),
       name: String(data.name ?? data.email),
       via: data.via === "password" ? "password" : "google",
       // Provisional: getCurrentUser replaces this with the roles tabs' answer.
-      ...accessForRoles(role, billboardRole, DEFAULT_ROLE_TABLE),
+      ...accessForRoles(role, billboardRole, DEFAULT_ROLE_TABLE, licenseRole),
       role,
       billboardRole,
+      licenseRole,
     };
   } catch {
     return null;

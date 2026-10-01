@@ -73,6 +73,8 @@ export interface UserAccessInput {
   role?: string;
   /** Billboards column. */
   billboards?: string;
+  /** Licenses column. */
+  licenses?: string;
   active?: boolean;
 }
 

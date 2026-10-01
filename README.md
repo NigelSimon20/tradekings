@@ -373,6 +373,42 @@ switch. Until
 then, files can still be added as `https://` links. On sample data, uploads go
 to `data/billboard-uploads/` in the same City / Site layout.
 
+## License & Compliance Tracker
+
+The third app behind the same link: one register of every company license,
+permit and certificate — for warehouses, factories, depots, sites, trucks,
+vehicles, equipment and the company itself.
+
+| Page | What it does |
+| --- | --- |
+| **Dashboard & map** (`/licenses`) | Active, expiring soon, expired, pending renewal, requiring action and upcoming renewals — each number opens the register behind it — and a map of every location, its pin coloured by its most urgent license. |
+| **License register** | Search by license number, vehicle registration, site or type; filter by location, asset type, category, license type, department and expiry status; **Export** downloads exactly what is filtered. |
+| **License** | Details, dates, contacts, flags, **Record a renewal** (with the renewed certificate), renewal history, documents and an activity log. |
+| **Assets & locations** | Every asset with all of its licenses; places are pinned with the map picker. |
+| **Setup & access** | Prepare the license sheet, set the reminder days, connect Google Drive for documents, roles and who can sign in. |
+
+**Setting it up:** create an empty spreadsheet, share it with the service
+account as an Editor, set `GOOGLE_LICENSES_SHEET_ID`, then press **Prepare the
+license sheet**. It creates the **Assets & Locations**, **Licenses**,
+**Renewals**, **Documents** and **Activity Log** tabs. Without it the tracker
+runs on a sample register in `data/licenses.local.json`; `npm run
+licenses:seed` loads that sample into an empty live sheet for demos.
+
+**Reminders** are at 90, 60, 30 and 7 days before expiry by default and can be
+changed on Setup & access. A license inside a reminder window whose renewal
+has not been started, an expired one with no renewal lodged, or one with no
+expiry date is flagged as **requiring action**. Setting the Renewal status to
+*In progress* or *Submitted to authority* marks it **pending renewal**.
+
+**Categories and license types** are free text with the brief's list offered,
+so a new category is simply typed in — no change to the system.
+
+**Access** is the **Licenses** column on the Users tab and the **License Roles**
+tab (Administrator / Editor / Viewer / Not allowed), set up by **Prepare the
+Google Sheet** on the Contract Tracker. **Documents** have their own Google
+Drive connection and folder, *Trade Kings Licenses*, filed by asset group and
+asset.
+
 ## Look and feel
 
 The tracker serves both companies, so it carries neither company's logo: the

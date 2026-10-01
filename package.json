@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "sheet:setup": "tsx scripts/setup-sheet.ts",
     "sheet:check": "tsx scripts/check-sheet.ts",
-    "billboards:seed": "tsx scripts/seed-billboards.ts"
+    "billboards:seed": "tsx scripts/seed-billboards.ts",
+    "licenses:seed": "tsx scripts/seed-licenses.ts"
   },
   "dependencies": {
     "@googleapis/drive": "^26.0.1",

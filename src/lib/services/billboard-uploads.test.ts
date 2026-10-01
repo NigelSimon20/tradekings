@@ -129,7 +129,7 @@ describe("uploading billboard files", () => {
 
 describe("the local upload folder", () => {
   it("never reads outside itself", async () => {
-    const { LocalPhotoStore } = await import("@/lib/billboards/photos/local-store");
+    const { LocalPhotoStore } = await import("@/lib/files/local-store");
     const store = new LocalPhotoStore(path.join(directory, "uploads"));
     await expect(store.read("../billboards.json")).rejects.toThrow(/not in the uploads folder/);
     await expect(store.read("/etc/passwd")).rejects.toThrow(/not in the uploads folder/);

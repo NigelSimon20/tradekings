@@ -3,19 +3,17 @@ import "server-only";
 import { cache } from "react";
 
 import { getBillboardRepository } from "@/lib/billboards/data";
-import { getPhotoStore, resetPhotoStore, resolvePhotoStore } from "@/lib/billboards/photos";
-import {
-  clearDriveConnection,
-  saveDriveConnection,
-} from "@/lib/billboards/photos/connection";
-import { ensureConnectedRootFolder, ROOT_FOLDER_NAME } from "@/lib/billboards/photos/drive-store";
+import { getPhotoStore } from "@/lib/files";
+import { checkStorage, connectStorageAccount, disconnectStorageAccount } from "@/lib/services/storage";
 import {
   MAX_UPLOAD_BYTES,
+  cityFolderName,
   detectFileType,
+  siteFolderName,
   storedFileName,
   titleFromFileName,
-} from "@/lib/billboards/photos/files";
-import type { FileContent } from "@/lib/billboards/photos/store";
+} from "@/lib/files/files";
+import type { FileContent } from "@/lib/files/store";
 import { BILLBOARDS_TABLE } from "@/lib/billboards/data/sheet-tables";
 import { evaluateBillboards } from "@/lib/billboards/evaluate";
 import type {
@@ -302,20 +300,7 @@ export async function addFile(input: NewBillboardFile, actor: string): Promise<v
 
 /** How uploads are set up, for Setup & access. Never includes the stored token. */
 export async function checkPhotoStore() {
-  const { store, connection } = await resolvePhotoStore();
-  return {
-    kind: store.kind,
-    label: store.label,
-    ...(await store.healthCheck()),
-    connectedAccount: connection
-      ? {
-          email: connection.email,
-          connectedAt: connection.connectedAt,
-          connectedBy: connection.connectedBy,
-          folderName: ROOT_FOLDER_NAME,
-        }
-      : null,
-  };
+  return checkStorage("billboards");
 }
 
 /**
@@ -328,26 +313,25 @@ export async function connectDriveAccount(
   clientSecret: string,
   actor: string,
 ): Promise<void> {
-  const folderId = await ensureConnectedRootFolder({ type: "connected-account", clientId, clientSecret, ...grant });
-  await saveDriveConnection({
-    email: grant.email,
-    refreshToken: grant.refreshToken,
-    folderId,
-    connectedAt: stamp(),
-    connectedBy: actor,
-  });
-  resetPhotoStore();
+  await connectStorageAccount("billboards", grant, clientId, clientSecret, actor);
   await getBillboardRepository().appendActivity([
     activity("", actor, "Uploads connected", `Photos will be stored in the Google Drive of ${grant.email}.`),
   ]);
 }
 
 export async function disconnectDriveAccount(actor: string): Promise<void> {
-  await clearDriveConnection();
-  resetPhotoStore();
+  await disconnectStorageAccount("billboards");
   await getBillboardRepository().appendActivity([
     activity("", actor, "Uploads disconnected", "Files already uploaded stay in Drive."),
   ]);
+}
+
+/** Billboard files go in City / BB-001 – Site name, the site folder tagged by its id. */
+function billboardFileLocation(billboard: Billboard) {
+  return {
+    folders: [cityFolderName(billboard.city), siteFolderName(billboard)],
+    key: { name: "billboardId", value: billboard.id },
+  };
 }
 
 /** `2026-09-27 1405` in the app's timezone, for ordering uploaded files by name. */
@@ -384,7 +368,7 @@ export async function uploadBillboardFile(
 
   const billboard = await requireBillboard(input.billboardId);
   const title = input.title.trim() || titleFromFileName(upload.name) || input.category;
-  const stored = await (await getPhotoStore()).save(billboard, {
+  const stored = await (await getPhotoStore("billboards")).save(billboardFileLocation(billboard), {
     name: storedFileName(fileStamp(), input.category, title, type.extension),
     mimeType: type.mimeType,
     bytes: upload.bytes,
@@ -419,7 +403,7 @@ export async function readBillboardFile(recordId: string): Promise<(FileContent 
   const file = data.files.find((entry) => entry.id === recordId);
   if (!file || file.removed || !file.storedFileId) return null;
 
-  const content = await (await getPhotoStore()).read(file.storedFileId);
+  const content = await (await getPhotoStore("billboards")).read(file.storedFileId);
   // Serve what the file really is, whatever the store says.
   const type = detectFileType(content.bytes);
   if (!type) return null;

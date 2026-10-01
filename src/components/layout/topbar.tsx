@@ -8,7 +8,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { PlusIcon } from "@/components/ui/icons";
 import { getConfig } from "@/lib/config/env";
 import { formatDate, todayIn } from "@/lib/date/dates";
-import { can, canBillboards } from "@/lib/auth/roles";
+import { can, canBillboards, canLicenses } from "@/lib/auth/roles";
 import { accessibleProjects, type ProjectId } from "@/lib/domain/projects";
 import { loadAlerts } from "@/lib/services/alerts";
 import { getCurrentUser, getRoleTable } from "@/lib/services/auth";
@@ -66,6 +66,14 @@ export async function Topbar({ project }: { project: ProjectId }) {
               </ButtonLink>
             </span>
           ) : null}
+          {project === "licenses" && user && canLicenses(user, "editLicenses") ? (
+            <span className="hidden lg:block">
+              <ButtonLink href="/licenses/new" size="sm">
+                <PlusIcon className="size-4" />
+                New license
+              </ButtonLink>
+            </span>
+          ) : null}
 
           {alerts ? <AlertsMenu alerts={alerts} /> : null}
 
@@ -76,17 +84,18 @@ export async function Topbar({ project }: { project: ProjectId }) {
                 email: user.email,
                 // Only the role in the app that is open — what they have in
                 // the other app is not this app's business.
-                ...(project === "contracts"
-                  ? {
-                      role: user.role ?? "",
-                      roleDescription:
-                        roles.contracts.find((role) => role.name === user.role)?.description ?? "",
-                    }
-                  : {
-                      role: user.billboardRole ?? "",
-                      roleDescription:
-                        roles.billboards.find((role) => role.name === user.billboardRole)?.description ?? "",
-                    }),
+                ...(() => {
+                  const [name, table] =
+                    project === "contracts"
+                      ? [user.role, roles.contracts]
+                      : project === "billboards"
+                        ? [user.billboardRole, roles.billboards]
+                        : [user.licenseRole, roles.licenses];
+                  return {
+                    role: name ?? "",
+                    roleDescription: table.find((role) => role.name === name)?.description ?? "",
+                  };
+                })(),
               }}
               signInEnabled={config.auth.enabled}
             />

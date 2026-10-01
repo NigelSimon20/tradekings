@@ -4,11 +4,12 @@ import { DEFAULT_ROLE_TABLE, accessForRoles } from "@/lib/auth/roles";
 import { planUserChange } from "@/lib/auth/user-admin";
 import type { SheetUser } from "@/lib/data/sheet-schema";
 
-const editor = (role: string | null, billboardRole: string | null) => ({
+const editor = (role: string | null, billboardRole: string | null, licenseRole: string | null = null) => ({
   email: "admin@tkzim.co.zw",
-  ...accessForRoles(role, billboardRole, DEFAULT_ROLE_TABLE),
+  ...accessForRoles(role, billboardRole, DEFAULT_ROLE_TABLE, licenseRole),
 });
-const bothAdmin = editor("Administrator", "Administrator");
+const bothAdmin = editor("Administrator", "Administrator", "Administrator");
+const licensesAdmin = editor(null, null, "Administrator");
 const contractsAdmin = editor("Administrator", "Viewer");
 const billboardsAdmin = editor("HR", "Administrator");
 
@@ -17,6 +18,7 @@ const rutendo: SheetUser = {
   name: "Rutendo",
   role: "HR",
   billboards: "",
+  licenses: "",
   active: true,
   lastSignedIn: "",
   rowNumber: 3,
@@ -43,7 +45,15 @@ describe("changing who may sign in from the app", () => {
     expect(result).toEqual({ ok: true, created: false, change: { email: rutendo.email } });
   });
 
-  it("keeps switching someone off to administrators of both apps", () => {
+  it("lets License Tracker administrators change the Licenses column only", () => {
+    expect(plan(licensesAdmin, rutendo, { email: rutendo.email, licenses: "Viewer" })).toMatchObject({
+      ok: true,
+      change: { licenses: "Viewer" },
+    });
+    expect(plan(licensesAdmin, rutendo, { email: rutendo.email, role: "Manager" })).toMatchObject({ ok: false });
+  });
+
+  it("keeps switching someone off to administrators of every app", () => {
     expect(plan(contractsAdmin, rutendo, { email: rutendo.email, active: false })).toMatchObject({ ok: false });
     expect(plan(bothAdmin, rutendo, { email: rutendo.email, active: false })).toMatchObject({
       ok: true,

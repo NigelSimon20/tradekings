@@ -42,6 +42,20 @@ plain label when that is a single app (`lib/domain/projects.ts`).
 - Pasted links must pass `isSafeUrl` on save and are re-checked on render
   (`ExternalLink`), because cells typed straight into the sheet skip the form.
 
+## The license tracker
+
+- Pages live in `src/app/(licenses)/licenses/`; data is its own spreadsheet
+  (`GOOGLE_LICENSES_SHEET_ID`), tabs in `lib/licenses/data/sheet-tables.ts`,
+  read and written through the generic `SheetBook` (`lib/data/sheet-book.ts`)
+  behind `LicenseRepository`. Pages call `lib/services/licenses.ts`.
+- `lib/licenses/evaluate.ts` is pure; dashboard tiles are `lib/licenses/views.ts`
+  and the register reuses them, so a number and its list cannot disagree.
+- Access: `licenseRole` / `licensePermissions`, checked with `canLicenses(...)`,
+  `requireLicenseViewer` on every page, `guardLicenseApi` on routes.
+- File storage is per app (`lib/files`, `StorageApp`): each app has its own
+  Drive connection (sealed in its own sheet) and top folder. The connect flow
+  is `/api/drive/connect?app=…`; `DRIVE_APPS` says who may connect which.
+
 ## Where things belong
 
 - **Contract rules** live in `src/lib/config/rules.ts` as `DEFAULT_RULES`, and an

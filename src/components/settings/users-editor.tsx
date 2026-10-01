@@ -20,12 +20,14 @@ export interface EditableUser {
   roleKnown: boolean;
   billboards: string;
   billboardsKnown: boolean;
+  licenses: string;
+  licensesKnown: boolean;
   active: boolean;
   lastSignedIn: string;
 }
 
 const GRID =
-  "grid gap-2 px-5 py-3 md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_6.5rem_minmax(0,0.9fr)_5.5rem] md:items-center";
+  "grid gap-2 px-5 py-3 md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_5.5rem_minmax(0,0.8fr)_5rem] md:items-center";
 
 /**
  * Who can sign in, and to what — editable by administrators. Each app's
@@ -37,21 +39,23 @@ export function UsersEditor({
   users,
   contractRoles,
   billboardRoles,
+  licenseRoles,
   rights,
   currentEmail,
 }: {
   users: EditableUser[];
   contractRoles: string[];
   billboardRoles: string[];
+  licenseRoles: string[];
   rights: UserAdminRights;
   currentEmail: string;
 }) {
-  const canEdit = rights.contracts || rights.billboards;
+  const canEdit = rights.contracts || rights.billboards || rights.licenses;
 
   return (
     <div>
       <div className={cn(GRID, "hidden border-b border-slate-100 bg-slate-50/70 py-2.5 md:grid")}>
-        {["Person", "Contract Tracker", "Billboard Tracker", "Active", "Last signed in", ""].map((heading) => (
+        {["Person", "Contract Tracker", "Billboard Tracker", "License Tracker", "Active", "Last signed in", ""].map((heading) => (
           <p key={heading || "save"} className="text-[11px] font-semibold tracking-[0.06em] text-slate-500 uppercase">
             {heading}
           </p>
@@ -65,6 +69,7 @@ export function UsersEditor({
             user={user}
             contractRoles={contractRoles}
             billboardRoles={billboardRoles}
+            licenseRoles={licenseRoles}
             rights={rights}
             isSelf={user.email === currentEmail.trim().toLowerCase()}
           />
@@ -72,7 +77,7 @@ export function UsersEditor({
       </ul>
 
       {canEdit ? (
-        <AddPerson contractRoles={contractRoles} billboardRoles={billboardRoles} rights={rights} />
+        <AddPerson contractRoles={contractRoles} billboardRoles={billboardRoles} licenseRoles={licenseRoles} rights={rights} />
       ) : null}
     </div>
   );
@@ -128,24 +133,29 @@ function UserRow({
   user,
   contractRoles,
   billboardRoles,
+  licenseRoles,
   rights,
   isSelf,
 }: {
   user: EditableUser;
   contractRoles: string[];
   billboardRoles: string[];
+  licenseRoles: string[];
   rights: UserAdminRights;
   isSelf: boolean;
 }) {
   const [state, dispatch, pending] = useActionState(saveUserAccessAction, EMPTY_USER_ACCESS_STATE);
   const [role, setRole] = useState(user.role);
   const [billboards, setBillboards] = useState(user.billboards);
+  const [licenses, setLicenses] = useState(user.licenses);
   const [active, setActive] = useState(user.active);
 
   const editContracts = rights.contracts && !isSelf;
   const editBillboards = rights.billboards && !isSelf;
+  const editLicenses = rights.licenses && !isSelf;
   const editActive = rights.active && !isSelf;
-  const dirty = role !== user.role || billboards !== user.billboards || active !== user.active;
+  const dirty =
+    role !== user.role || billboards !== user.billboards || licenses !== user.licenses || active !== user.active;
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -192,6 +202,21 @@ function UserRow({
         </div>
 
         <div className="text-sm">
+          <span className="text-xs text-slate-500 md:hidden">License Tracker: </span>
+          {editLicenses ? (
+            <RoleSelect
+              name="licenses"
+              label={`License Tracker role for ${user.email}`}
+              value={licenses}
+              roles={licenseRoles}
+              onChange={setLicenses}
+            />
+          ) : (
+            <RoleText value={user.licenses} known={user.licensesKnown} />
+          )}
+        </div>
+
+        <div className="text-sm">
           {editActive ? (
             <Select
               name="active"
@@ -228,7 +253,7 @@ function UserRow({
         {state.status !== "idle" && !(state.status === "success" && dirty) ? (
           <p
             className={cn(
-              "text-xs md:col-span-6",
+              "text-xs md:col-span-7",
               state.status === "error" ? TONE_CLASSES.critical.text : TONE_CLASSES.success.text,
             )}
           >
@@ -243,10 +268,12 @@ function UserRow({
 function AddPerson({
   contractRoles,
   billboardRoles,
+  licenseRoles,
   rights,
 }: {
   contractRoles: string[];
   billboardRoles: string[];
+  licenseRoles: string[];
   rights: UserAdminRights;
 }) {
   const [state, dispatch, pending] = useActionState(saveUserAccessAction, EMPTY_USER_ACCESS_STATE);
@@ -268,7 +295,7 @@ function AddPerson({
         <PlusIcon className="size-4" />
         Add a person
       </p>
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-5">
         <Field label="Google email" htmlFor="new-email" required>
           <Input id="new-email" name="email" type="email" placeholder="name@tkzim.co.zw" required />
         </Field>
@@ -283,6 +310,11 @@ function AddPerson({
         {rights.billboards ? (
           <Field label="Billboard Tracker" htmlFor="new-billboards">
             <RoleSelect id="new-billboards" name="billboards" label="Billboard Tracker role" value="" roles={billboardRoles} />
+          </Field>
+        ) : null}
+        {rights.licenses ? (
+          <Field label="License Tracker" htmlFor="new-licenses">
+            <RoleSelect id="new-licenses" name="licenses" label="License Tracker role" value="" roles={licenseRoles} />
           </Field>
         ) : null}
       </div>

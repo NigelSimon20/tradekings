@@ -19,7 +19,7 @@ import {
   type BillboardFilters,
 } from "@/lib/billboards/filters";
 import { BILLBOARD_STATUS_META } from "@/lib/billboards/meta";
-import { filePreviewUrl } from "@/lib/billboards/photos/files";
+import { filePreviewUrl } from "@/lib/files/files";
 import { BILLBOARD_STATUSES, type EvaluatedBillboard } from "@/lib/billboards/types";
 import { describeDays } from "@/lib/date/dates";
 import { TONE_CLASSES, TONE_COLORS } from "@/lib/ui/tones";

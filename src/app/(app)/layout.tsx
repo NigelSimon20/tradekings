@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 
 import { AppShell } from "@/components/layout/app-shell";
 import { DatabaseUnavailable } from "@/components/layout/database-unavailable";
-import { canOpenProject } from "@/lib/domain/projects";
+import { canOpenProject, homeFor } from "@/lib/domain/projects";
 import { getCurrentUser } from "@/lib/services/auth";
 import { loadSnapshot } from "@/lib/services/contracts";
 
@@ -28,7 +28,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   // Someone with billboard access only lands here after signing in.
-  if (!canOpenProject(user, "contracts")) redirect(canOpenProject(user, "billboards") ? "/billboards" : "/login");
+  if (!canOpenProject(user, "contracts")) redirect(homeFor(user, "contracts"));
 
   const { error } = await loadSnapshot();
 

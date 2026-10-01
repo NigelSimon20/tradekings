@@ -174,3 +174,17 @@ export const SearchIcon = (props: SVGProps<SVGSVGElement>) => (
     <path d="m16 16 4.5 4.5" />
   </Icon>
 );
+
+export const ShieldCheckIcon = (props: SVGProps<SVGSVGElement>) => (
+  <Icon {...props}>
+    <path d="M12 3 5 6v5.5c0 4.3 2.9 8 7 9.5 4.1-1.5 7-5.2 7-9.5V6l-7-3Z" />
+    <path d="m9 12 2.2 2.2L15.5 10" />
+  </Icon>
+);
+
+export const BuildingIcon = (props: SVGProps<SVGSVGElement>) => (
+  <Icon {...props}>
+    <path d="M4 20.5V9l8-5 8 5v11.5" />
+    <path d="M9 20.5v-6h6v6M3 20.5h18" />
+  </Icon>
+);

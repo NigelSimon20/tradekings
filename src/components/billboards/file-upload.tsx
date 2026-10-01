@@ -6,7 +6,6 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/field";
 import { UploadIcon } from "@/components/ui/icons";
-import { FILE_CATEGORIES } from "@/lib/billboards/types";
 import { postForm, useApiAction } from "@/lib/ui/use-api-action";
 
 /** Longest side of an uploaded photo. Plenty for a billboard, small enough to upload on a phone. */
@@ -34,7 +33,19 @@ async function shrinkPhoto(file: File): Promise<Blob> {
  * Uploads photos and documents into the billboard's folder in the Shared drive
  * (City / Site). Several can be chosen at once; they go up one at a time.
  */
-export function FileUpload({ billboardId }: { billboardId: string }) {
+export function FileUpload({
+  endpoint,
+  fields,
+  categories,
+  defaultCategory,
+}: {
+  /** Where each file is posted, e.g. `/api/billboards/files`. */
+  endpoint: string;
+  /** Sent with every file — which record it belongs to. */
+  fields: Record<string, string>;
+  categories: readonly string[];
+  defaultCategory?: string;
+}) {
   const { busy, result, run } = useApiAction();
   const [progress, setProgress] = useState("");
 
@@ -62,14 +73,14 @@ export function FileUpload({ billboardId }: { billboardId: string }) {
         }
 
         const payload = new FormData();
-        payload.set("billboardId", billboardId);
+        for (const [name, value] of Object.entries(fields)) payload.set(name, value);
         payload.set("category", String(details.get("category") ?? ""));
         payload.set("documentDate", String(details.get("documentDate") ?? ""));
         // One title for several files would give them all the same name.
         payload.set("title", files.length === 1 ? String(details.get("title") ?? "") : "");
         payload.set("file", body, isPhoto ? file.name.replace(/\.[^.]+$/, ".jpg") : file.name);
 
-        const response = await postForm("/api/billboards/files", payload);
+        const response = await postForm(endpoint, payload);
         if (response.ok === false || response.error) {
           throw new Error(`${file.name}: ${response.error ?? "the upload failed."}`);
         }
@@ -89,7 +100,8 @@ export function FileUpload({ billboardId }: { billboardId: string }) {
         <Select
           id="uploadCategory"
           name="category"
-          options={FILE_CATEGORIES.map((category) => ({ value: category, label: category }))}
+          defaultValue={defaultCategory}
+          options={categories.map((category) => ({ value: category, label: category }))}
         />
       </Field>
       <Field label="Date on the document" htmlFor="uploadDate" hint="Optional — for leases and letters.">

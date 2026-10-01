@@ -80,6 +80,41 @@ export const BILLBOARD_PERMISSION_INFO: PermissionInfo<BillboardPermission>[] = 
   },
 ];
 
+export const LICENSE_PERMISSIONS = [
+  "viewLicenses",
+  "editLicenses",
+  "manageAssets",
+  "exportLicenses",
+  "removeLicenseDocuments",
+  "manageLicenses",
+] as const;
+export type LicensePermission = (typeof LICENSE_PERMISSIONS)[number];
+
+export const LICENSE_PERMISSION_INFO: PermissionInfo<LicensePermission>[] = [
+  { key: "viewLicenses", label: "See licenses", description: "Open the dashboard, map, register and every license and asset." },
+  {
+    key: "editLicenses",
+    label: "Add & renew licenses",
+    description: "Add and update licenses, upload documents and record renewals.",
+  },
+  {
+    key: "manageAssets",
+    label: "Manage assets & locations",
+    description: "Add and update warehouses, sites, vehicles, equipment and their locations.",
+  },
+  { key: "exportLicenses", label: "Export", description: "Download the license register as a spreadsheet." },
+  {
+    key: "removeLicenseDocuments",
+    label: "Remove documents",
+    description: "Hide a document from a license or asset (the record is kept).",
+  },
+  {
+    key: "manageLicenses",
+    label: "Manage setup",
+    description: "Prepare the license sheet, set reminder days and connect document storage.",
+  },
+];
+
 export interface RoleDefinition<P extends string> {
   name: string;
   description: string;
@@ -93,6 +128,7 @@ export interface RoleDefinition<P extends string> {
 export interface RoleTable {
   contracts: RoleDefinition<Permission>[];
   billboards: RoleDefinition<BillboardPermission>[];
+  licenses: RoleDefinition<LicensePermission>[];
 }
 
 export const ADMINISTRATOR = "Administrator";
@@ -158,6 +194,30 @@ export const DEFAULT_ROLE_TABLE: RoleTable = {
     },
     notAllowed("the Billboard Tracker"),
   ],
+  licenses: [
+    {
+      name: ADMINISTRATOR,
+      description: "Everything, including setup, reminder days and document storage.",
+      permissions: [...LICENSE_PERMISSIONS],
+      locked: true,
+      blocks: false,
+    },
+    {
+      name: "Editor",
+      description: "View everything; add and renew licenses, upload documents and manage assets.",
+      permissions: ["viewLicenses", "editLicenses", "manageAssets", "exportLicenses"],
+      locked: false,
+      blocks: false,
+    },
+    {
+      name: "Viewer",
+      description: "View the dashboard, map, register and documents, read-only.",
+      permissions: ["viewLicenses"],
+      locked: false,
+      blocks: false,
+    },
+    notAllowed("the License Tracker"),
+  ],
 };
 
 /** What a signed-in person may do, worked out from their roles and the roles tabs. */
@@ -166,8 +226,11 @@ export interface Access {
   role: string | null;
   /** Billboard Tracker role name; null when they have no Billboard Tracker access. */
   billboardRole: string | null;
+  /** License Tracker role name; null when they have no License Tracker access. */
+  licenseRole: string | null;
   permissions: Permission[];
   billboardPermissions: BillboardPermission[];
+  licensePermissions: LicensePermission[];
 }
 
 export function can(
@@ -182,6 +245,13 @@ export function canBillboards(
   permission: BillboardPermission,
 ): boolean {
   return Boolean(user?.billboardPermissions.includes(permission));
+}
+
+export function canLicenses(
+  user: Pick<Access, "licensePermissions"> | null | undefined,
+  permission: LicensePermission,
+): boolean {
+  return Boolean(user?.licensePermissions?.includes(permission));
 }
 
 /** How the built-in roles used to be typed, so existing sheets keep working. */
@@ -213,31 +283,44 @@ function permissionsOf<P extends string>(role: RoleDefinition<P> | null, all: re
 }
 
 /** Access for role names already decided (e.g. carried in a session), against a table. */
-export function accessForRoles(role: string | null, billboardRole: string | null, table: RoleTable): Access {
+export function accessForRoles(
+  role: string | null,
+  billboardRole: string | null,
+  table: RoleTable,
+  licenseRole: string | null = null,
+): Access {
   const contract = role ? findRole(role, table.contracts) : null;
   const billboard = billboardRole ? findRole(billboardRole, table.billboards) : null;
+  const license = licenseRole ? findRole(licenseRole, table.licenses) : null;
   return {
     role: contract?.name ?? null,
     billboardRole: billboard?.name ?? null,
+    licenseRole: license?.name ?? null,
     permissions: permissionsOf(contract, PERMISSIONS),
     billboardPermissions: permissionsOf(billboard, BILLBOARD_PERMISSIONS),
+    licensePermissions: permissionsOf(license, LICENSE_PERMISSIONS),
   };
 }
 
-export const FULL_ACCESS: Access = accessForRoles(ADMINISTRATOR, ADMINISTRATOR, DEFAULT_ROLE_TABLE);
+export const FULL_ACCESS: Access = accessForRoles(ADMINISTRATOR, ADMINISTRATOR, DEFAULT_ROLE_TABLE, ADMINISTRATOR);
 
 export type AccessDecision = ({ ok: true } & Access) | { ok: false; reason: string };
 
 const names = (roles: RoleDefinition<string>[]) => roles.map((role) => role.name).join(", ");
 
 /**
- * Turns a Users-tab row's Role and Billboards cells into access. Either may be
- * blank, but not both, and a value that is not a role on the roles tab is
+ * Turns a Users-tab row's Contracts, Billboards and Licenses cells into access.
+ * Any may be blank, but not all, and a value that is not a role on the roles tab is
  * refused rather than quietly ignored, so a typo never grants or hides access
  * by surprise. A role that cannot open an app (no "See…" permission ticked)
  * counts as no access to that app.
  */
-export function resolveAccess(roleText: string, billboardText: string, table: RoleTable = DEFAULT_ROLE_TABLE): AccessDecision {
+export function resolveAccess(
+  roleText: string,
+  billboardText: string,
+  table: RoleTable = DEFAULT_ROLE_TABLE,
+  licenseText = "",
+): AccessDecision {
   if (roleText.trim() && !findRole(roleText, table.contracts)) {
     return {
       ok: false,
@@ -251,13 +334,21 @@ export function resolveAccess(roleText: string, billboardText: string, table: Ro
     };
   }
 
-  const access = accessForRoles(roleText, billboardText, table);
-  const opensContracts = can(access, "viewAll") || can(access, "viewOwn");
-  const opensBillboards = canBillboards(access, "viewBillboards");
-  if (!opensContracts && !opensBillboards) {
+  if (licenseText.trim() && !findRole(licenseText, table.licenses)) {
     return {
       ok: false,
-      reason: "Your account has not been given access to either app yet. Ask an administrator.",
+      reason: `The License Tracker role "${licenseText}" is not on the License Roles tab. It should be one of ${names(table.licenses)}, or blank.`,
+    };
+  }
+
+  const access = accessForRoles(roleText, billboardText, table, licenseText);
+  const opensContracts = can(access, "viewAll") || can(access, "viewOwn");
+  const opensBillboards = canBillboards(access, "viewBillboards");
+  const opensLicenses = canLicenses(access, "viewLicenses");
+  if (!opensContracts && !opensBillboards && !opensLicenses) {
+    return {
+      ok: false,
+      reason: "Your account has not been given access to any app yet. Ask an administrator.",
     };
   }
   return {
@@ -267,6 +358,8 @@ export function resolveAccess(roleText: string, billboardText: string, table: Ro
     permissions: opensContracts ? access.permissions : [],
     billboardRole: opensBillboards ? access.billboardRole : null,
     billboardPermissions: opensBillboards ? access.billboardPermissions : [],
+    licenseRole: opensLicenses ? access.licenseRole : null,
+    licensePermissions: opensLicenses ? access.licensePermissions : [],
   };
 }
 

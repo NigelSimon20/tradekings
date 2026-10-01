@@ -29,8 +29,8 @@ import { ArrowLeftIcon, BillboardIcon, ContractsIcon, PinIcon, SettingsIcon } fr
 import { PageHeader } from "@/components/ui/page-header";
 import { TBody, THead, Table, TableWrap, Td, Th, Tr } from "@/components/ui/table";
 import { canBillboards } from "@/lib/auth/roles";
-import { getPhotoStore } from "@/lib/billboards/photos";
-import { cityFolderName, filePreviewUrl, siteFolderName } from "@/lib/billboards/photos/files";
+import { getPhotoStore } from "@/lib/files";
+import { cityFolderName, filePreviewUrl, siteFolderName } from "@/lib/files/files";
 import { isSafeUrl } from "@/lib/billboards/schema";
 import {
   PHOTO_CATEGORIES,
@@ -100,7 +100,7 @@ export default async function BillboardProfilePage({ params }: { params: Promise
     (file) => file.storedFileId && file.mimeType.startsWith("image/"),
   );
   const linkedFiles = files.filter((file) => !uploadedPhotos.includes(file));
-  const uploadsOn = (await getPhotoStore()).kind !== "none";
+  const uploadsOn = (await getPhotoStore("billboards")).kind !== "none";
   const mapLink =
     billboard.latitude !== null && billboard.longitude !== null
       ? `https://www.google.com/maps/search/?api=1&query=${billboard.latitude},${billboard.longitude}`
@@ -454,7 +454,11 @@ export default async function BillboardProfilePage({ params }: { params: Promise
             <div className="space-y-2">
               {uploadsOn ? (
                 <AddPanel label="Upload photos or documents">
-                  <FileUpload billboardId={billboard.id} />
+                  <FileUpload
+                    endpoint="/api/billboards/files"
+                    fields={{ billboardId: billboard.id }}
+                    categories={FILE_CATEGORIES}
+                  />
                 </AddPanel>
               ) : (
                 <p className="text-sm text-slate-500">

@@ -59,6 +59,14 @@ export interface AppConfig {
     /** Where uploads go while running on the sample data. */
     localUploadsDir: string;
   };
+  licenses: {
+    /** Null runs the license tracker on the local sample file. */
+    google: BillboardSheetConfig | null;
+    localDataFile: string;
+    /** A Shared drive folder for license documents (service account). */
+    documentsFolderId: string;
+    localUploadsDir: string;
+  };
   smtp: SmtpConfig | null;
   /** Resend API key; the preferred way to send when it is set. */
   resendApiKey: string;
@@ -188,6 +196,18 @@ export function getConfig(): AppConfig {
   // The billboard tracker uses the same service account but its own
   // spreadsheet, so the people who manage billboards and the people who manage
   // contracts can be given access to one without the other.
+  // The license tracker likewise has its own spreadsheet.
+  const licensesSpreadsheetId = str("GOOGLE_LICENSES_SHEET_ID");
+  const licensesGoogle: BillboardSheetConfig | null =
+    serviceAccount && licensesSpreadsheetId && requestedSource !== "local"
+      ? {
+          spreadsheetId: licensesSpreadsheetId,
+          timezone: str("APP_TIMEZONE", "Africa/Harare"),
+          cacheSeconds: Math.max(0, Number(str("SHEET_CACHE_SECONDS", "30")) || 0),
+          ...serviceAccount,
+        }
+      : null;
+
   const billboardsSpreadsheetId = str("GOOGLE_BILLBOARDS_SHEET_ID");
   const billboardsGoogle: BillboardSheetConfig | null =
     serviceAccount && billboardsSpreadsheetId && requestedSource !== "local"
@@ -216,6 +236,12 @@ export function getConfig(): AppConfig {
       localDataFile: str("LOCAL_BILLBOARDS_FILE", "data/billboards.local.json"),
       photosFolderId: str("GOOGLE_BILLBOARDS_PHOTOS_FOLDER_ID"),
       localUploadsDir: str("LOCAL_BILLBOARDS_UPLOADS_DIR", "data/billboard-uploads"),
+    },
+    licenses: {
+      google: licensesGoogle,
+      localDataFile: str("LOCAL_LICENSES_FILE", "data/licenses.local.json"),
+      documentsFolderId: str("GOOGLE_LICENSES_DOCUMENTS_FOLDER_ID"),
+      localUploadsDir: str("LOCAL_LICENSES_UPLOADS_DIR", "data/license-uploads"),
     },
     smtp,
     resendApiKey: str("RESEND_API_KEY"),

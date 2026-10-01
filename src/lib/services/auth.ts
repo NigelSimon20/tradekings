@@ -13,9 +13,11 @@ import {
   FULL_ACCESS,
   can,
   canBillboards,
+  canLicenses,
   findRole,
   resolveAccess,
   type BillboardPermission,
+  type LicensePermission,
   type Permission,
   type RoleTable,
 } from "@/lib/auth/roles";
@@ -24,7 +26,7 @@ import {
   readSessionToken,
   type SessionUser,
 } from "@/lib/auth/session";
-import { canOpenProject } from "@/lib/domain/projects";
+import { canOpenProject, homeFor } from "@/lib/domain/projects";
 import { loadSnapshot } from "@/lib/services/contracts";
 
 export interface SignInOutcome {
@@ -85,7 +87,7 @@ export async function resolveSignIn(
     return { user: null, reason: "That account has been switched off." };
   }
 
-  const access = resolveAccess(match.role, match.billboards, roles);
+  const access = resolveAccess(match.role, match.billboards, roles, match.licenses);
   if (!access.ok) return { user: null, reason: access.reason };
   const { ok, ...granted } = access;
   void ok;
@@ -165,7 +167,7 @@ export async function requireContractUser(): Promise<SessionUser & { role: NonNu
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (!user.role || !canOpenProject(user, "contracts")) {
-    redirect(canOpenProject(user, "billboards") ? "/billboards" : "/login");
+    redirect(homeFor(user, "contracts"));
   }
   return { ...user, role: user.role };
 }
@@ -175,7 +177,7 @@ export async function requireViewer(permission: Permission): Promise<SessionUser
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   // Someone with billboards only has nothing to see on the contract side.
-  if (!canOpenProject(user, "contracts")) redirect(canOpenProject(user, "billboards") ? "/billboards" : "/login");
+  if (!canOpenProject(user, "contracts")) redirect(homeFor(user, "contracts"));
   if (!can(user, permission)) redirect("/?denied=1");
   return user;
 }
@@ -184,7 +186,7 @@ export async function requireViewer(permission: Permission): Promise<SessionUser
 export async function requireBillboardViewer(permission: BillboardPermission): Promise<SessionUser> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (!canOpenProject(user, "billboards")) redirect(canOpenProject(user, "contracts") ? "/?denied=1" : "/login");
+  if (!canOpenProject(user, "billboards")) redirect(homeFor(user, "billboards", { denied: true }));
   if (!canBillboards(user, permission)) redirect("/billboards?denied=1");
   return user;
 }
@@ -201,6 +203,28 @@ export async function guardApi(permission: Permission): Promise<Response | null>
     );
   }
 
+  return null;
+}
+
+/** The License Tracker's equivalent of `requireViewer`. */
+export async function requireLicenseViewer(permission: LicensePermission): Promise<SessionUser> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  if (!canOpenProject(user, "licenses")) redirect(homeFor(user, "licenses", { denied: true }));
+  if (!canLicenses(user, permission)) redirect("/licenses?denied=1");
+  return user;
+}
+
+/** `guardApi` for the License Tracker's routes. */
+export async function guardLicenseApi(permission: LicensePermission): Promise<Response | null> {
+  const user = await getCurrentUser();
+  if (!user) return Response.json({ ok: false, error: "Not signed in." }, { status: 401 });
+  if (!canLicenses(user, permission)) {
+    return Response.json(
+      { ok: false, error: "Your account does not have permission to do that." },
+      { status: 403 },
+    );
+  }
   return null;
 }
 
@@ -239,6 +263,7 @@ export const listSignInUsers = cache(async () => {
       ...user,
       parsedRole: findRole(user.role, roles.contracts)?.name ?? null,
       parsedBillboardRole: findRole(user.billboards, roles.billboards)?.name ?? null,
+      parsedLicenseRole: findRole(user.licenses, roles.licenses)?.name ?? null,
     }));
   } catch {
     return [];

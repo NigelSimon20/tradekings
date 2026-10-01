@@ -9,12 +9,11 @@ import {
   exchangeCodeForIdentity,
   readState,
 } from "@/lib/auth/google-oauth";
-import { canBillboards } from "@/lib/auth/roles";
 import { SESSION_COOKIE, SESSION_TTL_SECONDS, createSessionToken } from "@/lib/auth/session";
 import { getConfig } from "@/lib/config/env";
 import { landingAfterSignIn } from "@/lib/domain/projects";
 import { getCurrentUser, resolveSignIn } from "@/lib/services/auth";
-import { connectDriveAccount } from "@/lib/services/billboards";
+import { DRIVE_APPS, driveAppForPath } from "@/lib/services/drive-apps";
 
 /** Completes the Google sign-in and, if the person is allowed in, signs them in. */
 export async function GET(request: Request): Promise<Response> {
@@ -85,9 +84,14 @@ async function completeDriveConnection(code: string, origin: string, next: strin
   const back = (query: string) => NextResponse.redirect(new URL(`${next}?${query}`, origin));
   const fail = (message: string) => back(`drive-error=${encodeURIComponent(message)}`);
 
+  // The page the trip returns to says which app is being connected.
+  const app = driveAppForPath(next);
+  if (!app) return fail("That connection could not be matched to an app. Start again from Setup & access.");
+  const target = DRIVE_APPS[app];
+
   const user = await getCurrentUser();
-  if (!user || !canBillboards(user, "manageBillboards") || !config.auth.google) {
-    return fail("Only a billboard administrator can connect Google Drive.");
+  if (!user || !target.allowed(user) || !config.auth.google) {
+    return fail(`Only ${target.who} can connect Google Drive.`);
   }
 
   try {
@@ -104,7 +108,7 @@ async function completeDriveConnection(code: string, origin: string, next: strin
       return fail("Google did not give the tracker lasting access. Connect again and approve every step.");
     }
 
-    await connectDriveAccount(
+    await target.connect(
       { email: identity.email, refreshToken },
       config.auth.google.clientId,
       config.auth.google.clientSecret,

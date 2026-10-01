@@ -7,7 +7,8 @@ import {
 import type { InputColumnKey } from "@/lib/data/sheet-schema";
 import type { EvaluatedContract } from "@/lib/domain/types";
 
-function escapeCell(value: string | number): string {
+/** One CSV cell: formula-safe (spreadsheets execute cells) and quoted when needed. */
+export function escapeCell(value: string | number): string {
   // Neutralise first: a spreadsheet opening this file must not execute a cell.
   const text = String(neutraliseFormula(value) ?? "");
   return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;

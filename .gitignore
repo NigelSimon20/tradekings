@@ -44,3 +44,4 @@ next-env.d.ts
 /.outbox
 /data/*.local.json
 /data/billboard-uploads/
+/data/license-uploads/

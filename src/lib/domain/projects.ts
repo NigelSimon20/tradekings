@@ -1,4 +1,4 @@
-import { can, canBillboards } from "@/lib/auth/roles";
+import { can, canBillboards, canLicenses } from "@/lib/auth/roles";
 import type { SessionUser } from "@/lib/auth/session";
 
 /**
@@ -7,7 +7,7 @@ import type { SessionUser } from "@/lib/auth/session";
  * sign-in; access decides which apps someone gets, and the switcher under the
  * wordmark moves between them when they have more than one.
  */
-export const PROJECT_IDS = ["contracts", "billboards"] as const;
+export const PROJECT_IDS = ["contracts", "billboards", "licenses"] as const;
 export type ProjectId = (typeof PROJECT_IDS)[number];
 
 export interface Project {
@@ -31,6 +31,12 @@ export const PROJECTS: Record<ProjectId, Project> = {
     description: "Sites, leases & campaigns",
     href: "/billboards",
   },
+  licenses: {
+    id: "licenses",
+    name: "License Tracker",
+    description: "Licenses, permits & compliance",
+    href: "/licenses",
+  },
 };
 
 export function isProjectId(value: unknown): value is ProjectId {
@@ -39,24 +45,30 @@ export function isProjectId(value: unknown): value is ProjectId {
 
 /** Which tracker a page belongs to. */
 export function projectForPath(path: string): ProjectId {
-  return path === "/billboards" || path.startsWith("/billboards/") || path.startsWith("/billboards?")
-    ? "billboards"
-    : "contracts";
+  const under = (root: string) => path === root || path.startsWith(`${root}/`) || path.startsWith(`${root}?`);
+  if (under("/billboards")) return "billboards";
+  if (under("/licenses")) return "licenses";
+  return "contracts";
 }
 
 /** Opening an app needs a role there that is allowed to see something in it. */
 export function canOpenProject(
-  user: Pick<SessionUser, "permissions" | "billboardPermissions">,
+  user: Pick<SessionUser, "permissions" | "billboardPermissions" | "licensePermissions">,
   project: ProjectId,
 ): boolean {
-  return project === "contracts"
-    ? can(user, "viewAll") || can(user, "viewOwn")
-    : canBillboards(user, "viewBillboards");
+  switch (project) {
+    case "contracts":
+      return can(user, "viewAll") || can(user, "viewOwn");
+    case "billboards":
+      return canBillboards(user, "viewBillboards");
+    case "licenses":
+      return canLicenses(user, "viewLicenses");
+  }
 }
 
 /** The apps this person can open, in switcher order. */
 export function accessibleProjects(
-  user: Pick<SessionUser, "permissions" | "billboardPermissions"> | null,
+  user: Pick<SessionUser, "permissions" | "billboardPermissions" | "licensePermissions"> | null,
 ): Project[] {
   if (!user) return [];
   return PROJECT_IDS.filter((id) => canOpenProject(user, id)).map((id) => PROJECTS[id]);
@@ -67,7 +79,7 @@ export function accessibleProjects(
  * app, otherwise the front page of the first app they can open.
  */
 export function landingAfterSignIn(
-  user: Pick<SessionUser, "permissions" | "billboardPermissions">,
+  user: Pick<SessionUser, "permissions" | "billboardPermissions" | "licensePermissions">,
   requested: string,
 ): string {
   const wanted = projectForPath(requested);
@@ -83,4 +95,18 @@ export function landingAfterSignIn(
 export function landingFor(project: ProjectId, requested: string | null | undefined): string {
   const next = requested && requested.startsWith("/") && !requested.startsWith("//") ? requested : "";
   return next && projectForPath(next) === project ? next : PROJECTS[project].href;
+}
+
+/**
+ * Where to send someone who cannot open the app they asked for: the first app
+ * they can open (with `?denied=1` so it can say why), or sign-in if none.
+ */
+export function homeFor(
+  user: Pick<SessionUser, "permissions" | "billboardPermissions" | "licensePermissions">,
+  avoiding: ProjectId,
+  { denied = false }: { denied?: boolean } = {},
+): string {
+  const open = PROJECT_IDS.find((id) => id !== avoiding && canOpenProject(user, id));
+  if (!open) return "/login";
+  return denied ? `${PROJECTS[open].href}?denied=1` : PROJECTS[open].href;
 }

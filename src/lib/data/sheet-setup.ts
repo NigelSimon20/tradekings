@@ -9,12 +9,19 @@ import {
   USERS_HEADERS,
   BILLBOARD_ROLES_TAB,
   CONTRACT_ROLES_TAB,
+  LICENSE_ROLES_TAB,
   buildColumnIndex,
   indexUserColumns,
   columnLetter,
   settingKeyFor,
 } from "@/lib/data/sheet-schema";
-import { BILLBOARD_PERMISSION_INFO, DEFAULT_ROLE_TABLE, NOT_ALLOWED, PERMISSION_INFO } from "@/lib/auth/roles";
+import {
+  BILLBOARD_PERMISSION_INFO,
+  DEFAULT_ROLE_TABLE,
+  LICENSE_PERMISSION_INFO,
+  NOT_ALLOWED,
+  PERMISSION_INFO,
+} from "@/lib/auth/roles";
 import { STATUS_META } from "@/lib/domain/meta";
 import { CONTRACT_STATUSES } from "@/lib/domain/types";
 import { TONE_COLORS } from "@/lib/ui/tones";
@@ -474,6 +481,11 @@ const USER_DROPDOWNS = [
     source: { range: BILLBOARD_ROLES_TAB },
     note: `Billboard Tracker role — one of the roles on the ${BILLBOARD_ROLES_TAB} tab. Choose "Not allowed" (or leave blank) to keep this person out of the Billboard Tracker.`,
   },
+  {
+    column: "licenses",
+    source: { range: LICENSE_ROLES_TAB },
+    note: `License Tracker role — one of the roles on the ${LICENSE_ROLES_TAB} tab. Choose "Not allowed" (or leave blank) to keep this person out of the License Tracker.`,
+  },
 ] as const;
 
 const ROLE_TABS = [
@@ -483,6 +495,12 @@ const ROLE_TABS = [
     app: "Billboard Tracker",
     catalogue: BILLBOARD_PERMISSION_INFO,
     defaults: DEFAULT_ROLE_TABLE.billboards,
+  },
+  {
+    title: LICENSE_ROLES_TAB,
+    app: "License Tracker",
+    catalogue: LICENSE_PERMISSION_INFO,
+    defaults: DEFAULT_ROLE_TABLE.licenses,
   },
 ] as const;
 

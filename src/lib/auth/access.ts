@@ -33,7 +33,7 @@ export function refreshSessionAccess(
   // The shared password has no row of its own; its session names its roles.
   if (session.via === "password" || sheet === null) {
     const roles = sheet?.roles ?? fallbackRoles;
-    return { ...session, ...accessForRoles(session.role, session.billboardRole, roles) };
+    return { ...session, ...accessForRoles(session.role, session.billboardRole, roles, session.licenseRole) };
   }
 
   const granted = accessFromRow(sheet, email);
@@ -49,7 +49,7 @@ export function accessFromRow(
 ): Access | null {
   const row = sheet.users.find((user) => user.email === email);
   if (!row || !row.active) return null;
-  const decision = resolveAccess(row.role, row.billboards, sheet.roles);
+  const decision = resolveAccess(row.role, row.billboards, sheet.roles, row.licenses);
   if (!decision.ok) return null;
   const { ok, ...access } = decision;
   void ok;

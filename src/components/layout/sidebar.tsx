@@ -11,10 +11,12 @@ export async function Sidebar({ project }: { project: ProjectId }) {
   const config = getConfig();
   const user = await getCurrentUser();
   const items = navItemsFor(project, user);
-  const live =
-    project === "billboards"
-      ? config.billboards.google !== null
-      : config.dataSource === "google-sheets";
+  const live = {
+    contracts: config.dataSource === "google-sheets",
+    billboards: config.billboards.google !== null,
+    licenses: config.licenses.google !== null,
+  }[project];
+  const liveLabel = { contracts: "Google Sheet connected", billboards: "Billboard sheet connected", licenses: "License sheet connected" }[project];
 
   return (
     <aside className="sticky top-0 hidden h-screen w-[17rem] shrink-0 flex-col overflow-hidden bg-brand-950 lg:flex">
@@ -58,11 +60,7 @@ export async function Sidebar({ project }: { project: ProjectId }) {
               className={`size-2 rounded-full ${live ? "bg-emerald-400" : "bg-amber-400"}`}
               aria-hidden
             />
-            {live
-              ? project === "billboards"
-                ? "Billboard sheet connected"
-                : "Google Sheet connected"
-              : "Sample data"}
+            {live ? liveLabel : "Sample data"}
           </p>
           <p className="mt-1.5">
             {formatDate(todayIn(config.timezone))} · {config.timezone}

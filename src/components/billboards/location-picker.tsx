@@ -116,7 +116,7 @@ function PickerDialog({
     const ticket = ++latestSearch.current;
     setBusy("search");
     try {
-      const response = await fetch(`/api/billboards/geocode?q=${encodeURIComponent(text)}`);
+      const response = await fetch(`/api/geocode?q=${encodeURIComponent(text)}`);
       const body = (await response.json()) as { ok?: boolean; error?: string; results?: Place[] };
       if (ticket !== latestSearch.current) return;
       if (!response.ok || !body.ok) throw new Error(body.error ?? "The search did not work.");

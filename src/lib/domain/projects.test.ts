@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { DEFAULT_ROLE_TABLE, accessForRoles } from "@/lib/auth/roles";
-import { accessibleProjects, landingAfterSignIn, canOpenProject, landingFor, projectForPath } from "@/lib/domain/projects";
+import { accessibleProjects, homeFor, landingAfterSignIn, canOpenProject, landingFor, projectForPath } from "@/lib/domain/projects";
 
 describe("choosing a tracker at sign-in", () => {
   it("knows which tracker a page belongs to", () => {
@@ -52,5 +52,22 @@ describe("one sign-in for both apps", () => {
     expect(accessibleProjects(contractsOnly).map((project) => project.id)).toEqual(["contracts"]);
     expect(accessibleProjects(billboardsOnly).map((project) => project.id)).toEqual(["billboards"]);
     expect(accessibleProjects(null)).toEqual([]);
+  });
+});
+
+describe("the License Tracker", () => {
+  const licensesOnly = accessForRoles(null, null, DEFAULT_ROLE_TABLE, "Viewer");
+
+  it("is its own app with its own pages", () => {
+    expect(projectForPath("/licenses")).toBe("licenses");
+    expect(projectForPath("/licenses/assets/A-1")).toBe("licenses");
+    expect(projectForPath("/licensesX")).toBe("contracts");
+  });
+
+  it("sends a license-only person to it, never to sign-in", () => {
+    expect(landingAfterSignIn(licensesOnly, "/")).toBe("/licenses");
+    expect(homeFor(licensesOnly, "contracts")).toBe("/licenses");
+    expect(homeFor(licensesOnly, "billboards", { denied: true })).toBe("/licenses?denied=1");
+    expect(accessibleProjects(licensesOnly).map((project) => project.id)).toEqual(["licenses"]);
   });
 });

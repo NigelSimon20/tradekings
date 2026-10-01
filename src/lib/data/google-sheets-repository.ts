@@ -17,6 +17,7 @@ import {
   indexUserColumns,
   BILLBOARD_ROLES_TAB,
   CONTRACT_ROLES_TAB,
+  LICENSE_ROLES_TAB,
   missingColumns,
   parseContractRow,
   type ColumnKey,
@@ -25,6 +26,7 @@ import { setUpSheet, type SheetSetupResult } from "@/lib/data/sheet-setup";
 import {
   BILLBOARD_PERMISSION_INFO,
   DEFAULT_ROLE_TABLE,
+  LICENSE_PERMISSION_INFO,
   PERMISSION_INFO,
   parseRoleTab,
   type RoleTable,
@@ -151,7 +153,7 @@ export class GoogleSheetsRepository implements ContractRepository {
     // The roles tabs sit next to Users. Read alongside; a missing tab means
     // "use the built-in roles", never an error.
     const rolesRead = Promise.all(
-      [CONTRACT_ROLES_TAB, BILLBOARD_ROLES_TAB].map((tab) =>
+      [CONTRACT_ROLES_TAB, BILLBOARD_ROLES_TAB, LICENSE_ROLES_TAB].map((tab) =>
         this.api()
           .spreadsheets.values.get({
             spreadsheetId: this.config.usersSpreadsheetId,
@@ -189,7 +191,7 @@ export class GoogleSheetsRepository implements ContractRepository {
     ]);
 
     const ranges = response.data.valueRanges ?? [];
-    const [contractRoles, billboardRoles] = await rolesRead;
+    const [contractRoles, billboardRoles, licenseRoles] = await rolesRead;
     const values = (position: number) => (ranges[position]?.values ?? []) as unknown[][];
 
     const contractValues = values(0);
@@ -218,6 +220,7 @@ export class GoogleSheetsRepository implements ContractRepository {
     const roleTable: RoleTable = {
       contracts: parseRoleTab(contractRoles, PERMISSION_INFO) ?? DEFAULT_ROLE_TABLE.contracts,
       billboards: parseRoleTab(billboardRoles, BILLBOARD_PERMISSION_INFO) ?? DEFAULT_ROLE_TABLE.billboards,
+      licenses: parseRoleTab(licenseRoles, LICENSE_PERMISSION_INFO) ?? DEFAULT_ROLE_TABLE.licenses,
     };
     const { users, index: usersIndex } = parseUserRows(separateUsers ? separateUsers.rows : values(3));
     this.signInColumn = usersIndex.lastSignedIn;
@@ -557,6 +560,7 @@ export class GoogleSheetsRepository implements ContractRepository {
     if (input.name !== undefined) cells.push([index.name, String(neutraliseFormula(input.name.trim()))]);
     if (input.role !== undefined) cells.push([index.role, input.role]);
     if (input.billboards !== undefined) cells.push([index.billboards, input.billboards]);
+    if (input.licenses !== undefined) cells.push([index.licenses, input.licenses]);
     if (input.active !== undefined) cells.push([index.active, input.active ? "Yes" : "No"]);
 
     if (position === -1) {

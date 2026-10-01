@@ -1,4 +1,4 @@
-import { NOT_ALLOWED, can, canBillboards, findRole, type Access, type RoleTable } from "@/lib/auth/roles";
+import { NOT_ALLOWED, can, canBillboards, canLicenses, findRole, type Access, type RoleTable } from "@/lib/auth/roles";
 import type { SheetUser } from "@/lib/data/sheet-schema";
 import type { UserAccessInput } from "@/lib/data/repository";
 
@@ -7,20 +7,25 @@ import type { UserAccessInput } from "@/lib/data/repository";
  *
  *  - The Contracts column: Contract Tracker administrators ("Manage settings").
  *  - The Billboards column: Billboard Tracker administrators ("Manage setup").
- *  - Active switches someone off for both apps, so it needs both.
+ *  - The Licenses column: License Tracker administrators ("Manage setup").
+ *  - Active switches someone off for every app, so it needs all three.
  *  - Nobody changes their own row here, so an administrator cannot lock
  *    themselves out by accident; another administrator has to do it.
  */
 export interface UserAdminRights {
   contracts: boolean;
   billboards: boolean;
+  licenses: boolean;
   active: boolean;
 }
 
-export function userAdminRights(editor: Pick<Access, "permissions" | "billboardPermissions">): UserAdminRights {
+export function userAdminRights(
+  editor: Pick<Access, "permissions" | "billboardPermissions" | "licensePermissions">,
+): UserAdminRights {
   const contracts = can(editor, "manageSystem");
   const billboards = canBillboards(editor, "manageBillboards");
-  return { contracts, billboards, active: contracts && billboards };
+  const licenses = canLicenses(editor, "manageLicenses");
+  return { contracts, billboards, licenses, active: contracts && billboards && licenses };
 }
 
 export interface UserChangeRequest {
@@ -28,6 +33,7 @@ export interface UserChangeRequest {
   name?: string;
   role?: string;
   billboards?: string;
+  licenses?: string;
   active?: boolean;
 }
 
@@ -36,13 +42,13 @@ export type UserChangePlan = { ok: true; change: UserAccessInput; created: boole
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function planUserChange(
-  editor: Pick<Access, "permissions" | "billboardPermissions"> & { email: string },
+  editor: Pick<Access, "permissions" | "billboardPermissions" | "licensePermissions"> & { email: string },
   existing: SheetUser | undefined,
   request: UserChangeRequest,
   roles: RoleTable,
 ): UserChangePlan {
   const rights = userAdminRights(editor);
-  if (!rights.contracts && !rights.billboards) {
+  if (!rights.contracts && !rights.billboards && !rights.licenses) {
     return { ok: false, reason: "Only an administrator can change who may sign in." };
   }
 
@@ -60,7 +66,7 @@ export function planUserChange(
     requested: string | undefined,
     current: string,
     allowed: boolean,
-    table: RoleTable["contracts"] | RoleTable["billboards"],
+    table: RoleTable["contracts"] | RoleTable["billboards"] | RoleTable["licenses"],
     label: string,
   ): { value?: string; error?: string } => {
     if (requested === undefined) return {};
@@ -80,8 +86,12 @@ export function planUserChange(
   if (billboards.error) return billboards.error.startsWith('"') ? { ok: false, reason: billboards.error } : refuse(billboards.error);
   if (billboards.value !== undefined) change.billboards = billboards.value;
 
+  const licenses = role(request.licenses, existing?.licenses ?? "", rights.licenses, roles.licenses, "License Tracker");
+  if (licenses.error) return licenses.error.startsWith('"') ? { ok: false, reason: licenses.error } : refuse(licenses.error);
+  if (licenses.value !== undefined) change.licenses = licenses.value;
+
   if (request.active !== undefined && request.active !== (existing?.active ?? true)) {
-    if (!rights.active) return refuse("whether someone is active — that affects both apps");
+    if (!rights.active) return refuse("whether someone is active — that affects every app");
     change.active = request.active;
   }
 
@@ -92,7 +102,7 @@ export function planUserChange(
 
   if (!existing) {
     const grants = (value: string | undefined) => Boolean(value && value !== NOT_ALLOWED);
-    if (!grants(change.role) && !grants(change.billboards)) {
+    if (!grants(change.role) && !grants(change.billboards) && !grants(change.licenses)) {
       return { ok: false, reason: "Give the new person a role in at least one app." };
     }
     return { ok: true, change, created: true };

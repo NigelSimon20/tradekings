@@ -210,6 +210,7 @@ export default async function SettingsPage() {
             contractRoles={people.contractRoles}
             billboardRoles={people.billboardRoles}
             licenseRoles={people.licenseRoles}
+            expatRoles={people.expatRoles}
             rights={people.rights}
             currentEmail={people.currentEmail}
           />

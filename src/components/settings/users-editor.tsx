@@ -22,12 +22,14 @@ export interface EditableUser {
   billboardsKnown: boolean;
   licenses: string;
   licensesKnown: boolean;
+  expats: string;
+  expatsKnown: boolean;
   active: boolean;
   lastSignedIn: string;
 }
 
 const GRID =
-  "grid gap-2 px-5 py-3 md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_5.5rem_minmax(0,0.8fr)_5rem] md:items-center";
+  "grid gap-2 px-5 py-3 md:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,1fr))_5.5rem_minmax(0,0.8fr)_5rem] md:items-center";
 
 /**
  * Who can sign in, and to what — editable by administrators. Each app's
@@ -40,6 +42,7 @@ export function UsersEditor({
   contractRoles,
   billboardRoles,
   licenseRoles,
+  expatRoles,
   rights,
   currentEmail,
 }: {
@@ -47,15 +50,16 @@ export function UsersEditor({
   contractRoles: string[];
   billboardRoles: string[];
   licenseRoles: string[];
+  expatRoles: string[];
   rights: UserAdminRights;
   currentEmail: string;
 }) {
-  const canEdit = rights.contracts || rights.billboards || rights.licenses;
+  const canEdit = rights.contracts || rights.billboards || rights.licenses || rights.expats;
 
   return (
     <div>
       <div className={cn(GRID, "hidden border-b border-slate-100 bg-slate-50/70 py-2.5 md:grid")}>
-        {["Person", "Contract Tracker", "Billboard Tracker", "License Tracker", "Active", "Last signed in", ""].map((heading) => (
+        {["Person", "Contract Tracker", "Billboard Tracker", "License Tracker", "Expat Tracker", "Active", "Last signed in", ""].map((heading) => (
           <p key={heading || "save"} className="text-[11px] font-semibold tracking-[0.06em] text-slate-500 uppercase">
             {heading}
           </p>
@@ -70,6 +74,7 @@ export function UsersEditor({
             contractRoles={contractRoles}
             billboardRoles={billboardRoles}
             licenseRoles={licenseRoles}
+            expatRoles={expatRoles}
             rights={rights}
             isSelf={user.email === currentEmail.trim().toLowerCase()}
           />
@@ -77,7 +82,13 @@ export function UsersEditor({
       </ul>
 
       {canEdit ? (
-        <AddPerson contractRoles={contractRoles} billboardRoles={billboardRoles} licenseRoles={licenseRoles} rights={rights} />
+        <AddPerson
+          contractRoles={contractRoles}
+          billboardRoles={billboardRoles}
+          licenseRoles={licenseRoles}
+          expatRoles={expatRoles}
+          rights={rights}
+        />
       ) : null}
     </div>
   );
@@ -134,6 +145,7 @@ function UserRow({
   contractRoles,
   billboardRoles,
   licenseRoles,
+  expatRoles,
   rights,
   isSelf,
 }: {
@@ -141,6 +153,7 @@ function UserRow({
   contractRoles: string[];
   billboardRoles: string[];
   licenseRoles: string[];
+  expatRoles: string[];
   rights: UserAdminRights;
   isSelf: boolean;
 }) {
@@ -148,14 +161,20 @@ function UserRow({
   const [role, setRole] = useState(user.role);
   const [billboards, setBillboards] = useState(user.billboards);
   const [licenses, setLicenses] = useState(user.licenses);
+  const [expats, setExpats] = useState(user.expats);
   const [active, setActive] = useState(user.active);
 
   const editContracts = rights.contracts && !isSelf;
   const editBillboards = rights.billboards && !isSelf;
   const editLicenses = rights.licenses && !isSelf;
+  const editExpats = rights.expats && !isSelf;
   const editActive = rights.active && !isSelf;
   const dirty =
-    role !== user.role || billboards !== user.billboards || licenses !== user.licenses || active !== user.active;
+    role !== user.role ||
+    billboards !== user.billboards ||
+    licenses !== user.licenses ||
+    expats !== user.expats ||
+    active !== user.active;
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -217,6 +236,21 @@ function UserRow({
         </div>
 
         <div className="text-sm">
+          <span className="text-xs text-slate-500 md:hidden">Expat Tracker: </span>
+          {editExpats ? (
+            <RoleSelect
+              name="expats"
+              label={`Expat Tracker role for ${user.email}`}
+              value={expats}
+              roles={expatRoles}
+              onChange={setExpats}
+            />
+          ) : (
+            <RoleText value={user.expats} known={user.expatsKnown} />
+          )}
+        </div>
+
+        <div className="text-sm">
           {editActive ? (
             <Select
               name="active"
@@ -253,7 +287,7 @@ function UserRow({
         {state.status !== "idle" && !(state.status === "success" && dirty) ? (
           <p
             className={cn(
-              "text-xs md:col-span-7",
+              "text-xs md:col-span-8",
               state.status === "error" ? TONE_CLASSES.critical.text : TONE_CLASSES.success.text,
             )}
           >
@@ -269,11 +303,13 @@ function AddPerson({
   contractRoles,
   billboardRoles,
   licenseRoles,
+  expatRoles,
   rights,
 }: {
   contractRoles: string[];
   billboardRoles: string[];
   licenseRoles: string[];
+  expatRoles: string[];
   rights: UserAdminRights;
 }) {
   const [state, dispatch, pending] = useActionState(saveUserAccessAction, EMPTY_USER_ACCESS_STATE);
@@ -295,7 +331,7 @@ function AddPerson({
         <PlusIcon className="size-4" />
         Add a person
       </p>
-      <div className="grid gap-3 md:grid-cols-5">
+      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
         <Field label="Google email" htmlFor="new-email" required>
           <Input id="new-email" name="email" type="email" placeholder="name@tkzim.co.zw" required />
         </Field>
@@ -315,6 +351,11 @@ function AddPerson({
         {rights.licenses ? (
           <Field label="License Tracker" htmlFor="new-licenses">
             <RoleSelect id="new-licenses" name="licenses" label="License Tracker role" value="" roles={licenseRoles} />
+          </Field>
+        ) : null}
+        {rights.expats ? (
+          <Field label="Expat Tracker" htmlFor="new-expats">
+            <RoleSelect id="new-expats" name="expats" label="Expat Tracker role" value="" roles={expatRoles} />
           </Field>
         ) : null}
       </div>

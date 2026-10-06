@@ -56,6 +56,26 @@ plain label when that is a single app (`lib/domain/projects.ts`).
   Drive connection (sealed in its own sheet) and top folder. The connect flow
   is `/api/drive/connect?app=…`; `DRIVE_APPS` says who may connect which.
 
+## The expat tracker
+
+- Pages live in `src/app/(expats)/expats/`; data is its own spreadsheet
+  (`GOOGLE_EXPATS_SHEET_ID`), tabs in `lib/expats/data/sheet-tables.ts`, behind
+  the generic `ExpatRepository` (`save(table, record)` / `append`). Pages call
+  `lib/services/expats.ts`.
+- `lib/expats/evaluate.ts` is pure: current vs historical permits (a renewal is
+  a new record with `replacesId`), every watched date, and the profile status
+  with its reasons. Tiles are `lib/expats/views.ts`; lists reuse them.
+- Sensitive fields are listed once in `lib/expats/redact.ts`. Without
+  `viewSensitive` they are blanked in `loadExpats(user)` before anything reaches
+  a page or an export, and `keepSensitive` stops a restricted editor's blanks
+  overwriting them; the activity log only says a sensitive field "changed".
+  A new sensitive column goes in `SENSITIVE_FIELDS`, nowhere else.
+- Reminder emails are `lib/expats/reminders.ts` (pure) + `runExpatReminders`;
+  the Reminders Sent tab makes them once per item, window and expiry date.
+- Access: `expatRole` / `expatPermissions`, `canExpats(...)`,
+  `requireExpatViewer` on every page, `guardExpatApi` on routes. Exports are
+  real .xlsx files from `lib/reports/xlsx.ts`.
+
 ## Where things belong
 
 - **Contract rules** live in `src/lib/config/rules.ts` as `DEFAULT_RULES`, and an

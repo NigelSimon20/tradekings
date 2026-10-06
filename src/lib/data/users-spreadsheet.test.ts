@@ -162,7 +162,7 @@ describe("setting up the users spreadsheet", () => {
     expect(books[CONTRACTS_ID].tabs.has("Users")).toBe(false);
     expect(books[USERS_ID].tabs.get("Users")).toEqual([
       [...USERS_HEADERS],
-      ["admin@tkzim.co.zw", "", "Administrator", "Yes", "", "Administrator"],
+      ["admin@tkzim.co.zw", "", "Administrator", "Yes", "", "Administrator", "Administrator", "Administrator"],
     ]);
   });
 
@@ -202,7 +202,7 @@ describe("setting up the users spreadsheet", () => {
     const result = await setUpSheet(fakeClient(books), config(), { seedAdmins: [] });
 
     const users = books[USERS_ID].tabs.get("Users")!;
-    expect(users[0]).toEqual(["Email", "Name", "Contracts", "Active", "Last Signed In", "Billboards", "Licenses"]);
+    expect(users[0]).toEqual(["Email", "Name", "Contracts", "Active", "Last Signed In", "Billboards", "Licenses", "Expats"]);
     expect(users[1]).toEqual(["hr@tkzim.co.zw", "HR", "HR", "Yes", "", ""]);
     expect(result.messages.join(" ")).toMatch(/Renamed .* Role column to Contracts/);
   });
@@ -485,7 +485,7 @@ describe("reading users from the users spreadsheet", () => {
     expect(books[USERS_ID].tabs.get("Users")?.[1]).toEqual(["hr@tkzim.co.zw", "HR", "Yes", "HR", "Viewer", "2026-09-01"]);
 
     await repo.saveUser({ email: "new@tkzim.co.zw", name: "=HYPERLINK(1)", role: "Manager" });
-    expect(books[USERS_ID].tabs.get("Users")?.[2]).toEqual(["new@tkzim.co.zw", "'=HYPERLINK(1)", "Yes", "Manager", null, null, null]);
+    expect(books[USERS_ID].tabs.get("Users")?.[2]).toEqual(["new@tkzim.co.zw", "'=HYPERLINK(1)", "Yes", "Manager", null, null, null, null]);
     expect((await repo.listUsers()).map((user) => user.email)).toEqual(["hr@tkzim.co.zw", "new@tkzim.co.zw"]);
   });
 

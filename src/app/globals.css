@@ -146,3 +146,23 @@ h2,
   background-repeat: no-repeat;
   background-size: 1rem;
 }
+
+/* Printing a page (e.g. an expat summary): just the page, without the app around it. */
+@media print {
+  body > div aside,
+  body > div header.sticky,
+  [data-print="hide"] {
+    display: none !important;
+  }
+  main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+  body {
+    background: #fff !important;
+  }
+  section {
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+}

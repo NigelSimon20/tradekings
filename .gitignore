@@ -45,3 +45,4 @@ next-env.d.ts
 /data/*.local.json
 /data/billboard-uploads/
 /data/license-uploads/
+/data/expat-uploads/

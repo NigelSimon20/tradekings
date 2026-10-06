@@ -2,7 +2,7 @@
  * Who may do what.
  *
  * Each person's role is set on the Users tab, and what each role may do is set
- * on the Contract Roles and Billboard Roles tabs of the same spreadsheet — a
+ * on the roles tabs (one per app) of the same spreadsheet — a
  * tick per permission — so administrators can change permissions, and add
  * roles, without a developer. The defaults below apply until those tabs exist,
  * or whenever they cannot be read.
@@ -115,6 +115,58 @@ export const LICENSE_PERMISSION_INFO: PermissionInfo<LicensePermission>[] = [
   },
 ];
 
+export const EXPAT_PERMISSIONS = [
+  "viewExpats",
+  "viewSensitive",
+  "editExpats",
+  "manageActions",
+  "exportExpats",
+  "offboardExpats",
+  "removeExpatDocuments",
+  "manageExpats",
+] as const;
+export type ExpatPermission = (typeof EXPAT_PERMISSIONS)[number];
+
+export const EXPAT_PERMISSION_INFO: PermissionInfo<ExpatPermission>[] = [
+  {
+    key: "viewExpats",
+    label: "See expats",
+    description: "Open the dashboard, expat list, expiry view and profiles (names, roles, statuses and dates).",
+  },
+  {
+    key: "viewSensitive",
+    label: "See sensitive details",
+    description:
+      "See passport and permit numbers, dates of birth, personal contacts, addresses, rent, and open documents. Without it these are hidden.",
+  },
+  {
+    key: "editExpats",
+    label: "Add & edit profiles",
+    description: "Add and update expats, dependants, permits, applications, leases, vehicles and documents.",
+  },
+  {
+    key: "manageActions",
+    label: "Manage follow-ups",
+    description: "Create follow-up actions, assign them and mark them done.",
+  },
+  { key: "exportExpats", label: "Export", description: "Download lists and the expiry view to Excel." },
+  {
+    key: "offboardExpats",
+    label: "Offboard expats",
+    description: "Record a departure and archive the profile (nothing is deleted), and restore it.",
+  },
+  {
+    key: "removeExpatDocuments",
+    label: "Remove documents",
+    description: "Hide a document from a profile (the record is kept).",
+  },
+  {
+    key: "manageExpats",
+    label: "Manage setup",
+    description: "Prepare the expat sheet, set reminder days and recipients, and connect document storage.",
+  },
+];
+
 export interface RoleDefinition<P extends string> {
   name: string;
   description: string;
@@ -129,6 +181,7 @@ export interface RoleTable {
   contracts: RoleDefinition<Permission>[];
   billboards: RoleDefinition<BillboardPermission>[];
   licenses: RoleDefinition<LicensePermission>[];
+  expats: RoleDefinition<ExpatPermission>[];
 }
 
 export const ADMINISTRATOR = "Administrator";
@@ -218,6 +271,30 @@ export const DEFAULT_ROLE_TABLE: RoleTable = {
     },
     notAllowed("the License Tracker"),
   ],
+  expats: [
+    {
+      name: ADMINISTRATOR,
+      description: "Everything, including offboarding, setup, reminders and document storage.",
+      permissions: [...EXPAT_PERMISSIONS],
+      locked: true,
+      blocks: false,
+    },
+    {
+      name: "Standard user",
+      description: "View everything including sensitive details; add and update profiles, documents and follow-ups; export.",
+      permissions: ["viewExpats", "viewSensitive", "editExpats", "manageActions", "exportExpats"],
+      locked: false,
+      blocks: false,
+    },
+    {
+      name: "Read only",
+      description: "View the dashboard, profiles and expiry dates, without sensitive details.",
+      permissions: ["viewExpats"],
+      locked: false,
+      blocks: false,
+    },
+    notAllowed("the Expat Tracker"),
+  ],
 };
 
 /** What a signed-in person may do, worked out from their roles and the roles tabs. */
@@ -228,9 +305,12 @@ export interface Access {
   billboardRole: string | null;
   /** License Tracker role name; null when they have no License Tracker access. */
   licenseRole: string | null;
+  /** Expat Tracker role name; null when they have no Expat Tracker access. */
+  expatRole: string | null;
   permissions: Permission[];
   billboardPermissions: BillboardPermission[];
   licensePermissions: LicensePermission[];
+  expatPermissions: ExpatPermission[];
 }
 
 export function can(
@@ -254,14 +334,21 @@ export function canLicenses(
   return Boolean(user?.licensePermissions?.includes(permission));
 }
 
-/** How the built-in roles used to be typed, so existing sheets keep working. */
-const ALIASES: [RegExp, string][] = [
-  [/^admin/, ADMINISTRATOR],
-  [/^hr\b|^hr$|human/, "HR"],
-  [/^manager|^line/, "Manager"],
-  [/^edit|^standard/, "Editor"],
-  [/^view|^read/, "Viewer"],
-  [/^not ?allowed|^no ?access|^none$|^blocked/, NOT_ALLOWED],
+export function canExpats(
+  user: Pick<Access, "expatPermissions"> | null | undefined,
+  permission: ExpatPermission,
+): boolean {
+  return Boolean(user?.expatPermissions?.includes(permission));
+}
+
+/** How the built-in roles used to be typed, so existing sheets keep working. The first name the app has wins. */
+const ALIASES: [RegExp, string[]][] = [
+  [/^admin/, [ADMINISTRATOR]],
+  [/^hr\b|^hr$|human/, ["HR"]],
+  [/^manager|^line/, ["Manager"]],
+  [/^edit|^standard/, ["Editor", "Standard user"]],
+  [/^view|^read/, ["Viewer", "Read only"]],
+  [/^not ?allowed|^no ?access|^none$|^blocked/, [NOT_ALLOWED]],
 ];
 
 /** Finds a role by name (any case), or by the old loose spellings of the built-in ones. */
@@ -270,8 +357,8 @@ export function findRole<P extends string>(text: string, roles: RoleDefinition<P
   if (!value) return null;
   const exact = roles.find((role) => role.name.trim().toLowerCase() === value);
   if (exact) return exact;
-  for (const [pattern, name] of ALIASES) {
-    if (pattern.test(value)) return roles.find((role) => role.name === name) ?? null;
+  for (const [pattern, candidates] of ALIASES) {
+    if (pattern.test(value)) return roles.find((role) => candidates.includes(role.name)) ?? null;
   }
   return null;
 }
@@ -288,28 +375,38 @@ export function accessForRoles(
   billboardRole: string | null,
   table: RoleTable,
   licenseRole: string | null = null,
+  expatRole: string | null = null,
 ): Access {
   const contract = role ? findRole(role, table.contracts) : null;
   const billboard = billboardRole ? findRole(billboardRole, table.billboards) : null;
   const license = licenseRole ? findRole(licenseRole, table.licenses) : null;
+  const expat = expatRole ? findRole(expatRole, table.expats) : null;
   return {
     role: contract?.name ?? null,
     billboardRole: billboard?.name ?? null,
     licenseRole: license?.name ?? null,
+    expatRole: expat?.name ?? null,
     permissions: permissionsOf(contract, PERMISSIONS),
     billboardPermissions: permissionsOf(billboard, BILLBOARD_PERMISSIONS),
     licensePermissions: permissionsOf(license, LICENSE_PERMISSIONS),
+    expatPermissions: permissionsOf(expat, EXPAT_PERMISSIONS),
   };
 }
 
-export const FULL_ACCESS: Access = accessForRoles(ADMINISTRATOR, ADMINISTRATOR, DEFAULT_ROLE_TABLE, ADMINISTRATOR);
+export const FULL_ACCESS: Access = accessForRoles(
+  ADMINISTRATOR,
+  ADMINISTRATOR,
+  DEFAULT_ROLE_TABLE,
+  ADMINISTRATOR,
+  ADMINISTRATOR,
+);
 
 export type AccessDecision = ({ ok: true } & Access) | { ok: false; reason: string };
 
 const names = (roles: RoleDefinition<string>[]) => roles.map((role) => role.name).join(", ");
 
 /**
- * Turns a Users-tab row's Contracts, Billboards and Licenses cells into access.
+ * Turns a Users-tab row's Contracts, Billboards, Licenses and Expats cells into access.
  * Any may be blank, but not all, and a value that is not a role on the roles tab is
  * refused rather than quietly ignored, so a typo never grants or hides access
  * by surprise. A role that cannot open an app (no "See…" permission ticked)
@@ -320,6 +417,7 @@ export function resolveAccess(
   billboardText: string,
   table: RoleTable = DEFAULT_ROLE_TABLE,
   licenseText = "",
+  expatText = "",
 ): AccessDecision {
   if (roleText.trim() && !findRole(roleText, table.contracts)) {
     return {
@@ -341,11 +439,19 @@ export function resolveAccess(
     };
   }
 
-  const access = accessForRoles(roleText, billboardText, table, licenseText);
+  if (expatText.trim() && !findRole(expatText, table.expats)) {
+    return {
+      ok: false,
+      reason: `The Expat Tracker role "${expatText}" is not on the Expat Roles tab. It should be one of ${names(table.expats)}, or blank.`,
+    };
+  }
+
+  const access = accessForRoles(roleText, billboardText, table, licenseText, expatText);
   const opensContracts = can(access, "viewAll") || can(access, "viewOwn");
   const opensBillboards = canBillboards(access, "viewBillboards");
   const opensLicenses = canLicenses(access, "viewLicenses");
-  if (!opensContracts && !opensBillboards && !opensLicenses) {
+  const opensExpats = canExpats(access, "viewExpats");
+  if (!opensContracts && !opensBillboards && !opensLicenses && !opensExpats) {
     return {
       ok: false,
       reason: "Your account has not been given access to any app yet. Ask an administrator.",
@@ -360,6 +466,8 @@ export function resolveAccess(
     billboardPermissions: opensBillboards ? access.billboardPermissions : [],
     licenseRole: opensLicenses ? access.licenseRole : null,
     licensePermissions: opensLicenses ? access.licensePermissions : [],
+    expatRole: opensExpats ? access.expatRole : null,
+    expatPermissions: opensExpats ? access.expatPermissions : [],
   };
 }
 

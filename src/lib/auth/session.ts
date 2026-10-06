@@ -56,10 +56,10 @@ function safeEqual(a: string, b: string): boolean {
 }
 
 /** Who someone is, plus their role names; never their permissions. */
-export type SessionIdentity = Pick<SessionUser, "email" | "name" | "via" | "role" | "billboardRole" | "licenseRole">;
+export type SessionIdentity = Pick<SessionUser, "email" | "name" | "via" | "role" | "billboardRole" | "licenseRole" | "expatRole">;
 
 export async function createSessionToken(secret: string, user: SessionIdentity): Promise<string> {
-  const { email, name, via, role, billboardRole, licenseRole } = user;
+  const { email, name, via, role, billboardRole, licenseRole, expatRole } = user;
   const payload = toBase64Url(
     encoder.encode(
       JSON.stringify({
@@ -69,6 +69,7 @@ export async function createSessionToken(secret: string, user: SessionIdentity):
         role,
         billboardRole,
         licenseRole,
+        expatRole,
         exp: Date.now() + SESSION_TTL_SECONDS * 1000,
       }),
     ),
@@ -96,17 +97,19 @@ export async function readSessionToken(
       typeof data.billboardRole === "string" && data.billboardRole.trim() ? data.billboardRole : null;
     const licenseRole =
       typeof data.licenseRole === "string" && data.licenseRole.trim() ? data.licenseRole : null;
-    if ((!role && !billboardRole && !licenseRole) || !data.email || !data.exp || data.exp <= Date.now()) return null;
+    const expatRole = typeof data.expatRole === "string" && data.expatRole.trim() ? data.expatRole : null;
+    if ((!role && !billboardRole && !licenseRole && !expatRole) || !data.email || !data.exp || data.exp <= Date.now()) return null;
 
     return {
       email: String(data.email),
       name: String(data.name ?? data.email),
       via: data.via === "password" ? "password" : "google",
       // Provisional: getCurrentUser replaces this with the roles tabs' answer.
-      ...accessForRoles(role, billboardRole, DEFAULT_ROLE_TABLE, licenseRole),
+      ...accessForRoles(role, billboardRole, DEFAULT_ROLE_TABLE, licenseRole, expatRole),
       role,
       billboardRole,
       licenseRole,
+      expatRole,
     };
   } catch {
     return null;

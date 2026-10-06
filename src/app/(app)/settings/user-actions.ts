@@ -23,6 +23,7 @@ export async function saveUserAccessAction(
       role: field("role"),
       billboards: field("billboards"),
       licenses: field("licenses"),
+      expats: field("expats"),
       active: active === undefined ? undefined : active === "yes",
     });
     revalidatePath("/", "layout");

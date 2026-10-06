@@ -18,6 +18,7 @@ const row = (overrides: Partial<SheetUser> = {}): SheetUser => ({
   role: "HR",
   billboards: "Editor",
   licenses: "",
+  expats: "",
   active: true,
   lastSignedIn: "",
   rowNumber: 2,

@@ -8,7 +8,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { PlusIcon } from "@/components/ui/icons";
 import { getConfig } from "@/lib/config/env";
 import { formatDate, todayIn } from "@/lib/date/dates";
-import { can, canBillboards, canLicenses } from "@/lib/auth/roles";
+import { can, canBillboards, canExpats, canLicenses } from "@/lib/auth/roles";
 import { accessibleProjects, type ProjectId } from "@/lib/domain/projects";
 import { loadAlerts } from "@/lib/services/alerts";
 import { getCurrentUser, getRoleTable } from "@/lib/services/auth";
@@ -74,6 +74,14 @@ export async function Topbar({ project }: { project: ProjectId }) {
               </ButtonLink>
             </span>
           ) : null}
+          {project === "expats" && user && canExpats(user, "editExpats") ? (
+            <span className="hidden lg:block">
+              <ButtonLink href="/expats/new" size="sm">
+                <PlusIcon className="size-4" />
+                New expat
+              </ButtonLink>
+            </span>
+          ) : null}
 
           {alerts ? <AlertsMenu alerts={alerts} /> : null}
 
@@ -85,12 +93,13 @@ export async function Topbar({ project }: { project: ProjectId }) {
                 // Only the role in the app that is open — what they have in
                 // the other app is not this app's business.
                 ...(() => {
-                  const [name, table] =
-                    project === "contracts"
-                      ? [user.role, roles.contracts]
-                      : project === "billboards"
-                        ? [user.billboardRole, roles.billboards]
-                        : [user.licenseRole, roles.licenses];
+                  const byProject: Record<ProjectId, [string | null, { name: string; description: string }[]]> = {
+                    contracts: [user.role, roles.contracts],
+                    billboards: [user.billboardRole, roles.billboards],
+                    licenses: [user.licenseRole, roles.licenses],
+                    expats: [user.expatRole, roles.expats],
+                  };
+                  const [name, table] = byProject[project];
                   return {
                     role: name ?? "",
                     roleDescription: table.find((role) => role.name === name)?.description ?? "",

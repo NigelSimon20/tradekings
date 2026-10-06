@@ -1,6 +1,10 @@
 import {
   BillboardIcon,
   BuildingIcon,
+  CalendarIcon,
+  ClipboardIcon,
+  PassportIcon,
+  UsersIcon,
   ShieldCheckIcon,
   ContractsIcon,
   DashboardIcon,
@@ -11,8 +15,10 @@ import {
 import {
   can,
   canBillboards,
+  canExpats,
   canLicenses,
   type BillboardPermission,
+  type ExpatPermission,
   type LicensePermission,
   type Permission,
 } from "@/lib/auth/roles";
@@ -29,6 +35,7 @@ interface NavItem {
   permission?: Permission;
   billboardPermission?: BillboardPermission;
   licensePermission?: LicensePermission;
+  expatPermission?: ExpatPermission;
 }
 
 /** The contract tracker's navigation, shared by the sidebar and the mobile drawer. */
@@ -131,10 +138,58 @@ export const LICENSE_NAV_ITEMS: readonly NavItem[] = [
   },
 ];
 
+/** The expat tracker's navigation. */
+export const EXPAT_NAV_ITEMS: readonly NavItem[] = [
+  {
+    href: "/expats",
+    label: "Dashboard",
+    description: "What needs action",
+    icon: DashboardIcon,
+    exact: true,
+  },
+  {
+    href: "/expats/people",
+    label: "Expats",
+    description: "Profiles and families",
+    icon: UsersIcon,
+    exact: false,
+  },
+  {
+    href: "/expats/expiries",
+    label: "Master expiry view",
+    description: "Every date, every person",
+    icon: CalendarIcon,
+    exact: false,
+  },
+  {
+    href: "/expats/applications",
+    label: "Applications",
+    description: "Permits and renewals in progress",
+    icon: PassportIcon,
+    exact: false,
+  },
+  {
+    href: "/expats/actions",
+    label: "Follow-ups",
+    description: "Actions and who owns them",
+    icon: ClipboardIcon,
+    exact: false,
+  },
+  {
+    href: "/expats/settings",
+    label: "Setup & access",
+    description: "Sheet, reminders and access",
+    icon: SettingsIcon,
+    exact: false,
+    expatPermission: "manageExpats",
+  },
+];
+
 export const PROJECT_NAV: Record<ProjectId, readonly NavItem[]> = {
   contracts: NAV_ITEMS,
   billboards: BILLBOARD_NAV_ITEMS,
   licenses: LICENSE_NAV_ITEMS,
+  expats: EXPAT_NAV_ITEMS,
 };
 
 /** The items this person may see in a tracker's navigation. */
@@ -144,6 +199,7 @@ export function navItemsFor(project: ProjectId, user: SessionUser | null): NavIt
     if (item.permission) return can(user, item.permission);
     if (item.billboardPermission) return canBillboards(user, item.billboardPermission);
     if (item.licensePermission) return canLicenses(user, item.licensePermission);
+    if (item.expatPermission) return canExpats(user, item.expatPermission);
     return true;
   });
 }
@@ -170,5 +226,14 @@ export function titleForPath(pathname: string): string {
   if (pathname.startsWith("/licenses/new")) return "Add license";
   if (pathname.startsWith("/licenses/settings")) return "License setup & access";
   if (pathname.startsWith("/licenses/")) return "License";
+  if (pathname === "/expats") return "Expat dashboard";
+  if (pathname === "/expats/people") return "Expats";
+  if (pathname.startsWith("/expats/expiries")) return "Master expiry view";
+  if (pathname.startsWith("/expats/actions")) return "Follow-ups";
+  if (pathname.startsWith("/expats/applications")) return "Applications";
+  if (pathname.startsWith("/expats/new")) return "Add expat";
+  if (pathname.startsWith("/expats/settings")) return "Expat setup & access";
+  if (/^\/expats\/[^/]+\/summary/.test(pathname)) return "Expat summary";
+  if (pathname.startsWith("/expats/")) return "Expat profile";
   return "Contract Tracker";
 }

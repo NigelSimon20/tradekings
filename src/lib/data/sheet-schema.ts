@@ -430,9 +430,10 @@ export function parseSheetBoolean(value: string, fallback: boolean): boolean {
 export const CONTRACT_ROLES_TAB = "Contract Roles";
 export const BILLBOARD_ROLES_TAB = "Billboard Roles";
 export const LICENSE_ROLES_TAB = "License Roles";
+export const EXPAT_ROLES_TAB = "Expat Roles";
 
 /** Headings for the tab that decides who may sign in. */
-export const USERS_HEADERS = ["Email", "Name", "Contracts", "Active", "Last Signed In", "Billboards", "Licenses"] as const;
+export const USERS_HEADERS = ["Email", "Name", "Contracts", "Active", "Last Signed In", "Billboards", "Licenses", "Expats"] as const;
 
 export interface SheetUser {
   email: string;
@@ -443,13 +444,15 @@ export interface SheetUser {
   billboards: string;
   /** License tracker access as typed in the sheet; blank means none. */
   licenses: string;
+  /** Expat tracker access as typed in the sheet; blank means none. */
+  expats: string;
   active: boolean;
   lastSignedIn: string;
   /** 1-based row, so a sign-in can be stamped back. */
   rowNumber: number;
 }
 
-type UserColumn = "email" | "name" | "role" | "active" | "lastSignedIn" | "billboards" | "licenses";
+type UserColumn = "email" | "name" | "role" | "active" | "lastSignedIn" | "billboards" | "licenses" | "expats";
 
 /**
  * Users-tab columns are found by their heading, so someone inserting or
@@ -464,6 +467,7 @@ const USER_COLUMN_HEADINGS: Record<UserColumn, string[]> = {
   lastSignedIn: ["Last Signed In"],
   billboards: ["Billboards", "Billboard Tracker", "Billboard Tracker Access"],
   licenses: ["Licenses", "Licences", "License Tracker", "Licence Tracker", "Compliance"],
+  expats: ["Expats", "Expat Tracker", "Expatriates"],
 };
 
 /** Where each column sits when a heading is missing: the original layout. */
@@ -475,6 +479,7 @@ const USER_COLUMN_DEFAULTS: Record<UserColumn, number> = {
   lastSignedIn: 4,
   billboards: 5,
   licenses: 6,
+  expats: 7,
 };
 
 export type UserColumnIndex = Record<UserColumn, number>;
@@ -514,6 +519,7 @@ export function parseUserRow(
     lastSignedIn: cell("lastSignedIn"),
     billboards: cell("billboards"),
     licenses: cell("licenses"),
+    expats: cell("expats"),
     rowNumber,
   };
 }

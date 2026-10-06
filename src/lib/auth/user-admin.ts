@@ -1,4 +1,4 @@
-import { NOT_ALLOWED, can, canBillboards, canLicenses, findRole, type Access, type RoleTable } from "@/lib/auth/roles";
+import { NOT_ALLOWED, can, canBillboards, canExpats, canLicenses, findRole, type Access, type RoleTable } from "@/lib/auth/roles";
 import type { SheetUser } from "@/lib/data/sheet-schema";
 import type { UserAccessInput } from "@/lib/data/repository";
 
@@ -8,7 +8,8 @@ import type { UserAccessInput } from "@/lib/data/repository";
  *  - The Contracts column: Contract Tracker administrators ("Manage settings").
  *  - The Billboards column: Billboard Tracker administrators ("Manage setup").
  *  - The Licenses column: License Tracker administrators ("Manage setup").
- *  - Active switches someone off for every app, so it needs all three.
+ *  - The Expats column: Expat Tracker administrators ("Manage setup").
+ *  - Active switches someone off for every app, so it needs all four.
  *  - Nobody changes their own row here, so an administrator cannot lock
  *    themselves out by accident; another administrator has to do it.
  */
@@ -16,16 +17,18 @@ export interface UserAdminRights {
   contracts: boolean;
   billboards: boolean;
   licenses: boolean;
+  expats: boolean;
   active: boolean;
 }
 
 export function userAdminRights(
-  editor: Pick<Access, "permissions" | "billboardPermissions" | "licensePermissions">,
+  editor: Pick<Access, "permissions" | "billboardPermissions" | "licensePermissions" | "expatPermissions">,
 ): UserAdminRights {
   const contracts = can(editor, "manageSystem");
   const billboards = canBillboards(editor, "manageBillboards");
   const licenses = canLicenses(editor, "manageLicenses");
-  return { contracts, billboards, licenses, active: contracts && billboards && licenses };
+  const expats = canExpats(editor, "manageExpats");
+  return { contracts, billboards, licenses, expats, active: contracts && billboards && licenses && expats };
 }
 
 export interface UserChangeRequest {
@@ -34,6 +37,7 @@ export interface UserChangeRequest {
   role?: string;
   billboards?: string;
   licenses?: string;
+  expats?: string;
   active?: boolean;
 }
 
@@ -42,13 +46,13 @@ export type UserChangePlan = { ok: true; change: UserAccessInput; created: boole
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function planUserChange(
-  editor: Pick<Access, "permissions" | "billboardPermissions" | "licensePermissions"> & { email: string },
+  editor: Pick<Access, "permissions" | "billboardPermissions" | "licensePermissions" | "expatPermissions"> & { email: string },
   existing: SheetUser | undefined,
   request: UserChangeRequest,
   roles: RoleTable,
 ): UserChangePlan {
   const rights = userAdminRights(editor);
-  if (!rights.contracts && !rights.billboards && !rights.licenses) {
+  if (!rights.contracts && !rights.billboards && !rights.licenses && !rights.expats) {
     return { ok: false, reason: "Only an administrator can change who may sign in." };
   }
 
@@ -66,7 +70,7 @@ export function planUserChange(
     requested: string | undefined,
     current: string,
     allowed: boolean,
-    table: RoleTable["contracts"] | RoleTable["billboards"] | RoleTable["licenses"],
+    table: RoleTable[keyof RoleTable],
     label: string,
   ): { value?: string; error?: string } => {
     if (requested === undefined) return {};
@@ -90,6 +94,10 @@ export function planUserChange(
   if (licenses.error) return licenses.error.startsWith('"') ? { ok: false, reason: licenses.error } : refuse(licenses.error);
   if (licenses.value !== undefined) change.licenses = licenses.value;
 
+  const expats = role(request.expats, existing?.expats ?? "", rights.expats, roles.expats, "Expat Tracker");
+  if (expats.error) return expats.error.startsWith('"') ? { ok: false, reason: expats.error } : refuse(expats.error);
+  if (expats.value !== undefined) change.expats = expats.value;
+
   if (request.active !== undefined && request.active !== (existing?.active ?? true)) {
     if (!rights.active) return refuse("whether someone is active — that affects every app");
     change.active = request.active;
@@ -102,7 +110,7 @@ export function planUserChange(
 
   if (!existing) {
     const grants = (value: string | undefined) => Boolean(value && value !== NOT_ALLOWED);
-    if (!grants(change.role) && !grants(change.billboards) && !grants(change.licenses)) {
+    if (!grants(change.role) && !grants(change.billboards) && !grants(change.licenses) && !grants(change.expats)) {
       return { ok: false, reason: "Give the new person a role in at least one app." };
     }
     return { ok: true, change, created: true };

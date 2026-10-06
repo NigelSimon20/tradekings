@@ -152,6 +152,7 @@ export default async function LicenseSettingsPage({ searchParams }: PageSearchPa
             contractRoles={people.contractRoles}
             billboardRoles={people.billboardRoles}
             licenseRoles={people.licenseRoles}
+            expatRoles={people.expatRoles}
             rights={people.rights}
             currentEmail={people.currentEmail}
           />

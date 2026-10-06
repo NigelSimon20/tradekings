@@ -8,6 +8,10 @@
     {
       "path": "/api/cron/system-check",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/expat-reminders",
+      "schedule": "0 5 * * *"
     }
   ]
 }

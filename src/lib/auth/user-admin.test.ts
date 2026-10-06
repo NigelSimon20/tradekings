@@ -4,11 +4,16 @@ import { DEFAULT_ROLE_TABLE, accessForRoles } from "@/lib/auth/roles";
 import { planUserChange } from "@/lib/auth/user-admin";
 import type { SheetUser } from "@/lib/data/sheet-schema";
 
-const editor = (role: string | null, billboardRole: string | null, licenseRole: string | null = null) => ({
+const editor = (
+  role: string | null,
+  billboardRole: string | null,
+  licenseRole: string | null = null,
+  expatRole: string | null = null,
+) => ({
   email: "admin@tkzim.co.zw",
-  ...accessForRoles(role, billboardRole, DEFAULT_ROLE_TABLE, licenseRole),
+  ...accessForRoles(role, billboardRole, DEFAULT_ROLE_TABLE, licenseRole, expatRole),
 });
-const bothAdmin = editor("Administrator", "Administrator", "Administrator");
+const bothAdmin = editor("Administrator", "Administrator", "Administrator", "Administrator");
 const licensesAdmin = editor(null, null, "Administrator");
 const contractsAdmin = editor("Administrator", "Viewer");
 const billboardsAdmin = editor("HR", "Administrator");
@@ -19,6 +24,7 @@ const rutendo: SheetUser = {
   role: "HR",
   billboards: "",
   licenses: "",
+  expats: "",
   active: true,
   lastSignedIn: "",
   rowNumber: 3,

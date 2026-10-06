@@ -10,6 +10,7 @@ import {
   BILLBOARD_ROLES_TAB,
   CONTRACT_ROLES_TAB,
   LICENSE_ROLES_TAB,
+  EXPAT_ROLES_TAB,
   buildColumnIndex,
   indexUserColumns,
   columnLetter,
@@ -19,6 +20,7 @@ import {
   BILLBOARD_PERMISSION_INFO,
   DEFAULT_ROLE_TABLE,
   LICENSE_PERMISSION_INFO,
+  EXPAT_PERMISSION_INFO,
   NOT_ALLOWED,
   PERMISSION_INFO,
 } from "@/lib/auth/roles";
@@ -443,7 +445,7 @@ async function setUpUsersTab(
       values: [
         [...USERS_HEADERS],
         ...carried,
-        ...admins.map((email) => [email, "", "Administrator", "Yes", "", "Administrator"]),
+        ...admins.map((email) => [email, "", "Administrator", "Yes", "", "Administrator", "Administrator", "Administrator"]),
       ],
     },
   });
@@ -474,7 +476,7 @@ const USER_DROPDOWNS = [
   {
     column: "active",
     source: { values: ["Yes", "No"] },
-    note: "No switches the person off for both apps without deleting their row.",
+    note: "No switches the person off for every app without deleting their row.",
   },
   {
     column: "billboards",
@@ -485,6 +487,11 @@ const USER_DROPDOWNS = [
     column: "licenses",
     source: { range: LICENSE_ROLES_TAB },
     note: `License Tracker role — one of the roles on the ${LICENSE_ROLES_TAB} tab. Choose "Not allowed" (or leave blank) to keep this person out of the License Tracker.`,
+  },
+  {
+    column: "expats",
+    source: { range: EXPAT_ROLES_TAB },
+    note: `Expat Tracker role — one of the roles on the ${EXPAT_ROLES_TAB} tab. Choose "Not allowed" (or leave blank) to keep this person out of the Expat Tracker.`,
   },
 ] as const;
 
@@ -501,6 +508,12 @@ const ROLE_TABS = [
     app: "License Tracker",
     catalogue: LICENSE_PERMISSION_INFO,
     defaults: DEFAULT_ROLE_TABLE.licenses,
+  },
+  {
+    title: EXPAT_ROLES_TAB,
+    app: "Expat Tracker",
+    catalogue: EXPAT_PERMISSION_INFO,
+    defaults: DEFAULT_ROLE_TABLE.expats,
   },
 ] as const;
 

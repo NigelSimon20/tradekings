@@ -2,9 +2,10 @@ import type { ReactNode } from "react";
 
 import { cn } from "@/lib/ui/cn";
 
-export function Card({ children, className }: { children: ReactNode; className?: string }) {
+export function Card({ children, className, id }: { children: ReactNode; className?: string; id?: string }) {
   return (
     <section
+      id={id}
       className={cn(
         "overflow-hidden rounded-2xl bg-white shadow-card ring-1 ring-slate-200/70",
         className,

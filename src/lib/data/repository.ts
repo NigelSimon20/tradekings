@@ -75,6 +75,8 @@ export interface UserAccessInput {
   billboards?: string;
   /** Licenses column. */
   licenses?: string;
+  /** Expats column. */
+  expats?: string;
   active?: boolean;
 }
 

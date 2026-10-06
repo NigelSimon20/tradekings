@@ -13,7 +13,8 @@
     "sheet:setup": "tsx scripts/setup-sheet.ts",
     "sheet:check": "tsx scripts/check-sheet.ts",
     "billboards:seed": "tsx scripts/seed-billboards.ts",
-    "licenses:seed": "tsx scripts/seed-licenses.ts"
+    "licenses:seed": "tsx scripts/seed-licenses.ts",
+    "expats:seed": "tsx scripts/seed-expats.ts"
   },
   "dependencies": {
     "@googleapis/drive": "^26.0.1",

@@ -2,6 +2,7 @@ import "server-only";
 
 import { getBillboardRepository } from "@/lib/billboards/data";
 import { getConfig } from "@/lib/config/env";
+import { getExpatRepository } from "@/lib/expats/data";
 import { getLicenseRepository } from "@/lib/licenses/data";
 import { readDriveConnection, type DriveConnection, type SettingsStore } from "@/lib/files/connection";
 import { DrivePhotoStore, type RootFolder } from "@/lib/files/drive-store";
@@ -9,7 +10,7 @@ import { LocalPhotoStore } from "@/lib/files/local-store";
 import { NoPhotoStore, type PhotoStore } from "@/lib/files/store";
 
 /** The apps that store uploaded files. */
-export type StorageApp = "billboards" | "licenses";
+export type StorageApp = "billboards" | "licenses" | "expats";
 
 export interface AppStorage {
   /** The app's sheet, which also holds its sealed Drive connection. */
@@ -26,7 +27,7 @@ export interface AppStorage {
 
 /** Each app's storage settings. */
 export function storageFor(app: StorageApp): AppStorage {
-  const { billboards, licenses } = getConfig();
+  const { billboards, licenses, expats } = getConfig();
   switch (app) {
     case "billboards":
       return {
@@ -45,6 +46,15 @@ export function storageFor(app: StorageApp): AppStorage {
         sharedFolderId: licenses.documentsFolderId,
         serviceAccount: licenses.google,
         localDir: licenses.google ? null : licenses.localUploadsDir,
+      };
+    case "expats":
+      return {
+        settings: () => getExpatRepository(),
+        purpose: "expat-drive-connection",
+        root: { name: "Trade Kings Expats", marker: "expat-documents" },
+        sharedFolderId: expats.documentsFolderId,
+        serviceAccount: expats.google,
+        localDir: expats.google ? null : expats.localUploadsDir,
       };
   }
 }

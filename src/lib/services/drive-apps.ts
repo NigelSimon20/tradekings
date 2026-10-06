@@ -1,9 +1,10 @@
 import "server-only";
 
-import { canBillboards, canLicenses } from "@/lib/auth/roles";
+import { canBillboards, canExpats, canLicenses } from "@/lib/auth/roles";
 import type { SessionUser } from "@/lib/auth/session";
 import type { StorageApp } from "@/lib/files";
 import { connectDriveAccount } from "@/lib/services/billboards";
+import { connectExpatStorage } from "@/lib/services/expats";
 import { connectLicenseStorage } from "@/lib/services/licenses";
 
 /**
@@ -36,10 +37,16 @@ export const DRIVE_APPS: Record<
     who: "a License Tracker administrator",
     connect: connectLicenseStorage,
   },
+  expats: {
+    settingsPath: "/expats/settings",
+    allowed: (user) => canExpats(user, "manageExpats"),
+    who: "an Expat Tracker administrator",
+    connect: connectExpatStorage,
+  },
 };
 
 export function driveAppFor(value: string | null): StorageApp | null {
-  return value === "billboards" || value === "licenses" ? value : null;
+  return value !== null && Object.hasOwn(DRIVE_APPS, value) ? (value as StorageApp) : null;
 }
 
 /** Which app a Setup & access path belongs to (where the Google trip returns to). */

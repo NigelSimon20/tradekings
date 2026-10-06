@@ -132,14 +132,68 @@ on the sheet's **Settings** tab, which takes precedence over the environment
 variables. That is how the system administrator changes recipients without a
 redeploy; anything left blank there falls back to the values above.
 
+## Expat Tracker
+
+The fourth app behind the same link: a dedicated profile for every Trade Kings
+expatriate and their dependants — passports, visas and permits, applications
+and renewals, homes, vehicles, insurance, documents and follow-ups — with the
+dates watched and reminder emails sent.
+
+| Page | What it does |
+| --- | --- |
+| **Dashboard** (`/expats`) | Active / inactive expats and dependants, documents and permits approaching expiry, leases, licences and insurance approaching expiry, expired items, applications in progress, incomplete profiles and outstanding follow-ups — each opens the list behind it. **Action required** lists the urgent items, each linking to the profile. |
+| **Expats** | Search and filter by name, company, department, nationality, position, permit type and status, expiry dates, lease status, profile completeness and follow-ups; **Export to Excel** downloads what is filtered. Offboarded expats are one click away. |
+| **Profile** | Personal & employment, passport & immigration (with history), the **family / household** view, accommodation, vehicles & insurance, follow-ups, documents (current and historical) and the activity history. **Summary** is a one-page printable expat summary. |
+| **Master expiry view** | Every watched date across expats and dependants, filtered by employee, document type, group, dates, status and responsible person; exports to Excel. |
+| **Applications** | Every application and renewal by stage: Documents Required → Ready for Submission → Submitted → In Progress → Approved → Issued, with the supporting documents still outstanding. |
+| **Follow-ups** | Actions with a responsible person, due date, status and notes. |
+| **Setup & access** | Prepare the expat sheet, reminder days and recipients (with a preview and **Send now**), Google Drive for documents, roles and who can sign in. |
+
+**Setting it up:** create an empty spreadsheet, share it with the service
+account as an Editor, set `GOOGLE_EXPATS_SHEET_ID`, then press **Prepare the
+expat sheet**. It creates the **Expats**, **Dependants**, **Passports &
+Permits**, **Leases**, **Vehicles**, **Follow-ups**, **Documents**, **Activity
+Log** and **Reminders Sent** tabs. Without it the tracker runs on a sample
+register in `data/expats.local.json`; `npm run expats:seed` loads that sample
+into an empty live sheet for demos.
+
+**Renewals and history.** Nothing is overwritten. A renewal is a new record on
+Passports & Permits whose *Renews Record ID* names the old one: while it moves
+through the pipeline the old one is shown as "being handled" (no longer an
+action), and once it is *Issued* the old one becomes history along with its
+documents. Ended leases and returned vehicles stay as previous records.
+Offboarding archives the profile with the departure date, permit closure,
+property handover, vehicle return, outstanding actions and final notes.
+
+**Profile status** is *Action required* (something expired or inside a
+reminder window with no renewal started, or a follow-up overdue), *Missing
+documents* (no passport, no work or residence permit, a dependant without a
+passport, no copy of a current permit or lease, no employment contract, or an
+application waiting for supporting documents) or *Complete*.
+
+**Reminder emails** go out every morning (`/api/cron/expat-reminders`) for
+anything reaching 90, 60, 30 or 7 days before expiry — and once when it
+expires — to the HR recipients set on Setup & access and to the expat's
+responsible manager. The **Reminders Sent** tab remembers each item and window,
+so nothing is sent twice and a missed day is caught up.
+
+**Access** is the **Expats** column on the Users tab and the **Expat Roles** tab
+(Administrator / Standard user / Read only / Not allowed). Without **See
+sensitive details**, passport and permit numbers, dates of birth, personal
+contacts, addresses, rent and documents are removed before anything reaches the
+page or an export; such a person can still edit, and what they cannot see is
+kept. **Documents** have their own Google Drive connection and folder, *Trade
+Kings Expats*, filed by expat and dependant, and open only through the tracker.
+
 ## Scheduling
 
-`vercel.json` registers two scheduled runs:
+`vercel.json` registers three scheduled runs:
 
 | Job | Schedule (UTC) | What it does |
 | --- | --- | --- |
 | `/api/cron/weekly-report` | Mondays 06:00 (08:00 Harare) | System check, then the HR and manager emails |
 | `/api/cron/system-check` | Daily 03:00 | Refreshes every calculated column in the sheet |
+| `/api/cron/expat-reminders` | Daily 05:00 (07:00 Harare) | Expat Tracker expiry reminder emails |
 
 Links written into the sheet and the emails use the address the run came in on,
 so they are correct after a deploy whether or not `APP_URL` was updated.

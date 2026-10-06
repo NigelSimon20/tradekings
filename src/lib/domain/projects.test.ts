@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_ROLE_TABLE, accessForRoles } from "@/lib/auth/roles";
+import { DEFAULT_ROLE_TABLE, accessForRoles, canExpats, resolveAccess } from "@/lib/auth/roles";
 import { accessibleProjects, homeFor, landingAfterSignIn, canOpenProject, landingFor, projectForPath } from "@/lib/domain/projects";
 
 describe("choosing a tracker at sign-in", () => {
@@ -69,5 +69,35 @@ describe("the License Tracker", () => {
     expect(homeFor(licensesOnly, "contracts")).toBe("/licenses");
     expect(homeFor(licensesOnly, "billboards", { denied: true })).toBe("/licenses?denied=1");
     expect(accessibleProjects(licensesOnly).map((project) => project.id)).toEqual(["licenses"]);
+  });
+});
+
+describe("the Expat Tracker", () => {
+  const expatsOnly = accessForRoles(null, null, DEFAULT_ROLE_TABLE, null, "Read only");
+
+  it("is its own app, listed last in the switcher", () => {
+    expect(projectForPath("/expats/EXP-001/summary")).toBe("expats");
+    expect(projectForPath("/expatsX")).toBe("contracts");
+    const everything = accessForRoles("Administrator", "Administrator", DEFAULT_ROLE_TABLE, "Administrator", "Administrator");
+    expect(accessibleProjects(everything).map((project) => project.id)).toEqual(["contracts", "billboards", "licenses", "expats"]);
+  });
+
+  it("lets an expat-only person in, and lands them there", () => {
+    expect(resolveAccess("", "", DEFAULT_ROLE_TABLE, "", "Read only").ok).toBe(true);
+    expect(landingAfterSignIn(expatsOnly, "/")).toBe("/expats");
+    expect(canOpenProject(expatsOnly, "licenses")).toBe(false);
+  });
+
+  it("keeps sensitive details to roles that are given them", () => {
+    expect(canExpats(expatsOnly, "viewSensitive")).toBe(false);
+    const standard = accessForRoles(null, null, DEFAULT_ROLE_TABLE, null, "standard");
+    expect(standard.expatRole).toBe("Standard user");
+    expect(canExpats(standard, "viewSensitive")).toBe(true);
+    expect(canExpats(standard, "manageExpats")).toBe(false);
+  });
+
+  it("refuses a role that is not on the Expat Roles tab", () => {
+    const decision = resolveAccess("", "", DEFAULT_ROLE_TABLE, "", "Supervisor");
+    expect(decision.ok).toBe(false);
   });
 });

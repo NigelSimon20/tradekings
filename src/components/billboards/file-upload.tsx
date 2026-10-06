@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,9 @@ export function FileUpload({
   fields,
   categories,
   defaultCategory,
+  extraFields,
+  titlePlaceholder = "e.g. Front view after repainting",
+  dateField = { name: "documentDate", label: "Date on the document", hint: "Optional — for leases and letters." },
 }: {
   /** Where each file is posted, e.g. `/api/billboards/files`. */
   endpoint: string;
@@ -45,6 +48,11 @@ export function FileUpload({
   fields: Record<string, string>;
   categories: readonly string[];
   defaultCategory?: string;
+  /** More form controls, sent with every file (e.g. whose document it is). */
+  extraFields?: ReactNode;
+  titlePlaceholder?: string;
+  /** The date asked for: the date on the document, or when it expires. */
+  dateField?: { name: string; label: string; hint?: string };
 }) {
   const { busy, result, run } = useApiAction();
   const [progress, setProgress] = useState("");
@@ -74,8 +82,10 @@ export function FileUpload({
 
         const payload = new FormData();
         for (const [name, value] of Object.entries(fields)) payload.set(name, value);
-        payload.set("category", String(details.get("category") ?? ""));
-        payload.set("documentDate", String(details.get("documentDate") ?? ""));
+        // Every control on the form — category, date and any extra fields.
+        for (const [name, value] of details.entries()) {
+          if (name !== "files" && typeof value === "string") payload.set(name, value);
+        }
         // One title for several files would give them all the same name.
         payload.set("title", files.length === 1 ? String(details.get("title") ?? "") : "");
         payload.set("file", body, isPhoto ? file.name.replace(/\.[^.]+$/, ".jpg") : file.name);
@@ -96,6 +106,7 @@ export function FileUpload({
 
   return (
     <form onSubmit={onSubmit} className="grid gap-3 sm:grid-cols-2">
+      {extraFields}
       <Field label="Category" htmlFor="uploadCategory" required>
         <Select
           id="uploadCategory"
@@ -104,8 +115,8 @@ export function FileUpload({
           options={categories.map((category) => ({ value: category, label: category }))}
         />
       </Field>
-      <Field label="Date on the document" htmlFor="uploadDate" hint="Optional — for leases and letters.">
-        <Input id="uploadDate" name="documentDate" type="date" />
+      <Field label={dateField.label} htmlFor="uploadDate" hint={dateField.hint}>
+        <Input id="uploadDate" name={dateField.name} type="date" />
       </Field>
       <Field
         label="Title"
@@ -113,7 +124,7 @@ export function FileUpload({
         hint="Optional. Used when uploading one file; otherwise each keeps its own name."
         className="sm:col-span-2"
       >
-        <Input id="uploadTitle" name="title" placeholder="e.g. Front view after repainting" />
+        <Input id="uploadTitle" name="title" placeholder={titlePlaceholder} />
       </Field>
       <Field
         label="Photos or PDFs"

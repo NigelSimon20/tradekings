@@ -15,8 +15,9 @@ export async function Sidebar({ project }: { project: ProjectId }) {
     contracts: config.dataSource === "google-sheets",
     billboards: config.billboards.google !== null,
     licenses: config.licenses.google !== null,
+    expats: config.expats.google !== null,
   }[project];
-  const liveLabel = { contracts: "Google Sheet connected", billboards: "Billboard sheet connected", licenses: "License sheet connected" }[project];
+  const liveLabel = { contracts: "Google Sheet connected", billboards: "Billboard sheet connected", licenses: "License sheet connected", expats: "Expat sheet connected" }[project];
 
   return (
     <aside className="sticky top-0 hidden h-screen w-[17rem] shrink-0 flex-col overflow-hidden bg-brand-950 lg:flex">

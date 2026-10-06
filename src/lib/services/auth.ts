@@ -13,10 +13,12 @@ import {
   FULL_ACCESS,
   can,
   canBillboards,
+  canExpats,
   canLicenses,
   findRole,
   resolveAccess,
   type BillboardPermission,
+  type ExpatPermission,
   type LicensePermission,
   type Permission,
   type RoleTable,
@@ -87,7 +89,7 @@ export async function resolveSignIn(
     return { user: null, reason: "That account has been switched off." };
   }
 
-  const access = resolveAccess(match.role, match.billboards, roles, match.licenses);
+  const access = resolveAccess(match.role, match.billboards, roles, match.licenses, match.expats);
   if (!access.ok) return { user: null, reason: access.reason };
   const { ok, ...granted } = access;
   void ok;
@@ -215,6 +217,30 @@ export async function requireLicenseViewer(permission: LicensePermission): Promi
   return user;
 }
 
+/** The Expat Tracker's equivalent of `requireViewer`. */
+export async function requireExpatViewer(permission: ExpatPermission): Promise<SessionUser> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  if (!canOpenProject(user, "expats")) redirect(homeFor(user, "expats", { denied: true }));
+  if (!canExpats(user, permission)) redirect("/expats?denied=1");
+  return user;
+}
+
+/** `guardApi` for the Expat Tracker's routes; returns the user so a route can redact for them. */
+export async function guardExpatApi(
+  permission: ExpatPermission,
+): Promise<{ user: SessionUser; denied: null } | { user: null; denied: Response }> {
+  const user = await getCurrentUser();
+  if (!user) return { user: null, denied: Response.json({ ok: false, error: "Not signed in." }, { status: 401 }) };
+  if (!canExpats(user, permission)) {
+    return {
+      user: null,
+      denied: Response.json({ ok: false, error: "Your account does not have permission to do that." }, { status: 403 }),
+    };
+  }
+  return { user, denied: null };
+}
+
 /** `guardApi` for the License Tracker's routes. */
 export async function guardLicenseApi(permission: LicensePermission): Promise<Response | null> {
   const user = await getCurrentUser();
@@ -264,6 +290,7 @@ export const listSignInUsers = cache(async () => {
       parsedRole: findRole(user.role, roles.contracts)?.name ?? null,
       parsedBillboardRole: findRole(user.billboards, roles.billboards)?.name ?? null,
       parsedLicenseRole: findRole(user.licenses, roles.licenses)?.name ?? null,
+      parsedExpatRole: findRole(user.expats, roles.expats)?.name ?? null,
     }));
   } catch {
     return [];

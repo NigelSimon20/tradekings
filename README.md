@@ -1,571 +1,125 @@
-# Blue Collar Contract Tracker — Trade Kings & Zimkings
+# Trade Kings · Zimkings — Internal Trackers
 
-Automated contract tracking for blue-collar and casual employees across
+One web app, one link and one sign-in for four internal tools used by
 **Trade Kings Zimbabwe (Pvt) Ltd** and **Zimkings Trading (Pvt) Ltd**.
 
-A Google Sheet stays the central database. This app reads it, applies the
-contract rules, shows a dashboard, and emails a weekly contract status report —
-the complete database to HR and a filtered list to each manager.
-
-```
-Google Sheet  ──read──▶  rules engine  ──▶  dashboard (Next.js)
-   ▲                                    └─▶  weekly emails (HR + managers)
-   └──────── calculated columns written back on every system check
-```
-
-## Quick start
-
-```bash
-npm install
-npm run dev          # http://localhost:3000
-```
-
-With no Google credentials the app runs on a generated sample database
-(`data/contracts.local.json`, 58 contracts covering every status, contract limit
-and rehire case) so the whole system can be explored before the sheet is wired
-up. Emails are written to `.outbox/` instead of being sent.
-
-```bash
-npm test             # rules engine + report tests
-npm run typecheck
-npm run lint
-npm run build
-npm run sheet:check  # read-only health report for the connected Google Sheet
-```
-
-## Connecting the Google Sheet
-
-1. **Create a service account** in Google Cloud and enable the *Google Sheets
-   API*. Download the JSON key.
-2. **Share the spreadsheet** with the service account email address
-   (`…@….iam.gserviceaccount.com`) as an **Editor**.
-3. **Fill in `.env.local`** (copy `.env.example`):
-
-   ```ini
-   GOOGLE_SHEET_ID="1AbC…"                     # from the sheet URL
-   GOOGLE_SERVICE_ACCOUNT_EMAIL="…@….iam.gserviceaccount.com"
-   GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n…\n-----END PRIVATE KEY-----\n"
-   ```
-
-4. **Prepare the tabs** — either from **Rules & settings → Prepare the Google
-   Sheet** in the app, or from the command line:
-
-   ```bash
-   npm run sheet:setup            # headings, dropdowns, date formats, colour coding
-   npm run sheet:setup -- --seed  # …and load the sample rows
-   npm run sheet:check            # read-only report on the connected sheet
-   ```
-
-   Both are safe to run again: they only ever add what is missing, and never
-   change a value someone has filled in.
-
-The contracts spreadsheet ends up with four tabs, and the list of people who may
-sign in is kept in a second spreadsheet (see [Signing in](#signing-in)):
-
-| Tab | What it holds |
+| App | What it does |
 | --- | --- |
-| **Contracts** | The database. HR fills in the left-hand columns; the system writes the calculated ones. |
-| **Dashboard** | The summary view, rebuilt on every system check, with links back into the tracker. |
-| **Settings** | Report recipients **and every contract rule** — changeable without a developer. |
-| **Run Log** | Every system check and report send. |
+| **Contract Tracker** | Tracks contracts for blue-collar and casual employees, applies the company's contract rules, and emails a weekly status report to HR and each manager. |
+| **Billboard Tracker** | Keeps every billboard site on a map with its lease, contacts, campaigns, maintenance, photos and documents. |
+| **License Tracker** | Keeps every license, permit and certificate for sites, vehicles, equipment and the company, with renewals and expiry alerts. |
+| **Expat Tracker** | Keeps a full profile of every expatriate employee and their dependants — passports, permits, applications, homes, vehicles, documents and follow-ups — and emails reminders before anything expires. |
 
-Nothing on the Settings tab needs a redeploy. Leave a row blank to keep the
-standard rule; a typo keeps the default rather than switching a rule off.
+Everyone signs in with their Google account. What a person can open, and what
+they can do inside it, is decided by administrators. Someone with access to more
+than one app switches between them from the menu under **Trade Kings · Zimkings**;
+someone with one app goes straight into it.
 
-Reading the sheet is a network round trip, so rows are reused for
-`SHEET_CACHE_SECONDS` (30 by default). Anything the tracker itself writes clears
-that cache immediately; only edits typed straight into the sheet wait for it.
+Each app keeps its records in its own Google Sheet, so the data stays readable
+and editable by people. The app adds the rules, dashboards, maps, reminders,
+exports and reports on top.
 
-Columns are matched **by header text**, not by position, so HR can reorder or
-insert columns in the sheet without breaking anything. The full list is on the
-**Rules & settings** page in the app.
+---
 
-| Filled in by HR | Calculated by the system (overwritten on each check) |
-| --- | --- |
-| Contract ID, Employee ID, Employee Name, Employee Email, Company, Worker Type, Department, Cost Centre, Job Title, Contract Type, Contract Start Date, Contract End Date, Contract Number, Renewal Status, Responsible HR Person/Email, Direct Manager, Manager Email, Location / Site, Notes, Last Updated | Contract Count, Days Remaining, Contract Status, Contract Limit Status, Rehire Eligibility Date, Rehire Status, Flags |
+## Contract Tracker
 
-## Email: tkzim addresses or Gmail?
-
-**Keep the tkzim addresses — no new Gmail accounts are needed.** The two pieces
-are independent:
-
-* **The spreadsheet** lives in whichever Google account owns it. The app signs
-  in as a *service account*, not as a person, so nobody has to share a password
-  and no mailbox is involved.
-* **The email** goes out either through **Resend** or through any SMTP server.
-
-**Resend (recommended)** — no mail server, no app passwords, and it works from
-a hosted deployment without extra setup:
-
-1. Create an account at resend.com and an **API key**.
-2. Add `tkzim.co.zw` as a domain and add the DNS records it gives you. (While
-   testing, skip this and send from `onboarding@resend.dev`.)
-3. Set the key and the sending address:
-
-```ini
-RESEND_API_KEY="re_…"
-MAIL_FROM="Contract Tracker <contracts@tkzim.co.zw>"
-HR_REPORT_EMAIL="hr@tkzim.co.zw"
-```
-
-**Or your own mail server**, if company policy requires it:
-
-| Mail provider for tkzim.co.zw | `SMTP_HOST` | `SMTP_PORT` |
-| --- | --- | --- |
-| Google Workspace | `smtp.gmail.com` | 587 (app password on the sending account) |
-| Microsoft 365 | `smtp.office365.com` | 587 |
-| Own/hosted mail server | e.g. `mail.tkzim.co.zw` | 587 or 465 |
-
-Whichever you choose, use one dedicated mailbox such as `contracts@tkzim.co.zw`
-so replies from managers land somewhere sensible. With a Resend key present it
-is used; otherwise SMTP; with neither, reports are prepared but nothing is sent.
-`MAIL_TRANSPORT` forces one if you need to.
-
-Use **Send a test** on the Reports page to check it before the first weekly
-run.
-
-Manager addresses are **not** configured here — they come from the *Manager
-Email* column in the sheet, so HR controls who receives what.
-
-The HR recipient, the CC list and whether manager reports go out can also be set
-on the sheet's **Settings** tab, which takes precedence over the environment
-variables. That is how the system administrator changes recipients without a
-redeploy; anything left blank there falls back to the values above.
-
-## Storing files in a folder someone shared with you
-
-Each app's **Setup & access → Document uploads** can file uploads into a Google
-Drive folder that was shared with the connected Google account — for example a
-folder the company set up. Connect the account first, then paste the folder's
-link under **Store files in a folder shared with …** and press **Use this
-folder**: Google's own window opens showing that folder; press **Select**. The
-tracker checks it can add to it (the account needs Editor access) and from then
-on files go there, in the same sub-folders as before. Picking it in Google's
-window is what gives the tracker access to that one folder — it never asks for
-the rest of Drive. Needs `GOOGLE_PICKER_API_KEY` (see `.env.example`).
-
-## Expat Tracker
-
-The fourth app behind the same link: a dedicated profile for every Trade Kings
-expatriate and their dependants — passports, visas and permits, applications
-and renewals, homes, vehicles, insurance, documents and follow-ups — with the
-dates watched and reminder emails sent.
-
-| Page | What it does |
-| --- | --- |
-| **Dashboard** (`/expats`) | Active / inactive expats and dependants, documents and permits approaching expiry, leases, licences and insurance approaching expiry, expired items, applications in progress, incomplete profiles and outstanding follow-ups — each opens the list behind it. **Action required** lists the urgent items, each linking to the profile. |
-| **Expats** | Search and filter by name, company, department, nationality, position, permit type and status, expiry dates, lease status, profile completeness and follow-ups; **Export to Excel** downloads what is filtered. Offboarded expats are one click away. |
-| **Profile** | Personal & employment, passport & immigration (with history), the **family / household** view, accommodation, vehicles & insurance, follow-ups, documents (current and historical) and the activity history. **Summary** is a one-page printable expat summary. |
-| **Master expiry view** | Every watched date across expats and dependants, filtered by employee, document type, group, dates, status and responsible person; exports to Excel. |
-| **Applications** | Every application and renewal by stage: Documents Required → Ready for Submission → Submitted → In Progress → Approved → Issued, with the supporting documents still outstanding. |
-| **Follow-ups** | Actions with a responsible person, due date, status and notes. |
-| **Setup & access** | Prepare the expat sheet, reminder days and recipients (with a preview and **Send now**), Google Drive for documents, roles and who can sign in. |
-
-**Setting it up:** create an empty spreadsheet, share it with the service
-account as an Editor, set `GOOGLE_EXPATS_SHEET_ID`, then press **Prepare the
-expat sheet**. It creates the **Expats**, **Dependants**, **Passports &
-Permits**, **Leases**, **Vehicles**, **Follow-ups**, **Documents**, **Activity
-Log** and **Reminders Sent** tabs. Without it the tracker runs on a sample
-register in `data/expats.local.json`; `npm run expats:seed` loads that sample
-into an empty live sheet for demos.
-
-**Renewals and history.** Nothing is overwritten. A renewal is a new record on
-Passports & Permits whose *Renews Record ID* names the old one: while it moves
-through the pipeline the old one is shown as "being handled" (no longer an
-action), and once it is *Issued* the old one becomes history along with its
-documents. Ended leases and returned vehicles stay as previous records.
-Offboarding archives the profile with the departure date, permit closure,
-property handover, vehicle return, outstanding actions and final notes.
-
-**Profile status** is *Action required* (something expired or inside a
-reminder window with no renewal started, or a follow-up overdue), *Missing
-documents* (no passport, no work or residence permit, a dependant without a
-passport, no copy of a current permit or lease, no employment contract, or an
-application waiting for supporting documents) or *Complete*.
-
-**Reminder emails** go out every morning (`/api/cron/expat-reminders`) for
-anything reaching 90, 60, 30 or 7 days before expiry — and once when it
-expires — to the HR recipients set on Setup & access and to the expat's
-responsible manager. The **Reminders Sent** tab remembers each item and window,
-so nothing is sent twice and a missed day is caught up.
-
-**Access** is the **Expats** column on the Users tab and the **Expat Roles** tab
-(Administrator / Standard user / Read only / Not allowed). Without **See
-sensitive details**, passport and permit numbers, dates of birth, personal
-contacts, addresses, rent and documents are removed before anything reaches the
-page or an export; such a person can still edit, and what they cannot see is
-kept. **Documents** have their own Google Drive connection and folder, *Trade
-Kings Expats*, filed by expat and dependant, and open only through the tracker.
-
-## Scheduling
-
-`vercel.json` registers three scheduled runs:
-
-| Job | Schedule (UTC) | What it does |
-| --- | --- | --- |
-| `/api/cron/weekly-report` | Mondays 06:00 (08:00 Harare) | System check, then the HR and manager emails |
-| `/api/cron/system-check` | Daily 03:00 | Refreshes every calculated column in the sheet |
-| `/api/cron/expat-reminders` | Daily 05:00 (07:00 Harare) | Expat Tracker expiry reminder emails |
-
-Links written into the sheet and the emails use the address the run came in on,
-so they are correct after a deploy whether or not `APP_URL` was updated.
-
-Set `CRON_SECRET` in the environment — Vercel then sends it automatically, and
-the endpoints refuse unauthenticated calls in production. Any other scheduler
-works too:
-
-```bash
-curl -H "Authorization: Bearer $CRON_SECRET" https://your-app/api/cron/weekly-report
-```
-
-Both runs can also be triggered by hand from the dashboard
-(**Run system check** / **Run weekly report**) and from the Reports page.
-
-Other endpoints: `GET /api/export` (whole database as CSV, `?history=1` for
-superseded rows), `GET /api/import` (blank template) and `POST /api/import`
-(`mode=preview` to validate, `mode=commit` to write).
-
-## Signing in
-
-People sign in with their **Google account**. The tracker stores no passwords:
-Google handles password strength and two-factor, and the sheet decides who gets
-in.
-
-**Setting it up** (once, about five minutes):
-
-1. Google Cloud → **APIs & Services → Credentials → Create credentials → OAuth
-   client ID → Web application**, in the same project as the service account.
-2. Add `https://your-app/api/auth/google/callback` as an authorised redirect
-   URI (and `http://localhost:3000/api/auth/google/callback` for local work).
-3. Put the client id and secret in `GOOGLE_OAUTH_CLIENT_ID` and
-   `GOOGLE_OAUTH_CLIENT_SECRET`, and set `ADMIN_EMAILS` to your own address.
-4. **Create a second, empty spreadsheet for the users**, share it with the
-   service account as an Editor and with administrators only, and put its ID
-   in `GOOGLE_USERS_SHEET_ID`. Keeping it apart from the contracts spreadsheet
-   means the people who edit contracts cannot see or change who has access.
-5. Press **Prepare the Google Sheet** on Rules & settings, which creates the
-   **Users** tab in that spreadsheet and adds you as an administrator. If the
-   contracts spreadsheet already had a Users tab, everyone on it is copied
-   across; check the list, then delete the old tab (Rules & settings warns
-   until you do).
-
-`GOOGLE_USERS_SHEET_ID` is an environment variable rather than a row on the
-Settings tab on purpose: a setting inside the contracts spreadsheet could be
-changed by anyone who edits contracts, and would let them point sign-in at a
-list of their own. Left blank, the Users tab stays in the contracts spreadsheet
-and Rules & settings shows a warning.
-
-**Managing access** can be done in the app: **Who can sign in** on either app's
-settings page lists everyone, and administrators can change access or add a
-person there — it is saved to the Users tab. Contract Tracker administrators
-change the Contract Tracker column, Billboard Tracker administrators the
-Billboard Tracker column, and only someone who administers both can switch a
-person off (Active), because that affects both apps. Nobody can change their own
-access. Everyone else sees the list read-only. The Users tab of the users
-spreadsheet holds a row per person:
-
-| Column | What to put |
-| --- | --- |
-| Email | The Google address they sign in with |
-| Name | Shown in the tracker and against their changes |
-| Contracts | A Contract Tracker role (`Administrator`, `HR`, `Manager`, or any role added on the Contract Roles tab); `Not allowed` or blank keeps them out |
-| Active | `No` takes access away without deleting the history |
-| Last Signed In | Filled in by the system |
-| Billboards | A Billboard Tracker role (`Administrator`, `Editor`, `Viewer`, or any added on the Billboard Roles tab); `Not allowed` or blank keeps them out |
-
-The Contracts column was first called **Role**; that heading still works, and
-**Prepare the Google Sheet** renames it. **Not allowed** is a fixed row on each
-roles tab: choosing it keeps someone out of that app, and no tick can change
-that. Someone Not allowed in both apps cannot sign in.
-
-**What each role may do** is set on two more tabs in the same spreadsheet,
-**Contract Roles** and **Billboard Roles**: one row per role, a tickbox per
-permission, a note on each heading saying what it allows. Untick a box to take a
-permission away, tick one to give it, or add a row to create a new role — it
-appears in the Users tab's dropdown at once. Administrator always has every
-permission, whatever its row says, so nobody can be locked out by a stray untick.
-Changes apply within about 30 seconds, including to people already signed in.
-Both tables are also shown (read-only) on each app's settings page. Without the
-tabs, the built-in roles apply.
-
-Columns are found by their heading, so they can be moved; **Contract Tracker**
-and **Billboard Tracker** are also accepted as headings for the two access columns.
-**Prepare the Google Sheet** adds dropdowns to the access and Active columns
-(anything else is rejected, so a typo cannot lock someone out) and a note on
-each heading. Changes apply to people already signed in within about 30
-seconds — removing someone signs them out on their next click.
-
-| Role | Can |
-| --- | --- |
-| **Administrator** | Everything, including preparing the sheet |
-| **HR** | The whole database: capture, import, export, run reports |
-| **Manager** | Only their own employees — the same list their weekly email covers — read-only |
-
-Managers are off until you add one: give someone the Manager role and they see
-their team and nothing else. An `ADMIN_EMAILS` address follows its own row on the
-Users tab like anyone else (so roles can be tried out with it), but can never be
-locked out: with no usable row, or when the sheet cannot be read, it gets full
-Administrator access. `APP_PASSWORD` still works
-as a fallback if you set it, and every change is now recorded against the person
-who made it in the **Last Updated By** column and the run log.
-
-## Security
-
-The database holds names, job titles, managers and contract dates for every
-blue-collar employee, so treat it as personal information.
-
-**Before it is reachable from the internet:**
-
-| Setting | Why |
-| --- | --- |
-| Google sign-in, or `APP_PASSWORD` | Without one of them every page and API route is open to anyone with the link. A red banner appears on every screen until one is set. |
-| `AUTH_SECRET` | Signs the sign-in cookie. Set it to a long random string. |
-| `CRON_SECRET` | The scheduled runs refuse to start in production without it, and reject callers who do not present it. |
-
-**What the app does on its own:**
-
-* Sign-in attempts are rate limited — eight failures per caller in ten minutes.
-* The session cookie is http-only, same-site and secure in production, and
-  expires after 12 hours. Password and key comparisons are constant-time.
-* Every response carries `X-Frame-Options`, `X-Content-Type-Options`,
-  `Referrer-Policy`, `Permissions-Policy`, `Strict-Transport-Security` and, in
-  production, a content security policy that blocks framing and any script,
-  style or image from another origin. The CSV export is marked `no-store`.
-* Values written to the sheet and to CSV exports are neutralised so a cell can
-  never execute as a formula — an employee note reading `=IMPORTXML(…)` stays
-  text rather than reaching out to an attacker from inside the spreadsheet.
-* The weekly-report preview runs in a fully sandboxed frame with no script,
-  form or navigation privileges, because it is rendered from sheet content.
-* Report email is refused unless the connection is encrypted (STARTTLS or TLS).
-
-* People sign in as themselves, so every contract change and every manual run
-  records who did it, and one person's access can be removed without affecting
-  anyone else.
-
-## The rules, and where they live
-
-Everything the specification asks for is expressed in
-[`src/lib/config/rules.ts`](src/lib/config/rules.ts) and applied by
-[`src/lib/rules/evaluate.ts`](src/lib/rules/evaluate.ts). Change a number in the
-config and the dashboard, the sheet and the emails all follow.
-
-Every number below can be changed on the sheet's **Settings** tab; the code
-holds the defaults.
-
-| Rule | Implementation |
-| --- | --- |
-| Trade Kings blue collar: 6 month contracts, unlimited renewals | `RULE_SETS.TK_BLUE_COLLAR` |
-| Zimkings: 1 year maximum, 5 contracts maximum | `RULE_SETS.ZK_BLUE_COLLAR` (contract 4 = approaching, 5 = reached, longer than a year = flagged) |
-| Casuals: weekly contracts, 6 in a 6-week period, 3 month break | `RULE_SETS.CASUAL` — contracts are counted in *cycles*; a gap of 3 months starts a new count |
-| 30 days / 15 days / expired / overdue | `ALERT_DAYS` and `OVERDUE_AFTER_DAYS`; a contract becomes *Overdue* 7 days after expiry if nobody has updated it |
-| Rehire eligibility date | End of the sixth casual contract + 3 months |
-| Stays on the report until updated | `needsAction` — true until the renewal status is decided **or** a follow-on contract row is captured |
-| Summary view inside the Google Sheet | The **Dashboard** tab, rewritten by every system check from the same counts the app shows |
-| Colour coding | One palette in `src/lib/ui/tones.ts`, used by the UI, the sheet and the emails |
-
-Statuses: `Overdue`, `Expired`, `Expires Today`, `Expiring ≤ 15 Days`,
-`Expiring ≤ 30 Days`, `Active`, `Not Started`, `Renewed`, `Closed`,
-`Check Dates`.
-
-Flags: Zimkings approaching/at the 5-contract limit, contracts longer than a
-year, casuals approaching/at the 6-contract limit, casuals in the waiting
-period, casuals eligible for rehire, rehires inside the waiting period, renewals
-marked but not captured, missing employee ID or manager email, unusable dates.
+- **Applies the contract rules automatically:**
+  - Trade Kings blue collar — 6-month contracts, unlimited renewals.
+  - Zimkings — up to 1 year per contract, a maximum of 5 contracts.
+  - Casuals — weekly contracts, 6 in a 6-week period, then a 3-month break before
+    they can be rehired.
+- **Works out for every employee** the days remaining, the contract status
+  (active, expiring within 30 or 15 days, expires today, expired, overdue…), how
+  close they are to their contract limit, and when a casual can be rehired.
+- **Dashboard** with every count clicking through to the list behind it, and the
+  contracts that need a decision now.
+- **Contracts list** with search and filters by company, department, cost centre,
+  manager, contract type, status, days remaining and location.
+- **Contract page** with the employee's history, editing, and *Create renewal*.
+- **Import** contracts from a spreadsheet file (with a preview before anything is
+  saved) and **export** the database.
+- **Weekly report email** every Monday — the full picture to HR, and each manager
+  only their own team. Managers can also be given read-only access to their team.
+- **Rule numbers and report recipients** can be changed in the sheet without a
+  developer.
 
 ## Billboard Tracker
 
-The same link also hosts the **Billboard Tracker** for Trade Kings billboard
-sites. There is one sign-in: people continue with Google and land in the app
-their access allows. Someone with access to both apps gets a dropdown under
-**Trade Kings · Zimkings** to switch between them; someone with one app sees just
-its name and goes straight into it.
+- **Map** of every site, coloured by status, with sites needing follow-up
+  highlighted; search and filter by status, city, lease and brand.
+- **Dashboard** of active, inactive and under-maintenance sites, expired leases,
+  and leases expiring within 30 and 90 days.
+- **Billboard profile** — details, lease, landlord / council / contractor
+  contacts, current and past campaigns, maintenance visits, photos and documents,
+  and a history of every change.
+- **Pick on map** to place a site: search for a place, drop or drag the pin, or
+  use your location when standing at the site.
+- **Photos and documents** filed in Google Drive by city and site.
 
-| Page | What it does |
-| --- | --- |
-| **Map** (`/billboards`) | Every site as a marker coloured by status, a red ring on sites needing follow-up. Search by ID, road, area, city or brand; filter by status, city and lease. Selecting a site shows a summary and opens its profile. |
-| **Dashboard** | Total, active, inactive and under-maintenance sites, expired leases, leases expiring within 30 and 90 days, and sites requiring follow-up — each number opens the list behind it. |
-| **All billboards** | The searchable list; filters live in the URL. Archived sites are one click away. |
-| **Add / edit** | Only the site name and town are required. **Pick on map** fills in the GPS coordinates: search for the place (suggestions appear as you type — Photon, an OpenStreetMap search, through the tracker's server, Zimbabwe first), click or drag the pin, or press **Use my location** when standing at the site. A **View in Google Maps** link checks the spot. |
-| **Profile** | Basic information, lease, contacts, current usage with campaign history, maintenance with history, photos and documents, and an activity log of every change. |
-| **Setup & access** | Billboard administrators prepare the billboard sheet and see who has access. |
+## License Tracker
 
-**Setting it up:** create an empty spreadsheet, share it with the service
-account as an Editor, set `GOOGLE_BILLBOARDS_SHEET_ID`, then press **Prepare the
-billboard sheet** on Setup & access. It creates the **Billboards**, **Campaigns**,
-**Maintenance**, **Documents** and **Activity Log** tabs. Without it the tracker
-runs on a sample network in `data/billboards.local.json`.
+- **Dashboard and map** — active, expiring soon, expired, pending renewal,
+  requiring action and upcoming renewals, with every location on a map coloured
+  by its most urgent license.
+- **License register** with search (license number, vehicle registration, site,
+  type) and filters by location, asset type, category, license type, department
+  and expiry status; export what is filtered.
+- **License page** — details, issuing authority, dates, contacts, conditions,
+  documents, renewal history, and *Record a renewal* with the renewed
+  certificate.
+- **Assets and locations** — warehouses, factories, depots, sites, trucks,
+  vehicles, equipment and the company itself, each with all of its licenses.
+- **Reminder windows** (90, 60, 30 and 7 days by default) that decide what counts
+  as expiring soon and what needs action.
 
-**Access** is the **Billboards** column on the Users tab: `Administrator`
-(everything, including archiving and removing documents), `Editor` (add and
-update) or `Viewer` (read-only). Blank means no billboard access, and the
-contract **Role** may be blank for someone who only works on billboards.
+## Expat Tracker
 
-**History is kept.** Campaigns, maintenance visits, documents and the Activity
-Log only ever gain rows. Archiving a billboard hides it from the map and
-dashboard; removing a document hides it from the profile; the rows stay.
+- **Expat profile** — personal and employment details, passports, visas, work
+  and residence permits, the household (spouse, children and their documents),
+  accommodation and leases, vehicles and insurance, documents, follow-ups and a
+  full activity history. A one-page printable summary is available for each
+  expat.
+- **Family / household view** showing the expat and every dependant side by side
+  with their document status and expiry dates.
+- **Applications and renewals** followed through *Documents Required → Ready for
+  Submission → Submitted → In Progress → Approved → Issued*, showing which
+  supporting documents are still outstanding. When a renewal is issued, the old
+  document becomes history — nothing is overwritten.
+- **Profile status** — *Complete*, *Missing documents* or *Action required*, with
+  the reasons listed.
+- **Dashboard** of active and inactive expats, dependants, documents and permits
+  approaching expiry, leases, licences and insurance approaching expiry, expired
+  items, applications in progress, incomplete profiles and outstanding
+  follow-ups, with an *Action required* list.
+- **Master expiry view** of every date across all expats and dependants,
+  filterable by person, document type, date, status and responsible person.
+- **Follow-ups** with a responsible person, due date, status and notes.
+- **Reminder emails** before anything expires — the timing is set on a months
+  and days wheel — sent to HR and the expat's manager, each reminder only once.
+- **Offboarding** archives an expat with their departure date, permit
+  cancellation, property handover, vehicle return and final notes — never
+  deleted, and can be restored.
+- **Excel exports** of the expat list, the expiry view and follow-ups.
 
-**Photos and documents** are uploaded from the billboard's profile and filed in
-a Google **Shared drive**, one folder per city and one per site:
+---
 
-```
-Billboard Photos / Harare / BB-001 – Samora Machel / 2026-09-27 140512 Site photo – Front view.jpg
-```
+## Across all the apps
 
-Files are named by the date and time they were added, so each folder lists in
-order. The tracker shows previews itself (through `/api/billboards/files/<id>`,
-signed-in billboard users only), so nothing is shared publicly. Photos are
-shrunk to 2000px in the browser before upload, which also strips the phone's
-location data; PDFs up to 4 MB. Files are checked by their contents, not their
-name — only JPG, PNG, WebP and PDF are accepted.
+- **One sign-in, access per app.** Administrators decide, from inside the app,
+  who may sign in and what role they have in each app. Roles and what each role
+  may do are set with tickboxes in a spreadsheet, so new roles need no developer.
+  Removing someone's access takes effect within about 30 seconds.
+- **Sensitive information is protected.** In the Expat Tracker, people without
+  permission never see passport and permit numbers, dates of birth, personal
+  contacts, addresses, rent or documents — not on screen and not in exports.
+- **History is kept.** Every change records who made it and when. Records are
+  archived rather than deleted, and replaced documents are kept as history.
+- **Documents and photos** are stored in Google Drive, in tidy folders per record,
+  and previewed inside the app without being shared publicly. Each app can use a
+  company Drive account or a folder someone has shared with it.
+- **A number and its list always agree** — every dashboard figure opens exactly
+  the records it counts, and every list can be filtered and exported.
+- **Works on a phone** as well as a computer.
 
-There are two ways to switch uploads on, both on **Setup & access** (enable the
-**Google Drive API** in the Google Cloud project first):
-
-1. **Connect a Google account** — a billboard administrator presses *Connect
-   Google Drive* and signs in once; any account works, Gmail included. Files go
-   to that account's *My Drive / Trade Kings Billboard Photos*. The tracker asks
-   only for `drive.file`, so it can see nothing in that Drive except what it
-   created. The refresh token is sealed with `AUTH_SECRET` (AES-GCM) in a hidden
-   *Tracker Settings* tab. It reuses the sign-in OAuth client and callback, so
-   nothing new is registered — but publish the OAuth app (Audience → Publish),
-   because Google expires access for apps left in *Testing* after 7 days.
-2. **Company Shared drive** (for the live system; needs Google Workspace) —
-   create a Shared drive, add the service account as a **Content manager**, and
-   put its ID in `GOOGLE_BILLBOARDS_PHOTOS_FOLDER_ID`. A folder in someone's own
-   Drive will not work: Google gives service accounts no storage there.
-
-A connected account takes priority over the Shared drive; disconnect it to
-switch. Until
-then, files can still be added as `https://` links. On sample data, uploads go
-to `data/billboard-uploads/` in the same City / Site layout.
-
-## License & Compliance Tracker
-
-The third app behind the same link: one register of every company license,
-permit and certificate — for warehouses, factories, depots, sites, trucks,
-vehicles, equipment and the company itself.
-
-| Page | What it does |
-| --- | --- |
-| **Dashboard & map** (`/licenses`) | Active, expiring soon, expired, pending renewal, requiring action and upcoming renewals — each number opens the register behind it — and a map of every location, its pin coloured by its most urgent license. |
-| **License register** | Search by license number, vehicle registration, site or type; filter by location, asset type, category, license type, department and expiry status; **Export** downloads exactly what is filtered. |
-| **License** | Details, dates, contacts, flags, **Record a renewal** (with the renewed certificate), renewal history, documents and an activity log. |
-| **Assets & locations** | Every asset with all of its licenses; places are pinned with the map picker. |
-| **Setup & access** | Prepare the license sheet, set the reminder days, connect Google Drive for documents, roles and who can sign in. |
-
-**Setting it up:** create an empty spreadsheet, share it with the service
-account as an Editor, set `GOOGLE_LICENSES_SHEET_ID`, then press **Prepare the
-license sheet**. It creates the **Assets & Locations**, **Licenses**,
-**Renewals**, **Documents** and **Activity Log** tabs. Without it the tracker
-runs on a sample register in `data/licenses.local.json`; `npm run
-licenses:seed` loads that sample into an empty live sheet for demos.
-
-**Reminders** are at 90, 60, 30 and 7 days before expiry by default and can be
-changed on Setup & access. A license inside a reminder window whose renewal
-has not been started, an expired one with no renewal lodged, or one with no
-expiry date is flagged as **requiring action**. Setting the Renewal status to
-*In progress* or *Submitted to authority* marks it **pending renewal**.
-
-**Categories and license types** are free text with the brief's list offered,
-so a new category is simply typed in — no change to the system.
-
-**Access** is the **Licenses** column on the Users tab and the **License Roles**
-tab (Administrator / Editor / Viewer / Not allowed), set up by **Prepare the
-Google Sheet** on the Contract Tracker. **Documents** have their own Google
-Drive connection and folder, *Trade Kings Licenses*, filed by asset group and
-asset.
-
-## Look and feel
-
-The tracker serves both companies, so it carries neither company's logo: the
-mark is typographic — **Trade Kings · Zimkings**, set in Raleway with the
-separator in the accent blue ([`brand-wordmark.tsx`](src/components/layout/brand-wordmark.tsx)).
-The two blues (`#015290` and `#1691d0`, expanded into full tonal ramps in
-[`globals.css`](src/app/globals.css)) and the neutral document glyph used as the
-browser icon carry the identity instead. Severity colours stay separate from the brand palette so
-"overdue" never reads as "brand blue"; they live in
-[`tones.ts`](src/lib/ui/tones.ts) and are shared by the UI, the sheet's
-conditional formatting and the emails.
-
-## Project structure
-
-```
-src/
-  app/
-    (app)/                 signed-in pages: dashboard, contracts, reports, settings
-    api/                   system check, report run, import, cron endpoints, CSV export
-    login/                 password gate
-  components/
-    ui/                    Button, Card, Badge, Table, Field, Modal, StatCard… (no UI library)
-    layout/                sidebar, top bar, alerts bell, mobile drawer
-    contracts/             table, filters, form, import dialog, status badges
-    dashboard/ reports/    summary band, dashboard tiles, run buttons, run log
-  lib/
-    config/                rules.ts (contract rules), env.ts (all environment variables)
-    rules/                 evaluate.ts — the rules engine, pure and unit tested
-    data/                  repository interface, Google Sheets + local JSON, csv-import.ts
-    reports/               build.ts (report data), render-email.ts (HTML), csv.ts, run.ts
-    domain/                types, status metadata, saved views, filters, form schema
-    email/                 SMTP transport with an outbox fallback
-    services/              what pages and routes call: loadSnapshot, alerts, import, system check
-scripts/setup-sheet.ts     prepares the Google Sheet
-```
-
-Three ideas keep the code debuggable:
-
-1. **The rules engine is pure.** `evaluateContracts(rows, { today })` takes data
-   and a date and returns every calculated field. No network, no clock, no
-   surprises — which is why the tests can pin down each rule exactly.
-2. **Storage sits behind one interface.** `ContractRepository` has two
-   implementations (Google Sheet, local JSON). Nothing above it knows which is
-   in use.
-3. **A count and a list can never disagree.** Dashboard tiles are *saved views*
-   (`src/lib/domain/views.ts`): one named predicate per tile, used both to count
-   and to filter `/contracts?view=…`.
-
-## Day-to-day use
-
-* **Dashboard** — a summary band, every count from the specification (each one
-  clicking through to the matching list), and the contracts needing attention
-  now.
-* **Alerts** — the bell in the top bar counts contracts waiting for a decision
-  plus rows that need fixing in the sheet, grouped by urgency. "Mark seen" is
-  remembered per browser, so the red dot only comes back when the alerts change.
-* **Contracts** — the full database with filters for company, department, cost
-  centre, manager, contract type, employment type, status, days remaining,
-  flags and location. Filters live in the URL, so a view can be bookmarked or
-  sent to a colleague.
-* **Import** — the table toolbar takes a CSV (drag and drop, or a file picker).
-  Columns are matched by heading, dates may be `2026-01-31` or `31/01/2026`, and
-  nothing is written until the preview has been approved: new rows, rows already
-  captured, and rows that cannot be read are counted and listed first. An export
-  from this system imports back cleanly, and a blank template is one click away.
-* **Contract page** — everything the system calculated, the employee's contract
-  history, an edit form, and **Create renewal**, which carries the employee
-  details over and dates the new contract from the day after the old one ends.
-* **Reports** — the exact email each recipient will receive, with the ability to
-  send one report or run the full weekly cycle.
-* **Rules & settings** — the rules in force, the sheet layout, the effective
-  report recipients (and whether each came from the sheet or the environment),
-  the state of the Google and email connections, and a **Prepare the Google
-  Sheet** button that adds anything missing.
-* **Send a test** — on the Reports page, one short email to an address you
-  choose, so email can be proved before anyone relies on the weekly run.
-* **While capturing** — the end date follows the rules for the employee, dates
-  that break a rule are called out before saving (a Zimkings contract running
-  past a year, a casual contract that is not a week), and starting a renewal for
-  someone at their contract limit says so up front.
-
-## Deployment
-
-Any Node host works; Vercel is the shortest path because `vercel.json` already
-describes the schedules.
-
-1. Push the repository and import it.
-2. Add the environment variables from `.env.example`. Paste the private key with
-   real newlines or as `\n` — both are handled.
-3. Deploy, then open **Rules & settings** to confirm the sheet is connected, and
-   **Reports** to check the first preview.
-
-`data/contracts.local.json` and `.outbox/` are development conveniences; on a
-read-only host, configure Google and SMTP so neither is used.
+Built with Next.js, React, TypeScript and Tailwind CSS, on Google Sheets and
+Google Drive, with maps from OpenStreetMap.

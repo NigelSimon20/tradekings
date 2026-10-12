@@ -164,7 +164,7 @@ export default async function ExpatProfilePage({ params }: { params: Promise<{ i
             <ul className="divide-y divide-slate-100">
               {row.issues.map((issue, position) => (
                 <li key={`${issue.section}-${position}`}>
-                  <a href={`#${issue.section}`} className="flex items-start gap-3 px-5 py-2.5 text-sm hover:bg-slate-50">
+                  <Link href={`#${issue.section}`} className="flex items-start gap-3 px-5 py-2.5 text-sm hover:bg-slate-50">
                     <span
                       className={cn(
                         "mt-1.5 size-2 shrink-0 rounded-full",
@@ -173,7 +173,7 @@ export default async function ExpatProfilePage({ params }: { params: Promise<{ i
                       aria-hidden
                     />
                     <span className="text-slate-800">{issue.text}</span>
-                  </a>
+                  </Link>
                 </li>
               ))}
             </ul>

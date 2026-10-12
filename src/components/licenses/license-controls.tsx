@@ -9,6 +9,8 @@ import {
   saveReminderDaysAction,
 } from "@/app/(licenses)/licenses/actions";
 import { ActionButton, FormResult, useRecordForm } from "@/components/forms/record-form";
+import { ReminderDaysPicker } from "@/components/forms/reminder-days-picker";
+import { DEFAULT_LICENSE_RULES } from "@/lib/licenses/rules";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/field";
@@ -51,13 +53,10 @@ export function ReminderDaysForm({ current }: { current: number[] }) {
   const { state, pending, onSubmit } = useRecordForm(saveReminderDaysAction, { reset: false });
   return (
     <form onSubmit={onSubmit} className="space-y-3">
-      <Field
-        label="Remind this many days before expiry"
-        htmlFor="reminderDays"
-        hint="Separate with commas, e.g. 90, 60, 30, 7. Leave blank to go back to the defaults."
-      >
-        <Input id="reminderDays" name="reminderDays" defaultValue={current.join(", ")} className="max-w-xs" />
-      </Field>
+      <fieldset className="space-y-2">
+        <legend className="text-sm font-medium text-slate-700">Remind this long before expiry</legend>
+        <ReminderDaysPicker initial={current} defaults={DEFAULT_LICENSE_RULES.reminderDays} />
+      </fieldset>
       <Button type="submit" size="sm" disabled={pending}>
         {pending ? "Saving…" : "Save reminder days"}
       </Button>

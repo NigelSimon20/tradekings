@@ -166,3 +166,14 @@ h2,
     break-inside: avoid;
   }
 }
+
+/* The months / days wheel (`DurationWheel`): no scrollbar, and the rows fade
+   towards the top and bottom like the iPhone timer. */
+.wheel-column {
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+  mask-image: linear-gradient(to bottom, transparent, #000 32%, #000 68%, transparent);
+}
+.wheel-column::-webkit-scrollbar {
+  display: none;
+}

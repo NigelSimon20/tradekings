@@ -1,19 +1,14 @@
 "use client";
 
-import {
-  archiveDependantAction,
-  removeDocumentAction,
-  restoreExpatAction,
-  saveReminderSettingsAction,
-  setDocumentHistoricalAction,
-  setFollowUpStatusAction,
-} from "@/app/(expats)/expats/actions";
+import { archiveDependantAction, removeDocumentAction, restoreExpatAction, saveReminderSettingsAction, setDocumentHistoricalAction, setFollowUpStatusAction } from "@/app/(expats)/expats/actions";
 import { ActionButton, FormResult, InlineError, useRecordForm } from "@/components/forms/record-form";
+import { ReminderDaysPicker } from "@/components/forms/reminder-days-picker";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Field, Input, Select, Textarea, type SelectOption } from "@/components/ui/field";
+import { Field, Select, Textarea, type SelectOption } from "@/components/ui/field";
 import { SendIcon } from "@/components/ui/icons";
-import { type ActionStatus } from "@/lib/expats/types";
+import { DEFAULT_EXPAT_RULES } from "@/lib/expats/rules";
+import type { ActionStatus } from "@/lib/expats/types";
 import { postJson, useApiAction } from "@/lib/ui/use-api-action";
 
 /** Whose document it is and which record it supports — shared by uploads and links. */
@@ -108,14 +103,10 @@ export function ReminderSettingsForm({ days, recipients }: { days: number[]; rec
   const { state, pending, onSubmit, error } = useRecordForm(saveReminderSettingsAction, { reset: false });
   return (
     <form onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2">
-      <Field
-        label="Remind this many days before expiry"
-        htmlFor="reminderDays"
-        error={error("reminderDays")}
-        hint="Separate with commas, e.g. 90, 60, 30, 7. Blank goes back to the defaults."
-      >
-        <Input id="reminderDays" name="reminderDays" defaultValue={days.join(", ")} />
-      </Field>
+      <fieldset className="space-y-2 sm:col-span-2">
+        <legend className="text-sm font-medium text-slate-700">Remind this long before expiry</legend>
+        <ReminderDaysPicker initial={days} defaults={DEFAULT_EXPAT_RULES.reminderDays} error={error("reminderDays")} />
+      </fieldset>
       <Field
         label="Send every reminder to"
         htmlFor="recipients"

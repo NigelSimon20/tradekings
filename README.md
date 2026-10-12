@@ -132,6 +132,18 @@ on the sheet's **Settings** tab, which takes precedence over the environment
 variables. That is how the system administrator changes recipients without a
 redeploy; anything left blank there falls back to the values above.
 
+## Storing files in a folder someone shared with you
+
+Each app's **Setup & access → Document uploads** can file uploads into a Google
+Drive folder that was shared with the connected Google account — for example a
+folder the company set up. Connect the account first, then paste the folder's
+link under **Store files in a folder shared with …** and press **Use this
+folder**: Google's own window opens showing that folder; press **Select**. The
+tracker checks it can add to it (the account needs Editor access) and from then
+on files go there, in the same sub-folders as before. Picking it in Google's
+window is what gives the tracker access to that one folder — it never asks for
+the rest of Drive. Needs `GOOGLE_PICKER_API_KEY` (see `.env.example`).
+
 ## Expat Tracker
 
 The fourth app behind the same link: a dedicated profile for every Trade Kings

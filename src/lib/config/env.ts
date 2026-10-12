@@ -95,6 +95,8 @@ export interface AppConfig {
     /** No AUTH_SECRET was set, so a throwaway key is in use. */
     secretIsTemporary: boolean;
     google: { clientId: string; clientSecret: string } | null;
+    /** Browser key for Google's folder picker (choosing a shared Drive folder). */
+    pickerApiKey: string;
     /** Addresses that are always administrators, so nobody can be locked out. */
     bootstrapAdmins: string[];
   };
@@ -290,6 +292,7 @@ export function getConfig(): AppConfig {
         googleClientId && googleClientSecret
           ? { clientId: googleClientId, clientSecret: googleClientSecret }
           : null,
+      pickerApiKey: str("GOOGLE_PICKER_API_KEY"),
       bootstrapAdmins,
     },
     cronSecret: str("CRON_SECRET"),

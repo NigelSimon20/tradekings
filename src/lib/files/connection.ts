@@ -13,6 +13,11 @@ export interface DriveConnection {
   refreshToken: string;
   /** The app's own top folder in that account's Drive. */
   folderId: string;
+  /**
+   * A folder someone shared with that account, chosen in Google's folder
+   * picker; when set, uploads are filed there instead of the app's own folder.
+   */
+  sharedFolder?: { id: string; name: string; owner: string; chosenAt: string; chosenBy: string } | null;
   connectedAt: string;
   connectedBy: string;
 }

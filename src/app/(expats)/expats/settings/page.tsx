@@ -4,6 +4,7 @@ import {
   SendRemindersButton,
   SetUpExpatSheetButton,
 } from "@/components/expats/controls";
+import { SharedFolderSection } from "@/components/settings/shared-folder-section";
 import { UsersEditor } from "@/components/settings/users-editor";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -164,11 +165,12 @@ export default async function ExpatSettingsPage({ searchParams }: PageSearchPara
             <div className="space-y-2">
               <p>
                 Documents go to <span className="font-medium text-slate-800">{storage.connectedAccount.email}</span>, in{" "}
-                <span className="font-medium text-slate-800">My Drive / {storage.connectedAccount.folderName}</span>. Connected{" "}
+                <span className="font-medium text-slate-800">{storage.connectedAccount.location}</span>. Connected{" "}
                 {formatTimestamp(storage.connectedAccount.connectedAt, config.timezone)}
                 {storage.connectedAccount.connectedBy ? ` by ${storage.connectedAccount.connectedBy}` : ""}.
               </p>
               <DisconnectExpatDriveButton />
+                <SharedFolderSection app="expats" account={storage.connectedAccount} pickerReady={storage.pickerReady} />
             </div>
           ) : config.auth.google ? (
             <a href="/api/drive/connect?app=expats" className={buttonClasses("primary", "sm")}>

@@ -90,7 +90,7 @@ export async function resolvePhotoStore(
   let store: PhotoStore;
   if (connection && auth.google) {
     store = new DrivePhotoStore({
-      rootFolderId: connection.folderId,
+      rootFolderId: connection.sharedFolder?.id ?? connection.folderId,
       credentials: {
         type: "connected-account",
         clientId: auth.google.clientId,

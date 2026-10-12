@@ -224,16 +224,14 @@ export interface RootFolder {
 /**
  * The top folder for a newly connected account: found again if this account
  * was connected before, otherwise created in its My Drive. With the
- * `drive.file` permission the tracker can only see folders it made, which is
- * why it makes its own rather than using one picked by hand.
+ * `drive.file` permission the tracker can only see folders it made — or one
+ * an administrator picks in Google's folder picker (`inspectSharedFolder`).
  */
 export async function ensureConnectedRootFolder(
-  credentials: Extract<DriveCredentials, { type: "connected-account" }>,
+  credentials: ConnectedAccount,
   root: RootFolder,
 ): Promise<string> {
-  const oauth = new googleAuth.OAuth2(credentials.clientId, credentials.clientSecret);
-  oauth.setCredentials({ refresh_token: credentials.refreshToken });
-  const api = driveApi({ version: "v3", auth: oauth });
+  const { api } = connectedClient(credentials);
 
   const existing = await api.files.list({
     q: `appProperties has { key='trackerRoot' and value=${quote(root.marker)} } and mimeType=${quote(FOLDER)} and trashed=false`,
@@ -248,4 +246,62 @@ export async function ensureConnectedRootFolder(
     fields: "id",
   });
   return created.data.id!;
+}
+
+type ConnectedAccount = Extract<DriveCredentials, { type: "connected-account" }>;
+
+function connectedClient(credentials: ConnectedAccount) {
+  const oauth = new googleAuth.OAuth2(credentials.clientId, credentials.clientSecret);
+  oauth.setCredentials({ refresh_token: credentials.refreshToken });
+  return { oauth, api: driveApi({ version: "v3", auth: oauth }) };
+}
+
+/**
+ * A short-lived access token for the connected account, limited to the
+ * tracker's own `drive.file` permission. Only used to open Google's folder
+ * picker in an administrator's browser; the refresh token stays on the server.
+ */
+export async function connectedAccessToken(credentials: ConnectedAccount): Promise<string> {
+  const { token } = await connectedClient(credentials).oauth.getAccessToken();
+  if (!token) throw new Error("Google did not give an access token for the connected account. Connect it again.");
+  return token;
+}
+
+/**
+ * Checks a folder picked in Google's picker can take uploads: it is a folder,
+ * not in the bin, and this account may add to it.
+ */
+export async function inspectSharedFolder(
+  credentials: ConnectedAccount,
+  folderId: string,
+): Promise<{ id: string; name: string; owner: string }> {
+  let file: drive_v3.Schema$File;
+  try {
+    const response = await connectedClient(credentials).api.files.get({
+      ...SHARED,
+      fileId: folderId,
+      fields: "id,name,mimeType,trashed,capabilities(canAddChildren),owners(emailAddress,displayName),driveId",
+    });
+    file = response.data;
+  } catch (error) {
+    if (/not found|404/i.test(String((error as Error).message))) {
+      throw new Error(
+        `The tracker cannot see that folder from ${credentials.email}. Choose it in the Google window (that is what gives the tracker access), and check it is shared with ${credentials.email}.`,
+      );
+    }
+    throw new Error(describeGoogleError(error));
+  }
+  if (file.mimeType !== FOLDER) throw new Error("That is a file, not a folder. Choose a folder.");
+  if (file.trashed) throw new Error("That folder is in the bin.");
+  if (file.capabilities?.canAddChildren === false) {
+    throw new Error(
+      `${credentials.email} can only view that folder. Ask its owner to share it with ${credentials.email} as an Editor, then choose it again.`,
+    );
+  }
+  const owner = file.owners?.[0];
+  return {
+    id: file.id!,
+    name: file.name ?? "Shared folder",
+    owner: file.driveId ? "a Shared drive" : (owner?.displayName || owner?.emailAddress || ""),
+  };
 }

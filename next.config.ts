@@ -24,7 +24,9 @@ const CONTENT_SECURITY_POLICY = [
   "font-src 'self' data:",
   // Next.js inlines its bootstrap script and Tailwind inlines styles.
   "style-src 'self' 'unsafe-inline'",
-  "script-src 'self' 'unsafe-inline'",
+  // Google's folder picker (Setup & access → "Store files in a folder shared with…").
+  "script-src 'self' 'unsafe-inline' https://apis.google.com",
+  "frame-src https://docs.google.com https://drive.google.com",
   "connect-src 'self'",
   "upgrade-insecure-requests",
 ].join("; ");

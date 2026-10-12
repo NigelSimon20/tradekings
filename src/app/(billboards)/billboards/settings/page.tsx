@@ -10,6 +10,7 @@ import { RoleMatrix } from "@/components/ui/role-matrix";
 import { BILLBOARD_TABLES } from "@/lib/billboards/data/sheet-tables";
 import { getRoleTable, requireBillboardViewer } from "@/lib/services/auth";
 import { loadUsersEditor } from "@/lib/services/users";
+import { SharedFolderSection } from "@/components/settings/shared-folder-section";
 import { UsersEditor } from "@/components/settings/users-editor";
 import { getConfig } from "@/lib/config/env";
 import { formatTimestamp } from "@/lib/date/dates";
@@ -114,17 +115,18 @@ export default async function BillboardSettingsPage({ searchParams }: PageSearch
           </p>
 
           <section className="space-y-2 rounded-xl p-4 ring-1 ring-slate-200">
-            <p className="font-medium text-slate-900">Option 1 — Connect a Google account</p>
+            <p className="font-medium text-slate-900">Connect a Google account</p>
             {photos.connectedAccount ? (
               <>
                 <p>
                   Uploads go to{" "}
                   <span className="font-medium text-slate-800">{photos.connectedAccount.email}</span>, in{" "}
-                  <span className="font-medium text-slate-800">My Drive / {photos.connectedAccount.folderName}</span>.
+                  <span className="font-medium text-slate-800">{photos.connectedAccount.location}</span>.
                   Connected {formatTimestamp(photos.connectedAccount.connectedAt, timezone)}
                   {photos.connectedAccount.connectedBy ? ` by ${photos.connectedAccount.connectedBy}` : ""}.
                 </p>
                 <DisconnectDriveButton />
+                <SharedFolderSection app="billboards" account={photos.connectedAccount} pickerReady={photos.pickerReady} />
               </>
             ) : (
               <>
@@ -152,15 +154,6 @@ export default async function BillboardSettingsPage({ searchParams }: PageSearch
                 connecting.
               </Alert>
             ) : null}
-          </section>
-
-          <section className="space-y-2 rounded-xl p-4 ring-1 ring-slate-200">
-            <p className="font-medium text-slate-900">Option 2 — Company Shared drive (recommended for the live system)</p>
-            <p>
-              The photos belong to Trade Kings rather than one person. Needs Google Workspace (company Google
-              accounts) — personal Gmail accounts cannot have Shared drives.
-              {photos.connectedAccount ? " A connected account (Option 1) takes priority; disconnect it to switch." : ""}
-            </p>
           </section>
         </CardBody>
       </Card>

@@ -39,6 +39,12 @@ plain label when that is a single app (`lib/domain/projects.ts`).
   `detectFileType` (its bytes), never the name. Previews are served by
   `/api/billboards/files/[id]`, which only serves files recorded in the
   Documents tab — never an arbitrary Drive id.
+- A connected account can instead file into a folder someone shared with it:
+  the administrator picks it in Google's picker (`SharedFolderPicker`, route
+  `/api/drive/folder`), which is what grants `drive.file` access to it; it is
+  saved as `sharedFolder` on the sealed connection. The picker gets a
+  short-lived access token for that account — the refresh token still never
+  leaves the server. Never widen the scope beyond `drive.file` to do this.
 - Pasted links must pass `isSafeUrl` on save and are re-checked on render
   (`ExternalLink`), because cells typed straight into the sheet skip the form.
 

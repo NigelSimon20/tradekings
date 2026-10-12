@@ -12,9 +12,9 @@
     "typecheck": "tsc --noEmit",
     "sheet:setup": "tsx scripts/setup-sheet.ts",
     "sheet:check": "tsx scripts/check-sheet.ts",
-    "billboards:seed": "tsx scripts/seed-billboards.ts",
-    "licenses:seed": "tsx scripts/seed-licenses.ts",
-    "expats:seed": "tsx scripts/seed-expats.ts"
+    "billboards:seed": "tsx scripts/seed-sample.ts billboards",
+    "licenses:seed": "tsx scripts/seed-sample.ts licenses",
+    "expats:seed": "tsx scripts/seed-sample.ts expats"
   },
   "dependencies": {
     "@googleapis/drive": "^26.0.1",

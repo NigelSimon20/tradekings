@@ -1,7 +1,16 @@
 import { z } from "zod";
 
-import { isSafeUrl } from "@/lib/billboards/schema";
-import { isISODate } from "@/lib/date/dates";
+import {
+  money,
+  optionalDate,
+  optionalEmail,
+  parseForm,
+  requiredDate,
+  requiredUrl,
+  text,
+  withOptionalId,
+  type Parsed,
+} from "@/lib/forms/fields";
 import {
   ACTION_STATUSES,
   APPLICATION_STATUSES,
@@ -25,25 +34,6 @@ import {
  * actions. Links must be http(s), so a `javascript:` URL can never be saved
  * into the sheet and run when clicked.
  */
-
-const text = z.string().trim();
-
-const optionalEmail = text.refine((value) => value === "" || z.email().safeParse(value).success, {
-  message: "Enter a valid email address",
-});
-
-const optionalDate = text
-  .refine((value) => value === "" || isISODate(value), { message: "Use the date picker (yyyy-mm-dd)" })
-  .transform((value) => (value === "" ? null : value));
-
-const requiredDate = (message: string) => optionalDate.refine((value) => value !== null, { message });
-
-const money = (label: string) =>
-  text
-    .transform((value) => (value === "" ? null : Number(value.replace(/[, ]/g, ""))))
-    .refine((value) => value === null || (Number.isFinite(value) && value >= 0 && value <= 10_000_000), {
-      message: `${label} must be a positive amount`,
-    });
 
 const expatSchema = z
   .object({
@@ -163,7 +153,7 @@ const documentLinkSchema = z.object({
   recordId: text,
   category: z.enum(DOCUMENT_CATEGORIES),
   title: text.min(1, "Give the document a title"),
-  url: text.min(1, "Paste the link to the file").refine(isSafeUrl, { message: "Paste a full link starting with https://" }),
+  url: requiredUrl(),
   expiryDate: optionalDate,
 });
 
@@ -184,75 +174,22 @@ export type FollowUpInput = Omit<FollowUp, "id" | "createdAt" | "createdBy" | "c
 export type DocumentLinkInput = z.infer<typeof documentLinkSchema>;
 export type UploadInput = z.infer<typeof uploadSchema>;
 
-export interface ParsedExpatForm<T> {
-  ok: boolean;
-  values: T | null;
-  errors: Record<string, string>;
-}
+export const parseExpatForm = (formData: FormData): Parsed<ExpatInput> =>
+  withOptionalId(parseForm(expatSchema, formData, { company: EXPAT_COMPANIES[0], employmentStatus: "Active" }));
 
-function formValues(formData: FormData): Record<string, string> {
-  return Object.fromEntries(
-    Array.from(formData.entries()).map(([key, value]) => [key, typeof value === "string" ? value : ""]),
-  );
-}
+export const parseOffboardForm = (formData: FormData): Parsed<OffboardingInput> => parseForm(offboardSchema, formData);
 
-function parse<T>(schema: z.ZodType<T>, input: unknown): ParsedExpatForm<T> {
-  const result = schema.safeParse(input);
-  if (result.success) return { ok: true, values: result.data, errors: {} };
-  const errors: Record<string, string> = {};
-  for (const issue of result.error.issues) {
-    const key = String(issue.path[0] ?? "form");
-    if (!errors[key] && issue.message) errors[key] = issue.message;
-  }
-  return { ok: false, values: null, errors };
-}
+export const parseDependantForm = (formData: FormData): Parsed<DependantInput> => parseForm(dependantSchema, formData);
 
-const pick = (raw: Record<string, string>, keys: string[]) => Object.fromEntries(keys.map((key) => [key, raw[key] ?? ""]));
+export const parsePermitForm = (formData: FormData): Parsed<PermitInput> => parseForm(permitSchema, formData, { status: "Issued" });
 
-export function parseExpatForm(formData: FormData): ParsedExpatForm<ExpatInput> {
-  const raw = formValues(formData);
-  const parsed = parse(expatSchema, {
-    ...pick(raw, Object.keys(expatSchema.shape)),
-    company: raw.company || EXPAT_COMPANIES[0],
-    employmentStatus: raw.employmentStatus || "Active",
-  });
-  if (!parsed.ok || !parsed.values) return { ...parsed, values: null };
-  const { id, ...values } = parsed.values;
-  return { ...parsed, values: { ...values, id: id.toUpperCase() || undefined } };
-}
+export const parseLeaseForm = (formData: FormData): Parsed<LeaseInput> => parseForm(leaseSchema, formData, { status: "Active" });
 
-export const parseOffboardForm = (formData: FormData): ParsedExpatForm<OffboardingInput> =>
-  parse(offboardSchema, pick(formValues(formData), Object.keys(offboardSchema.shape))) as ParsedExpatForm<OffboardingInput>;
+export const parseVehicleForm = (formData: FormData): Parsed<VehicleInput> =>
+  parseForm(vehicleSchema, formData, { ownership: VEHICLE_OWNERSHIP[0], status: "In use" });
 
-export const parseDependantForm = (formData: FormData): ParsedExpatForm<DependantInput> =>
-  parse(dependantSchema, pick(formValues(formData), Object.keys(dependantSchema.shape)));
+export const parseFollowUpForm = (formData: FormData): Parsed<FollowUpInput> => parseForm(actionSchema, formData, { status: "Open" });
 
-export function parsePermitForm(formData: FormData): ParsedExpatForm<PermitInput> {
-  const raw = formValues(formData);
-  return parse(permitSchema, { ...pick(raw, Object.keys(permitSchema.shape)), status: raw.status || "Issued" });
-}
+export const parseDocumentLinkForm = (formData: FormData) => parseForm(documentLinkSchema, formData);
 
-export function parseLeaseForm(formData: FormData): ParsedExpatForm<LeaseInput> {
-  const raw = formValues(formData);
-  return parse(leaseSchema, { ...pick(raw, Object.keys(leaseSchema.shape)), status: raw.status || "Active" });
-}
-
-export function parseVehicleForm(formData: FormData): ParsedExpatForm<VehicleInput> {
-  const raw = formValues(formData);
-  return parse(vehicleSchema, {
-    ...pick(raw, Object.keys(vehicleSchema.shape)),
-    ownership: raw.ownership || VEHICLE_OWNERSHIP[0],
-    status: raw.status || "In use",
-  });
-}
-
-export function parseFollowUpForm(formData: FormData): ParsedExpatForm<FollowUpInput> {
-  const raw = formValues(formData);
-  return parse(actionSchema, { ...pick(raw, Object.keys(actionSchema.shape)), status: raw.status || "Open" });
-}
-
-export const parseDocumentLinkForm = (formData: FormData) =>
-  parse(documentLinkSchema, pick(formValues(formData), Object.keys(documentLinkSchema.shape)));
-
-export const parseUploadForm = (formData: FormData) =>
-  parse(uploadSchema, pick(formValues(formData), Object.keys(uploadSchema.shape)));
+export const parseUploadForm = (formData: FormData) => parseForm(uploadSchema, formData);

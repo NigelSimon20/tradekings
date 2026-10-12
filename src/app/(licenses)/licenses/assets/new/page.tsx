@@ -3,7 +3,7 @@ import Link from "next/link";
 import { AssetForm } from "@/components/licenses/asset-form";
 import { ArrowLeftIcon } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
-import { distinct } from "@/lib/licenses/filters";
+import { distinct } from "@/lib/domain/filters";
 import { requireLicenseViewer } from "@/lib/services/auth";
 import { loadLicenses } from "@/lib/services/licenses";
 

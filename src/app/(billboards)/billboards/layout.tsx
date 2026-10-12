@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
-import { BillboardsUnavailable } from "@/components/billboards/billboards-unavailable";
+import { setUpBillboardSheetAction } from "@/app/(billboards)/billboards/actions";
 import { AppShell } from "@/components/layout/app-shell";
+import { TrackerUnavailable } from "@/components/settings/setup-cards";
 import { canBillboards } from "@/lib/auth/roles";
 import { getBillboardRepository } from "@/lib/billboards/data";
+import { BILLBOARD_STORE } from "@/lib/billboards/data/sheet-tables";
 import { requireBillboardViewer } from "@/lib/services/auth";
 import { loadBillboards } from "@/lib/services/billboards";
 
@@ -29,7 +31,11 @@ export default async function BillboardsLayout({ children }: { children: ReactNo
 
   return (
     <AppShell project="billboards">
-      {error ? <BillboardsUnavailable reason={error} canSetUp={canSetUp} /> : children}
+      {error ? (
+        <TrackerUnavailable store={BILLBOARD_STORE} reason={error} setUp={canSetUp ? setUpBillboardSheetAction : undefined} />
+      ) : (
+        children
+      )}
     </AppShell>
   );
 }

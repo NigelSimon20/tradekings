@@ -8,7 +8,7 @@ import { buttonClasses } from "@/components/ui/button";
 import { ArrowLeftIcon, ChevronRightIcon, LinkIcon } from "@/components/ui/icons";
 import { Modal } from "@/components/ui/modal";
 import { filePreviewUrl as previewUrl } from "@/lib/files/files";
-import { isSafeUrl } from "@/lib/billboards/schema";
+import { isSafeUrl } from "@/lib/forms/fields";
 import type { BillboardFile } from "@/lib/billboards/types";
 import { formatDate } from "@/lib/date/dates";
 

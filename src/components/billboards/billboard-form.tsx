@@ -1,22 +1,23 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { startTransition, useActionState, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { type ReactNode } from "react";
 
 import { saveBillboardAction } from "@/app/(billboards)/billboards/actions";
-import { LocationPicker } from "@/components/billboards/location-picker";
-import { Alert } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Field, Input, Select, Textarea } from "@/components/ui/field";
-import { EMPTY_BILLBOARD_FORM_STATE } from "@/lib/billboards/form-state";
+import { Field, Select } from "@/components/ui/field";
 import {
-  BILLBOARD_STATUSES,
-  BILLBOARD_TYPES,
-  SITE_CONDITIONS,
-  type Billboard,
-} from "@/lib/billboards/types";
+  CoordinatesFields,
+  FormError,
+  FormFooter,
+  FormSection,
+  NotesField,
+  Suggestions,
+  TextField,
+  fieldsSoFar,
+  textOf,
+  type TextFieldProps,
+} from "@/components/forms/form-parts";
+import { useRecordForm } from "@/components/forms/record-form";
+import { BILLBOARD_STATUSES, BILLBOARD_TYPES, SITE_CONDITIONS, type Billboard } from "@/lib/billboards/types";
 
 const options = (values: readonly string[]) => values.map((value) => ({ value, label: value }));
 
@@ -34,93 +35,36 @@ export function BillboardForm({
   /** Towns already in use, offered as suggestions so spellings stay consistent. */
   cities: string[];
 }) {
-  const router = useRouter();
-  const [state, dispatch, pending] = useActionState(saveBillboardAction, EMPTY_BILLBOARD_FORM_STATE);
-  const form = useRef<HTMLFormElement>(null);
-  // Coordinates are typed or picked on the map, so the two stay in step.
-  const [latitude, setLatitude] = useState(defaults.latitude?.toString() ?? "");
-  const [longitude, setLongitude] = useState(defaults.longitude?.toString() ?? "");
-  const pinned =
-    latitude.trim() && longitude.trim() && Number.isFinite(Number(latitude)) && Number.isFinite(Number(longitude))
-      ? { latitude: Number(latitude), longitude: Number(longitude) }
-      : null;
-  /** Road, area and town as typed so far — the picker's first search. */
-  const placeSoFar = () => {
-    const field = (name: string) =>
-      String((form.current?.elements.namedItem(name) as HTMLInputElement | null)?.value ?? "").trim();
-    return [field("road"), field("area"), field("city")].filter(Boolean).join(", ") || field("address");
-  };
-
-  useEffect(() => {
-    if (state.status === "success" && state.billboardId) {
-      router.push(`/billboards/${encodeURIComponent(state.billboardId)}`);
-    }
-  }, [state, router]);
-
-  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    startTransition(() => dispatch(data));
-  };
+  const { state, pending, onSubmit, form } = useRecordForm(saveBillboardAction, {
+    reset: false,
+    openSaved: (saved) => (saved.recordId ? `/billboards/${encodeURIComponent(saved.recordId)}` : null),
+  });
+  /** Road, area and town as typed so far — the map picker's first search. */
+  const placeSoFar = () => fieldsSoFar(form.current, ["road", "area", "city"]) || fieldsSoFar(form.current, ["address"]);
 
   const error = (field: string) => state.errors[field];
-  const text = (key: keyof Billboard) => {
-    const value = defaults[key];
-    return value === null || value === undefined ? "" : String(value);
-  };
+  const text = (key: keyof Billboard) => textOf(defaults[key]);
 
-  const input = (
-    key: keyof Billboard,
-    label: string,
-    extra: { type?: string; required?: boolean; hint?: ReactNode; placeholder?: string; wide?: boolean } = {},
-  ) => (
-    <Field
-      label={label}
-      htmlFor={key}
-      required={extra.required}
-      error={error(key)}
-      hint={extra.hint}
-      className={extra.wide ? "sm:col-span-2" : undefined}
-    >
-      <Input
-        id={key}
-        name={key}
-        type={extra.type ?? "text"}
-        defaultValue={text(key)}
-        placeholder={extra.placeholder}
-        step={extra.type === "number" ? "any" : undefined}
-        list={key === "city" ? "billboard-cities" : undefined}
-      />
-    </Field>
+  const input = (key: keyof Billboard, label: string, extra: Partial<TextFieldProps> = {}) => (
+    <TextField name={key} label={label} error={error} defaultValue={defaults[key]} list={key === "city" ? "billboard-cities" : undefined} {...extra} />
   );
 
   const area = (key: keyof Billboard, label: string, hint?: string) => (
-    <Field label={label} htmlFor={key} error={error(key)} hint={hint} className="sm:col-span-2">
-      <Textarea id={key} name={key} rows={2} defaultValue={text(key)} />
-    </Field>
+    <NotesField name={key} label={label} error={error} defaultValue={defaults[key]} rows={2} hint={hint} />
   );
 
   const section = (title: string, description: string, children: ReactNode) => (
-    <Card>
-      <CardHeader title={title} description={description} />
-      <CardBody className="grid gap-4 sm:grid-cols-2">{children}</CardBody>
-    </Card>
+    <FormSection title={title} description={description}>
+      {children}
+    </FormSection>
   );
 
   return (
     <form ref={form} onSubmit={onSubmit} className="space-y-5">
       <input type="hidden" name="existingId" value={mode === "edit" ? text("id") : ""} />
-      <datalist id="billboard-cities">
-        {cities.map((city) => (
-          <option key={city} value={city} />
-        ))}
-      </datalist>
+      <Suggestions id="billboard-cities" values={cities} />
 
-      {state.status === "error" ? (
-        <Alert tone="critical" title="The billboard was not saved">
-          {state.message}
-        </Alert>
-      ) : null}
+      <FormError state={state} title="The billboard was not saved" />
 
       {section(
         "The site",
@@ -148,36 +92,7 @@ export function BillboardForm({
           {input("city", "City / town", { required: true })}
           {input("area", "Area / suburb")}
           {input("road", "Road", { wide: true })}
-          <Field label="Latitude" htmlFor="latitude" error={error("latitude")}>
-            <Input
-              id="latitude"
-              name="latitude"
-              type="number"
-              step="any"
-              value={latitude}
-              onChange={(event) => setLatitude(event.target.value)}
-              placeholder="-17.8292"
-            />
-          </Field>
-          <Field label="Longitude" htmlFor="longitude" error={error("longitude")}>
-            <Input
-              id="longitude"
-              name="longitude"
-              type="number"
-              step="any"
-              value={longitude}
-              onChange={(event) => setLongitude(event.target.value)}
-              placeholder="31.0522"
-            />
-          </Field>
-          <LocationPicker
-            value={pinned}
-            suggestedSearch={placeSoFar}
-            onPick={(point) => {
-              setLatitude(String(point.latitude));
-              setLongitude(String(point.longitude));
-            }}
-          />
+          <CoordinatesFields error={error} defaults={defaults} suggestedSearch={placeSoFar} />
         </>,
       )}
 
@@ -259,17 +174,7 @@ export function BillboardForm({
         </>,
       )}
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Button type="submit" disabled={pending}>
-          {pending ? "Saving…" : mode === "create" ? "Add billboard" : "Save changes"}
-        </Button>
-        <Link
-          href={mode === "edit" ? `/billboards/${encodeURIComponent(text("id"))}` : "/billboards/list"}
-          className="text-sm font-medium text-slate-600 hover:text-slate-900"
-        >
-          Cancel
-        </Link>
-      </div>
+      <FormFooter pending={pending} submitLabel={mode === "create" ? "Add billboard" : "Save changes"} cancelHref={mode === "edit" ? `/billboards/${encodeURIComponent(text("id"))}` : "/billboards/list"} />
     </form>
   );
 }

@@ -3,18 +3,21 @@ import "server-only";
 import { cache } from "react";
 
 import { getBillboardRepository } from "@/lib/billboards/data";
+import { emptyData } from "@/lib/data/record-store";
+import { describeChanges, newId, newestFirst, nextId, timestamp } from "@/lib/data/records";
 import { getPhotoStore } from "@/lib/files";
 import { checkStorage, connectStorageAccount, disconnectStorageAccount } from "@/lib/services/storage";
 import {
   MAX_UPLOAD_BYTES,
   cityFolderName,
   detectFileType,
+  fileStamp,
   siteFolderName,
   storedFileName,
   titleFromFileName,
 } from "@/lib/files/files";
 import type { FileContent } from "@/lib/files/store";
-import { BILLBOARDS_TABLE } from "@/lib/billboards/data/sheet-tables";
+import { BILLBOARDS_TABLE, BILLBOARD_STORE } from "@/lib/billboards/data/sheet-tables";
 import { evaluateBillboards } from "@/lib/billboards/evaluate";
 import type {
   ActivityEntry,
@@ -44,7 +47,7 @@ export interface BillboardSnapshot {
   error: string | null;
 }
 
-const EMPTY: BillboardData = { billboards: [], campaigns: [], maintenance: [], files: [], activity: [] };
+const EMPTY: BillboardData = emptyData(BILLBOARD_STORE);
 
 /** Reads the billboard data once per request and applies the rules. Never throws. */
 export const loadBillboards = cache(async (): Promise<BillboardSnapshot> => {
@@ -85,8 +88,6 @@ export interface BillboardProfile {
   files: BillboardFile[];
   activity: ActivityEntry[];
 }
-
-const newestFirst = <T,>(key: (item: T) => string) => (a: T, b: T) => key(b).localeCompare(key(a));
 
 /** Everything recorded against one site, newest first. Archived sites stay readable. */
 export async function getBillboardProfile(id: string): Promise<BillboardProfile | null> {
@@ -130,41 +131,8 @@ export async function setUpBillboardStorage() {
 // so the history of a site survives edits.
 // ---------------------------------------------------------------------------
 
-function stamp(): string {
-  return new Date().toISOString();
-}
-
-function newId(prefix: string): string {
-  return `${prefix}-${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
-}
-
 function activity(billboardId: string, by: string, action: string, details = ""): ActivityEntry {
-  return { id: newId("ACT"), at: stamp(), by, billboardId, action, details };
-}
-
-/** `BB-023` after `BB-022`, so IDs stay short and readable. */
-function nextBillboardId(existing: Billboard[]): string {
-  const highest = existing.reduce((max, billboard) => {
-    const match = /^BB-(\d+)$/i.exec(billboard.id);
-    return match ? Math.max(max, Number(match[1])) : max;
-  }, 0);
-  return `BB-${String(highest + 1).padStart(3, "0")}`;
-}
-
-const COLUMN_LABELS = new Map(BILLBOARDS_TABLE.columns.map((column) => [column.key, column.header]));
-const IGNORED_IN_DIFF = new Set(["lastUpdated", "lastUpdatedBy", "rowNumber"]);
-
-/** "Status: Active → Under Maintenance; Lease Expiry: 2026-01-31 → 2027-01-31" */
-export function describeChanges(before: Billboard, after: Billboard): string {
-  const show = (value: unknown) => {
-    if (value === null || value === undefined || value === "") return "(blank)";
-    if (typeof value === "boolean") return value ? "Yes" : "No";
-    return String(value);
-  };
-  return (Object.keys(after) as (keyof Billboard)[])
-    .filter((key) => !IGNORED_IN_DIFF.has(key) && show(before[key]) !== show(after[key]))
-    .map((key) => `${COLUMN_LABELS.get(key) ?? key}: ${show(before[key])} → ${show(after[key])}`)
-    .join("; ");
+  return { id: newId("ACT"), at: timestamp(), by, billboardId, action, details };
 }
 
 export async function saveBillboard(
@@ -183,13 +151,13 @@ export async function saveBillboard(
       ...input,
       id: before.id,
       archived: before.archived,
-      lastUpdated: stamp(),
+      lastUpdated: timestamp(),
       lastUpdatedBy: actor,
     };
-    const changes = describeChanges(before, after);
+    const changes = describeChanges(BILLBOARDS_TABLE, before, after);
     if (!changes) return before;
-    await repository.saveBillboard(after);
-    await repository.appendActivity([activity(after.id, actor, "Updated", changes)]);
+    await repository.save("billboards", after);
+    await repository.append("activity", [activity(after.id, actor, "Updated", changes)]);
     return after;
   }
 
@@ -199,13 +167,13 @@ export async function saveBillboard(
   }
   const created: Billboard = {
     ...input,
-    id: requested || nextBillboardId(billboards),
+    id: requested || nextId("BB", billboards),
     archived: false,
-    lastUpdated: stamp(),
+    lastUpdated: timestamp(),
     lastUpdatedBy: actor,
   };
-  await repository.saveBillboard(created);
-  await repository.appendActivity([activity(created.id, actor, "Added", `${created.name}, ${created.city}`)]);
+  await repository.save("billboards", created);
+  await repository.append("activity", [activity(created.id, actor, "Added", `${created.name}, ${created.city}`)]);
   return created;
 }
 
@@ -220,8 +188,8 @@ export async function setBillboardArchived(id: string, archived: boolean, actor:
   const repository = getBillboardRepository();
   const billboard = await requireBillboard(id);
   if (billboard.archived === archived) return;
-  await repository.saveBillboard({ ...billboard, archived, lastUpdated: stamp(), lastUpdatedBy: actor });
-  await repository.appendActivity([
+  await repository.save("billboards", { ...billboard, archived, lastUpdated: timestamp(), lastUpdatedBy: actor });
+  await repository.append("activity", [
     activity(id, actor, archived ? "Archived" : "Restored", archived ? "Hidden from the map and dashboard; history kept." : ""),
   ]);
 }
@@ -229,9 +197,9 @@ export async function setBillboardArchived(id: string, archived: boolean, actor:
 export async function addCampaign(input: NewCampaign, actor: string): Promise<void> {
   const repository = getBillboardRepository();
   await requireBillboard(input.billboardId);
-  const campaign: Campaign = { ...input, id: newId(`${input.billboardId}-C`), recordedAt: stamp(), recordedBy: actor };
-  await repository.addCampaign(campaign);
-  await repository.appendActivity([
+  const campaign: Campaign = { ...input, id: newId(`${input.billboardId}-C`), recordedAt: timestamp(), recordedBy: actor };
+  await repository.append("campaigns", [campaign]);
+  await repository.append("activity", [
     activity(
       input.billboardId,
       actor,
@@ -253,10 +221,10 @@ export async function addMaintenance(input: NewMaintenanceRecord, actor: string)
   const record: MaintenanceRecord = {
     ...input,
     id: newId(`${input.billboardId}-M`),
-    recordedAt: stamp(),
+    recordedAt: timestamp(),
     recordedBy: actor,
   };
-  await repository.addMaintenance(record);
+  await repository.append("maintenance", [record]);
 
   const isInspection = input.kind === "Inspection";
   const after: Billboard = {
@@ -268,11 +236,11 @@ export async function addMaintenance(input: NewMaintenanceRecord, actor: string)
         : before.lastInspection,
     nextInspection: input.nextInspection ?? before.nextInspection,
   };
-  const changes = describeChanges(before, after);
+  const changes = describeChanges(BILLBOARDS_TABLE, before, after);
   if (changes) {
-    await repository.saveBillboard({ ...after, lastUpdated: stamp(), lastUpdatedBy: actor });
+    await repository.save("billboards", { ...after, lastUpdated: timestamp(), lastUpdatedBy: actor });
   }
-  await repository.appendActivity([
+  await repository.append("activity", [
     activity(
       input.billboardId,
       actor,
@@ -288,14 +256,14 @@ export async function addFile(input: NewBillboardFile, actor: string): Promise<v
   const file: BillboardFile = {
     ...input,
     id: newId(`${input.billboardId}-F`),
-    addedAt: stamp(),
+    addedAt: timestamp(),
     addedBy: actor,
     removed: false,
     storedFileId: "",
     mimeType: "",
   };
-  await repository.saveFile(file);
-  await repository.appendActivity([activity(input.billboardId, actor, "Document added", `${file.category}: ${file.title}`)]);
+  await repository.save("files", file);
+  await repository.append("activity", [activity(input.billboardId, actor, "Document added", `${file.category}: ${file.title}`)]);
 }
 
 /** How uploads are set up, for Setup & access. Never includes the stored token. */
@@ -314,14 +282,14 @@ export async function connectDriveAccount(
   actor: string,
 ): Promise<void> {
   await connectStorageAccount("billboards", grant, clientId, clientSecret, actor);
-  await getBillboardRepository().appendActivity([
+  await getBillboardRepository().append("activity", [
     activity("", actor, "Uploads connected", `Photos will be stored in the Google Drive of ${grant.email}.`),
   ]);
 }
 
 export async function disconnectDriveAccount(actor: string): Promise<void> {
   await disconnectStorageAccount("billboards");
-  await getBillboardRepository().appendActivity([
+  await getBillboardRepository().append("activity", [
     activity("", actor, "Uploads disconnected", "Files already uploaded stay in Drive."),
   ]);
 }
@@ -332,22 +300,6 @@ function billboardFileLocation(billboard: Billboard) {
     folders: [cityFolderName(billboard.city), siteFolderName(billboard)],
     key: { name: "billboardId", value: billboard.id },
   };
-}
-
-/** `2026-09-27 1405` in the app's timezone, for ordering uploaded files by name. */
-function fileStamp(): string {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: getConfig().timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(new Date());
-  const part = (type: string) => parts.find((entry) => entry.type === type)?.value ?? "";
-  return `${part("year")}-${part("month")}-${part("day")} ${part("hour")}${part("minute")}${part("second")}`;
 }
 
 /**
@@ -369,7 +321,7 @@ export async function uploadBillboardFile(
   const billboard = await requireBillboard(input.billboardId);
   const title = input.title.trim() || titleFromFileName(upload.name) || input.category;
   const stored = await (await getPhotoStore("billboards")).save(billboardFileLocation(billboard), {
-    name: storedFileName(fileStamp(), input.category, title, type.extension),
+    name: storedFileName(fileStamp(getConfig().timezone), input.category, title, type.extension),
     mimeType: type.mimeType,
     bytes: upload.bytes,
   });
@@ -379,15 +331,15 @@ export async function uploadBillboardFile(
     title,
     url: stored.url,
     id: newId(`${input.billboardId}-F`),
-    addedAt: stamp(),
+    addedAt: timestamp(),
     addedBy: actor,
     removed: false,
     storedFileId: stored.id,
     mimeType: type.mimeType,
   };
   const repository = getBillboardRepository();
-  await repository.saveFile(file);
-  await repository.appendActivity([
+  await repository.save("files", file);
+  await repository.append("activity", [
     activity(input.billboardId, actor, type.isImage ? "Photo uploaded" : "Document uploaded", `${file.category}: ${title}`),
   ]);
   return file;
@@ -416,8 +368,8 @@ export async function removeFile(fileId: string, actor: string): Promise<string>
   const file = files.find((entry) => entry.id === fileId);
   if (!file) throw new Error("That document was not found.");
   if (!file.removed) {
-    await repository.saveFile({ ...file, removed: true });
-    await repository.appendActivity([
+    await repository.save("files", { ...file, removed: true });
+    await repository.append("activity", [
       activity(file.billboardId, actor, "Document removed", `${file.category}: ${file.title} (the record is kept)`),
     ]);
   }

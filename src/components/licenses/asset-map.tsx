@@ -3,9 +3,9 @@
 import "leaflet/dist/leaflet.css";
 
 import Link from "next/link";
-import type { LayerGroup, Map as LeafletMap } from "leaflet";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { useLeafletMap } from "@/components/maps/use-leaflet-map";
 import { ButtonLink } from "@/components/ui/button";
 import { Select } from "@/components/ui/field";
 import { CloseIcon } from "@/components/ui/icons";
@@ -14,8 +14,6 @@ import { LOCATION_ASSET_TYPES, type LicenseStatus } from "@/lib/licenses/types";
 import { formatDate } from "@/lib/date/dates";
 import { TONE_CLASSES, TONE_COLORS } from "@/lib/ui/tones";
 import { cn } from "@/lib/ui/cn";
-
-type Leaflet = typeof import("leaflet");
 
 /** A location on the map, with what the summary card shows. */
 export interface MapPoint {
@@ -30,8 +28,6 @@ export interface MapPoint {
   licenses: { id: string; name: string; status: LicenseStatus; expiryDate: string | null }[];
 }
 
-const COUNTRY: [number, number] = [-19.0, 29.8];
-
 const colourOf = (status: LicenseStatus | null) =>
   status ? TONE_COLORS[LICENSE_STATUS_META[status].tone].solid : TONE_COLORS.neutral.solid;
 
@@ -44,34 +40,14 @@ export function AssetMap({ points }: { points: MapPoint[] }) {
   const [type, setType] = useState("");
   const [status, setStatus] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [ready, setReady] = useState(false);
   const element = useRef<HTMLDivElement>(null);
-  const leaflet = useRef<{ L: Leaflet; map: LeafletMap; layer: LayerGroup } | null>(null);
+  const { ready, leaflet } = useLeafletMap(element, (L, map) => ({ layer: L.layerGroup().addTo(map) }));
 
   const visible = useMemo(
     () => points.filter((point) => (!type || point.type === type) && (!status || point.worstStatus === status)),
     [points, type, status],
   );
   const selected = visible.find((point) => point.id === selectedId) ?? null;
-
-  useEffect(() => {
-    let cancelled = false;
-    void import("leaflet").then((L) => {
-      if (cancelled || !element.current) return;
-      const map = L.map(element.current, { scrollWheelZoom: true }).setView(COUNTRY, 6);
-      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-        attribution: "&copy; OpenStreetMap contributors",
-      }).addTo(map);
-      leaflet.current = { L, map, layer: L.layerGroup().addTo(map) };
-      setReady(true);
-    });
-    return () => {
-      cancelled = true;
-      leaflet.current?.map.remove();
-      leaflet.current = null;
-    };
-  }, []);
 
   useEffect(() => {
     const current = leaflet.current;
@@ -95,7 +71,7 @@ export function AssetMap({ points }: { points: MapPoint[] }) {
         .on("click", () => setSelectedId(point.id))
         .addTo(layer);
     }
-  }, [ready, visible, selectedId]);
+  }, [ready, visible, selectedId, leaflet]);
 
   useEffect(() => {
     const current = leaflet.current;
@@ -103,7 +79,7 @@ export function AssetMap({ points }: { points: MapPoint[] }) {
     const bounds = visible.map((point) => [point.latitude, point.longitude] as [number, number]);
     if (bounds.length === 1) current.map.setView(bounds[0], 13);
     else current.map.fitBounds(bounds, { padding: [40, 40], maxZoom: 13 });
-  }, [ready, visible]);
+  }, [ready, visible, leaflet]);
 
   return (
     <section className="overflow-hidden rounded-2xl bg-white shadow-card ring-1 ring-slate-200/70">

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ExpatForm } from "@/components/expats/record-forms";
 import { ArrowLeftIcon } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
-import { distinct } from "@/lib/expats/filters";
+import { expatSuggestions } from "@/lib/expats/filters";
 import { requireExpatViewer } from "@/lib/services/auth";
 import { loadExpats, seesSensitive } from "@/lib/services/expats";
 
@@ -28,12 +28,7 @@ export default async function NewExpatPage() {
         mode="create"
         defaults={{ company: "Trade Kings", employmentStatus: "Active" }}
         restricted={!seesSensitive(user)}
-        suggestions={{
-          nationalities: distinct(all.map((expat) => expat.nationality)),
-          departments: distinct(all.map((expat) => expat.department)),
-          positions: distinct(all.map((expat) => expat.position)),
-          managers: distinct(all.map((expat) => expat.managerName)),
-        }}
+        suggestions={expatSuggestions(all)}
       />
     </div>
   );

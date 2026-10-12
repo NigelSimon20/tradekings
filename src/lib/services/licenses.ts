@@ -3,18 +3,22 @@ import "server-only";
 import { cache } from "react";
 
 import { getConfig } from "@/lib/config/env";
+import { emptyData } from "@/lib/data/record-store";
+import { describeChanges, newId, newestFirst, nextId, timestamp } from "@/lib/data/records";
 import type { RepositoryHealth } from "@/lib/data/repository";
 import { todayIn, type ISODate } from "@/lib/date/dates";
 import { getPhotoStore } from "@/lib/files";
 import {
   MAX_UPLOAD_BYTES,
   detectFileType,
+  fileStamp,
+  folderName,
   storedFileName,
   titleFromFileName,
 } from "@/lib/files/files";
 import type { FileContent, FileLocation } from "@/lib/files/store";
 import { getLicenseRepository } from "@/lib/licenses/data";
-import { ASSETS_TABLE, LICENSES_TABLE } from "@/lib/licenses/data/sheet-tables";
+import { ASSETS_TABLE, LICENSES_TABLE, LICENSE_STORE } from "@/lib/licenses/data/sheet-tables";
 import { evaluateLicenses, summariseAssets } from "@/lib/licenses/evaluate";
 import { assetGroupOf, LICENSE_STATUS_META } from "@/lib/licenses/meta";
 import { DEFAULT_LICENSE_RULES, parseReminderDays, type LicenseRules } from "@/lib/licenses/rules";
@@ -50,7 +54,7 @@ export interface LicenseSnapshot {
   error: string | null;
 }
 
-const EMPTY: LicenseData = { assets: [], licenses: [], renewals: [], documents: [], activity: [] };
+const EMPTY: LicenseData = emptyData(LICENSE_STORE);
 
 /** The reminder days in force: set on Setup & access, or 90, 60, 30 and 7. */
 export async function getLicenseRules(): Promise<LicenseRules> {
@@ -102,8 +106,6 @@ export const loadLicenses = cache(async (): Promise<LicenseSnapshot> => {
     error: null,
   };
 });
-
-const newestFirst = <T,>(key: (item: T) => string) => (a: T, b: T) => key(b).localeCompare(key(a));
 
 export async function getLicenseProfile(id: string) {
   const { licenses, archivedLicenses, data } = await loadLicenses();
@@ -163,14 +165,6 @@ export async function setUpLicenseStorage() {
 // with the old and new values — the audit trail the brief asks for.
 // ---------------------------------------------------------------------------
 
-function stamp(): string {
-  return new Date().toISOString();
-}
-
-function newId(prefix: string): string {
-  return `${prefix}-${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
-}
-
 function activity(
   recordType: LicenseActivity["recordType"],
   recordId: string,
@@ -178,40 +172,8 @@ function activity(
   action: string,
   details = "",
 ): LicenseActivity {
-  return { id: newId("ACT"), at: stamp(), by, recordType, recordId, action, details };
+  return { id: newId("ACT"), at: timestamp(), by, recordType, recordId, action, details };
 }
-
-/** `LIC-036` after `LIC-035`, so references stay short and readable. */
-function nextId(prefix: string, existing: { id: string }[]): string {
-  const pattern = new RegExp(`^${prefix}-(\\d+)$`, "i");
-  const highest = existing.reduce((max, item) => {
-    const match = pattern.exec(item.id);
-    return match ? Math.max(max, Number(match[1])) : max;
-  }, 0);
-  return `${prefix}-${String(highest + 1).padStart(3, "0")}`;
-}
-
-const IGNORED = new Set(["lastUpdated", "lastUpdatedBy"]);
-
-/** "Expiry Date: 2026-01-31 → 2027-01-31; Renewal Status: In progress → Renewed" */
-function describeChanges<T extends object>(
-  labels: Map<string, string>,
-  before: T,
-  after: T,
-): string {
-  const show = (value: unknown) => {
-    if (value === null || value === undefined || value === "") return "(blank)";
-    if (typeof value === "boolean") return value ? "Yes" : "No";
-    return String(value);
-  };
-  return (Object.keys(after) as (keyof T & string)[])
-    .filter((key) => !IGNORED.has(key) && show(before[key]) !== show(after[key]))
-    .map((key) => `${labels.get(key) ?? key}: ${show(before[key])} → ${show(after[key])}`)
-    .join("; ");
-}
-
-const ASSET_LABELS = new Map(ASSETS_TABLE.columns.map((column) => [column.key as string, column.header]));
-const LICENSE_LABELS = new Map(LICENSES_TABLE.columns.map((column) => [column.key as string, column.header]));
 
 export async function saveAsset(input: AssetInput, actor: string, existingId?: string): Promise<Asset> {
   const repository = getLicenseRepository();
@@ -220,11 +182,11 @@ export async function saveAsset(input: AssetInput, actor: string, existingId?: s
   if (existingId) {
     const before = assets.find((asset) => asset.id === existingId);
     if (!before) throw new Error(`Asset ${existingId} was not found.`);
-    const after: Asset = { ...before, ...input, id: before.id, archived: before.archived, lastUpdated: stamp(), lastUpdatedBy: actor };
-    const changes = describeChanges(ASSET_LABELS, before, after);
+    const after: Asset = { ...before, ...input, id: before.id, archived: before.archived, lastUpdated: timestamp(), lastUpdatedBy: actor };
+    const changes = describeChanges(ASSETS_TABLE, before, after);
     if (!changes) return before;
-    await repository.saveAsset(after);
-    await repository.appendActivity([activity("Asset", after.id, actor, "Updated", changes)]);
+    await repository.save("assets", after);
+    await repository.append("activity", [activity("Asset", after.id, actor, "Updated", changes)]);
     return after;
   }
 
@@ -236,11 +198,11 @@ export async function saveAsset(input: AssetInput, actor: string, existingId?: s
     ...input,
     id: requested || nextId("AS", assets),
     archived: false,
-    lastUpdated: stamp(),
+    lastUpdated: timestamp(),
     lastUpdatedBy: actor,
   };
-  await repository.saveAsset(created);
-  await repository.appendActivity([activity("Asset", created.id, actor, "Added", `${created.type}: ${created.name}`)]);
+  await repository.save("assets", created);
+  await repository.append("activity", [activity("Asset", created.id, actor, "Added", `${created.type}: ${created.name}`)]);
   return created;
 }
 
@@ -254,11 +216,11 @@ export async function saveLicense(input: LicenseInput, actor: string, existingId
   if (existingId) {
     const before = licenses.find((license) => license.id === existingId);
     if (!before) throw new Error(`License ${existingId} was not found.`);
-    const after: License = { ...before, ...input, id: before.id, archived: before.archived, lastUpdated: stamp(), lastUpdatedBy: actor };
-    const changes = describeChanges(LICENSE_LABELS, before, after);
+    const after: License = { ...before, ...input, id: before.id, archived: before.archived, lastUpdated: timestamp(), lastUpdatedBy: actor };
+    const changes = describeChanges(LICENSES_TABLE, before, after);
     if (!changes) return before;
-    await repository.saveLicense(after);
-    await repository.appendActivity([activity("License", after.id, actor, "Updated", changes)]);
+    await repository.save("licenses", after);
+    await repository.append("activity", [activity("License", after.id, actor, "Updated", changes)]);
     return after;
   }
 
@@ -270,11 +232,11 @@ export async function saveLicense(input: LicenseInput, actor: string, existingId
     ...input,
     id: requested || nextId("LIC", licenses),
     archived: false,
-    lastUpdated: stamp(),
+    lastUpdated: timestamp(),
     lastUpdatedBy: actor,
   };
-  await repository.saveLicense(created);
-  await repository.appendActivity([activity("License", created.id, actor, "Added", `${created.type}: ${created.name}`)]);
+  await repository.save("licenses", created);
+  await repository.append("activity", [activity("License", created.id, actor, "Added", `${created.type}: ${created.name}`)]);
   return created;
 }
 
@@ -283,8 +245,8 @@ export async function setLicenseArchived(id: string, archived: boolean, actor: s
   const license = (await repository.readAll(true)).licenses.find((item) => item.id === id);
   if (!license) throw new Error(`License ${id} was not found.`);
   if (license.archived === archived) return;
-  await repository.saveLicense({ ...license, archived, lastUpdated: stamp(), lastUpdatedBy: actor });
-  await repository.appendActivity([
+  await repository.save("licenses", { ...license, archived, lastUpdated: timestamp(), lastUpdatedBy: actor });
+  await repository.append("activity", [
     activity("License", id, actor, archived ? "Archived" : "Restored", archived ? "Taken off the register; history kept." : ""),
   ]);
 }
@@ -294,8 +256,8 @@ export async function setAssetArchived(id: string, archived: boolean, actor: str
   const asset = (await repository.readAll(true)).assets.find((item) => item.id === id);
   if (!asset) throw new Error(`Asset ${id} was not found.`);
   if (asset.archived === archived) return;
-  await repository.saveAsset({ ...asset, archived, lastUpdated: stamp(), lastUpdatedBy: actor });
-  await repository.appendActivity([
+  await repository.save("assets", { ...asset, archived, lastUpdated: timestamp(), lastUpdatedBy: actor });
+  await repository.append("activity", [
     activity("Asset", id, actor, archived ? "Archived" : "Restored", archived ? "Hidden from the map and lists; history kept." : ""),
   ]);
 }
@@ -304,24 +266,6 @@ export async function setAssetArchived(id: string, archived: boolean, actor: str
 // Documents and renewals.
 // ---------------------------------------------------------------------------
 
-/** `2026-10-01 140512` in the app's timezone, so a folder lists in the order files were added. */
-function fileStamp(): string {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: getConfig().timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(new Date());
-  const part = (type: string) => parts.find((entry) => entry.type === type)?.value ?? "";
-  return `${part("year")}-${part("month")}-${part("day")} ${part("hour")}${part("minute")}${part("second")}`;
-}
-
-const folderSafe = (value: string) => value.replace(/[\u0000-\u001f\u007f/\\:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
-
 /**
  * License files go in Trade Kings Licenses / <asset group> / AS-001 – Msasa Warehouse,
  * tagged by asset id; a license with no asset is filed under Company-wide by its own id.
@@ -329,12 +273,12 @@ const folderSafe = (value: string) => value.replace(/[\u0000-\u001f\u007f/\\:*?"
 function documentLocation(asset: Asset | null, license: License | null): FileLocation {
   if (asset) {
     return {
-      folders: [assetGroupOf(asset.type) ?? "Other assets", folderSafe(`${asset.id} – ${asset.name}`)],
+      folders: [assetGroupOf(asset.type) ?? "Other assets", folderName(`${asset.id} – ${asset.name}`)],
       key: { name: "licenseAssetId", value: asset.id },
     };
   }
   return {
-    folders: ["Company & Operational", folderSafe(`${license?.id ?? "General"} – ${license?.name ?? "Documents"}`)],
+    folders: ["Company & Operational", folderName(`${license?.id ?? "General"} – ${license?.name ?? "Documents"}`)],
     key: { name: "licenseId", value: license?.id ?? "general" },
   };
 }
@@ -361,8 +305,8 @@ async function resolveTarget(target: { licenseId: string; assetId: string }) {
 /** Records the document against its license/asset and in the right audit trail. */
 async function recordDocument(document: LicenseDocument, actor: string, action: string): Promise<void> {
   const repository = getLicenseRepository();
-  await repository.saveDocument(document);
-  await repository.appendActivity([
+  await repository.save("documents", document);
+  await repository.append("activity", [
     document.licenseId
       ? activity("License", document.licenseId, actor, action, `${document.category}: ${document.title}`)
       : activity("Asset", document.assetId, actor, action, `${document.category}: ${document.title}`),
@@ -381,7 +325,7 @@ export async function addDocumentLink(input: DocumentTarget & { url: string }, a
     storedFileId: "",
     mimeType: "",
     documentDate: input.documentDate,
-    addedAt: stamp(),
+    addedAt: timestamp(),
     addedBy: actor,
     removed: false,
   };
@@ -405,7 +349,7 @@ export async function uploadLicenseDocument(
   const title = input.title.trim() || titleFromFileName(upload.name) || input.category;
   const label = license ? `${license.name}${license.number ? ` ${license.number}` : ""} – ${title}` : title;
   const stored = await (await getPhotoStore("licenses")).save(documentLocation(asset, license), {
-    name: storedFileName(fileStamp(), input.category, label, type.extension),
+    name: storedFileName(fileStamp(getConfig().timezone), input.category, label, type.extension),
     mimeType: type.mimeType,
     bytes: upload.bytes,
   });
@@ -420,7 +364,7 @@ export async function uploadLicenseDocument(
     storedFileId: stored.id,
     mimeType: type.mimeType,
     documentDate: input.documentDate,
-    addedAt: stamp(),
+    addedAt: timestamp(),
     addedBy: actor,
     removed: false,
   };
@@ -444,8 +388,8 @@ export async function removeLicenseDocument(id: string, actor: string): Promise<
   const document = (await repository.readAll(true)).documents.find((entry) => entry.id === id);
   if (!document) throw new Error("That document was not found.");
   if (!document.removed) {
-    await repository.saveDocument({ ...document, removed: true });
-    await repository.appendActivity([
+    await repository.save("documents", { ...document, removed: true });
+    await repository.append("activity", [
       document.licenseId
         ? activity("License", document.licenseId, actor, "Document removed", `${document.title} (the record is kept)`)
         : activity("Asset", document.assetId, actor, "Document removed", `${document.title} (the record is kept)`),
@@ -502,10 +446,10 @@ export async function recordRenewal(
     newNumber: input.newNumber,
     documentId: document?.id ?? "",
     notes: input.notes,
-    recordedAt: stamp(),
+    recordedAt: timestamp(),
     recordedBy: actor,
   };
-  await repository.addRenewal(renewal);
+  await repository.append("renewals", [renewal]);
 
   const after: License = {
     ...before,
@@ -514,12 +458,12 @@ export async function recordRenewal(
     number: input.newNumber || before.number,
     lastRenewalDate: input.renewedOn ?? before.lastRenewalDate,
     renewalStatus: "Renewed",
-    lastUpdated: stamp(),
+    lastUpdated: timestamp(),
     lastUpdatedBy: actor,
   };
-  await repository.saveLicense(after);
-  await repository.appendActivity([
-    activity("License", before.id, actor, "Renewal recorded", describeChanges(LICENSE_LABELS, before, after)),
+  await repository.save("licenses", after);
+  await repository.append("activity", [
+    activity("License", before.id, actor, "Renewal recorded", describeChanges(LICENSES_TABLE, before, after)),
   ]);
 }
 
@@ -531,7 +475,7 @@ export async function saveReminderDays(text: string, actor: string): Promise<num
   const days = parseReminderDays(text);
   const repository = getLicenseRepository();
   await repository.saveSetting(REMINDER_SETTING, days.join(", "));
-  await repository.appendActivity([activity("System", "", actor, "Reminder days changed", days.join(", "))]);
+  await repository.append("activity", [activity("System", "", actor, "Reminder days changed", days.join(", "))]);
   return days;
 }
 
@@ -546,14 +490,14 @@ export async function connectLicenseStorage(
   actor: string,
 ): Promise<void> {
   await connectStorageAccount("licenses", grant, clientId, clientSecret, actor);
-  await getLicenseRepository().appendActivity([
+  await getLicenseRepository().append("activity", [
     activity("System", "", actor, "Uploads connected", `Documents will be stored in the Google Drive of ${grant.email}.`),
   ]);
 }
 
 export async function disconnectLicenseStorage(actor: string): Promise<void> {
   await disconnectStorageAccount("licenses");
-  await getLicenseRepository().appendActivity([
+  await getLicenseRepository().append("activity", [
     activity("System", "", actor, "Uploads disconnected", "Files already uploaded stay in Drive."),
   ]);
 }

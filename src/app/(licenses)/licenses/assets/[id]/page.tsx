@@ -9,6 +9,7 @@ import { ArchiveButton } from "@/components/licenses/license-controls";
 import { LicenseTable } from "@/components/licenses/license-table";
 import { Alert } from "@/components/ui/alert";
 import { ButtonLink } from "@/components/ui/button";
+import { ActivityCard } from "@/components/ui/activity-card";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { DefinitionList } from "@/components/ui/definition-list";
 import { ArrowLeftIcon, BuildingIcon, PlusIcon, ShieldCheckIcon } from "@/components/ui/icons";
@@ -160,28 +161,11 @@ export default async function AssetPage({ params }: { params: Promise<{ id: stri
         defaultCategory="Photo"
       />
 
-      <Card>
-        <CardHeader title="Activity" description="Every change to this asset: who, when and what." />
-        <CardBody className="p-0">
-          {activity.length ? (
-            <ul className="divide-y divide-slate-100">
-              {activity.map((entry) => (
-                <li key={entry.id} className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 px-5 py-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-900">{entry.action}</p>
-                    {entry.details ? <p className="text-xs break-words text-slate-500">{entry.details}</p> : null}
-                  </div>
-                  <p className="shrink-0 text-xs text-slate-500">
-                    {formatTimestamp(entry.at, config.timezone)} · {entry.by || "—"}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="px-5 py-6 text-sm text-slate-500">No changes recorded since this asset was added.</p>
-          )}
-        </CardBody>
-      </Card>
+      <ActivityCard
+        description="Every change to this asset: who, when and what."
+        items={activity}
+        empty="No changes recorded since this asset was added."
+      />
 
       {mayManage && !asset.archived ? (
         <div className="flex justify-end">

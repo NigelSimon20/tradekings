@@ -2,8 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 
+import { done, existingIdOf, failed, invalid, refused } from "@/lib/forms/action-results";
+import type { Parsed } from "@/lib/forms/fields";
 import { canExpats, type ExpatPermission } from "@/lib/auth/roles";
-import type { ExpatFormState } from "@/lib/expats/form-state";
+import type { RecordFormState } from "@/lib/domain/form-state";
 import { profileHref } from "@/lib/expats/meta";
 import {
   parseDependantForm,
@@ -14,7 +16,6 @@ import {
   parseOffboardForm,
   parsePermitForm,
   parseVehicleForm,
-  type ParsedExpatForm,
 } from "@/lib/expats/schema";
 import { ACTION_STATUSES, type ActionStatus, type ProfileSection } from "@/lib/expats/types";
 import { getCurrentUser } from "@/lib/services/auth";
@@ -51,27 +52,9 @@ async function editor(permission: ExpatPermission) {
   return { actor: user.email || user.name, restricted: !seesSensitive(user) };
 }
 
-const refused = (what: string): ExpatFormState => ({
-  status: "error",
-  message: `Your account does not have permission to ${what}.`,
-  errors: {},
-});
-
-const invalid = <T,>(parsed: ParsedExpatForm<T>): ExpatFormState => ({
-  status: "error",
-  message: "Check the highlighted fields and try again.",
-  errors: parsed.errors,
-});
-
-const failed = (error: unknown): ExpatFormState => ({ status: "error", message: (error as Error).message, errors: {} });
-
-const done = (message: string, redirectTo?: string): ExpatFormState => ({ status: "success", message, errors: {}, redirectTo });
-
 function refresh(): void {
   revalidatePath("/expats", "layout");
 }
-
-const existingIdOf = (formData: FormData) => String(formData.get("existingId") ?? "").trim() || undefined;
 
 /** A page the form asked to go back to, if it is one of ours. */
 function returnTo(formData: FormData, fallback: string): string {
@@ -85,12 +68,12 @@ async function saveRecord<T extends { expatId: string }, R extends { id: string;
   options: {
     permission: ExpatPermission;
     what: string;
-    parse: (formData: FormData) => ParsedExpatForm<T>;
+    parse: (formData: FormData) => Parsed<T>;
     save: (values: T, options: { actor: string; restricted: boolean; existingId?: string }) => Promise<R>;
     noun: string;
     section: ProfileSection;
   },
-): Promise<ExpatFormState> {
+): Promise<RecordFormState> {
   const who = await editor(options.permission);
   if (!who) return refused(options.what);
   const parsed = options.parse(formData);
@@ -99,16 +82,15 @@ async function saveRecord<T extends { expatId: string }, R extends { id: string;
   try {
     const saved = await options.save(parsed.values, { ...who, existingId });
     refresh();
-    return done(
-      existingId ? `${options.noun} updated.` : `${options.noun} added.`,
-      returnTo(formData, profileHref(saved.expatId, options.section)),
-    );
+    return done(existingId ? `${options.noun} updated.` : `${options.noun} added.`, {
+      redirectTo: returnTo(formData, profileHref(saved.expatId, options.section)),
+    });
   } catch (error) {
     return failed(error);
   }
 }
 
-export async function saveExpatAction(_previous: ExpatFormState, formData: FormData): Promise<ExpatFormState> {
+export async function saveExpatAction(_previous: RecordFormState, formData: FormData): Promise<RecordFormState> {
   const who = await editor("editExpats");
   if (!who) return refused("add or change expat profiles");
   const parsed = parseExpatForm(formData);
@@ -117,13 +99,13 @@ export async function saveExpatAction(_previous: ExpatFormState, formData: FormD
   try {
     const saved = await saveExpat(parsed.values, { ...who, existingId });
     refresh();
-    return done(existingId ? "Profile updated." : `${saved.fullName} added as ${saved.id}.`, profileHref(saved.id));
+    return done(existingId ? "Profile updated." : `${saved.fullName} added as ${saved.id}.`, { redirectTo: profileHref(saved.id) });
   } catch (error) {
     return failed(error);
   }
 }
 
-export async function saveDependantAction(_previous: ExpatFormState, formData: FormData) {
+export async function saveDependantAction(_previous: RecordFormState, formData: FormData) {
   return saveRecord(formData, {
     permission: "editExpats",
     what: "change dependants",
@@ -134,7 +116,7 @@ export async function saveDependantAction(_previous: ExpatFormState, formData: F
   });
 }
 
-export async function savePermitAction(_previous: ExpatFormState, formData: FormData) {
+export async function savePermitAction(_previous: RecordFormState, formData: FormData) {
   return saveRecord(formData, {
     permission: "editExpats",
     what: "change passports, permits or applications",
@@ -145,7 +127,7 @@ export async function savePermitAction(_previous: ExpatFormState, formData: Form
   });
 }
 
-export async function saveLeaseAction(_previous: ExpatFormState, formData: FormData) {
+export async function saveLeaseAction(_previous: RecordFormState, formData: FormData) {
   return saveRecord(formData, {
     permission: "editExpats",
     what: "change accommodation",
@@ -156,7 +138,7 @@ export async function saveLeaseAction(_previous: ExpatFormState, formData: FormD
   });
 }
 
-export async function saveVehicleAction(_previous: ExpatFormState, formData: FormData) {
+export async function saveVehicleAction(_previous: RecordFormState, formData: FormData) {
   return saveRecord(formData, {
     permission: "editExpats",
     what: "change vehicles",
@@ -167,7 +149,7 @@ export async function saveVehicleAction(_previous: ExpatFormState, formData: For
   });
 }
 
-export async function saveFollowUpAction(_previous: ExpatFormState, formData: FormData) {
+export async function saveFollowUpAction(_previous: RecordFormState, formData: FormData) {
   return saveRecord(formData, {
     permission: "manageActions",
     what: "create or change follow-ups",
@@ -178,7 +160,7 @@ export async function saveFollowUpAction(_previous: ExpatFormState, formData: Fo
   });
 }
 
-export async function setFollowUpStatusAction(_previous: ExpatFormState, formData: FormData): Promise<ExpatFormState> {
+export async function setFollowUpStatusAction(_previous: RecordFormState, formData: FormData): Promise<RecordFormState> {
   const who = await editor("manageActions");
   if (!who) return refused("update follow-ups");
   const status = String(formData.get("status") ?? "") as ActionStatus;
@@ -192,7 +174,7 @@ export async function setFollowUpStatusAction(_previous: ExpatFormState, formDat
   }
 }
 
-export async function archiveDependantAction(_previous: ExpatFormState, formData: FormData): Promise<ExpatFormState> {
+export async function archiveDependantAction(_previous: RecordFormState, formData: FormData): Promise<RecordFormState> {
   const who = await editor("editExpats");
   if (!who) return refused("change dependants");
   try {
@@ -205,7 +187,7 @@ export async function archiveDependantAction(_previous: ExpatFormState, formData
   }
 }
 
-export async function offboardExpatAction(_previous: ExpatFormState, formData: FormData): Promise<ExpatFormState> {
+export async function offboardExpatAction(_previous: RecordFormState, formData: FormData): Promise<RecordFormState> {
   const who = await editor("offboardExpats");
   if (!who) return refused("offboard expats");
   const parsed = parseOffboardForm(formData);
@@ -214,13 +196,13 @@ export async function offboardExpatAction(_previous: ExpatFormState, formData: F
   try {
     await offboardExpat(id, parsed.values, who.actor);
     refresh();
-    return done("Offboarded. The profile is archived with its history.", profileHref(id));
+    return done("Offboarded. The profile is archived with its history.", { redirectTo: profileHref(id) });
   } catch (error) {
     return failed(error);
   }
 }
 
-export async function restoreExpatAction(_previous: ExpatFormState, formData: FormData): Promise<ExpatFormState> {
+export async function restoreExpatAction(_previous: RecordFormState, formData: FormData): Promise<RecordFormState> {
   const who = await editor("offboardExpats");
   if (!who) return refused("restore expats");
   try {
@@ -232,7 +214,7 @@ export async function restoreExpatAction(_previous: ExpatFormState, formData: Fo
   }
 }
 
-export async function addDocumentLinkAction(_previous: ExpatFormState, formData: FormData): Promise<ExpatFormState> {
+export async function addDocumentLinkAction(_previous: RecordFormState, formData: FormData): Promise<RecordFormState> {
   const who = await editor("editExpats");
   if (!who) return refused("add documents");
   const parsed = parseDocumentLinkForm(formData);
@@ -246,7 +228,7 @@ export async function addDocumentLinkAction(_previous: ExpatFormState, formData:
   }
 }
 
-export async function removeDocumentAction(_previous: ExpatFormState, formData: FormData): Promise<ExpatFormState> {
+export async function removeDocumentAction(_previous: RecordFormState, formData: FormData): Promise<RecordFormState> {
   const who = await editor("removeExpatDocuments");
   if (!who) return refused("remove documents");
   try {
@@ -258,7 +240,7 @@ export async function removeDocumentAction(_previous: ExpatFormState, formData: 
   }
 }
 
-export async function setDocumentHistoricalAction(_previous: ExpatFormState, formData: FormData): Promise<ExpatFormState> {
+export async function setDocumentHistoricalAction(_previous: RecordFormState, formData: FormData): Promise<RecordFormState> {
   const who = await editor("editExpats");
   if (!who) return refused("change documents");
   try {
@@ -271,7 +253,7 @@ export async function setDocumentHistoricalAction(_previous: ExpatFormState, for
   }
 }
 
-export async function saveReminderSettingsAction(_previous: ExpatFormState, formData: FormData): Promise<ExpatFormState> {
+export async function saveReminderSettingsAction(_previous: RecordFormState, formData: FormData): Promise<RecordFormState> {
   const who = await editor("manageExpats");
   if (!who) return refused("change reminder settings");
   try {
@@ -289,7 +271,7 @@ export async function saveReminderSettingsAction(_previous: ExpatFormState, form
   }
 }
 
-export async function setUpExpatSheetAction(): Promise<ExpatFormState> {
+export async function setUpExpatSheetAction(): Promise<RecordFormState> {
   const who = await editor("manageExpats");
   if (!who) return refused("prepare the expat sheet");
   try {
@@ -301,7 +283,7 @@ export async function setUpExpatSheetAction(): Promise<ExpatFormState> {
   }
 }
 
-export async function disconnectExpatDriveAction(): Promise<ExpatFormState> {
+export async function disconnectExpatDriveAction(): Promise<RecordFormState> {
   const who = await editor("manageExpats");
   if (!who) return refused("change document storage");
   try {

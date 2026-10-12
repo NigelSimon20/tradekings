@@ -28,7 +28,7 @@ import {
   readSessionToken,
   type SessionUser,
 } from "@/lib/auth/session";
-import { canOpenProject, homeFor } from "@/lib/domain/projects";
+import { PROJECTS, canOpenProject, homeFor, type ProjectId } from "@/lib/domain/projects";
 import { loadSnapshot } from "@/lib/services/contracts";
 
 export interface SignInOutcome {
@@ -174,65 +174,34 @@ export async function requireContractUser(): Promise<SessionUser & { role: NonNu
   return { ...user, role: user.role };
 }
 
-/** Stops a page rendering for someone who may not see it. */
-export async function requireViewer(permission: Permission): Promise<SessionUser> {
+/**
+ * Stops a page rendering for someone who may not see it: to sign-in if signed
+ * out, to their own app if they cannot open this one, to this app's front
+ * page (`?denied=1`) if they lack the permission.
+ */
+async function requireIn(project: ProjectId, allowed: (user: SessionUser) => boolean): Promise<SessionUser> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  // Someone with billboards only has nothing to see on the contract side.
-  if (!canOpenProject(user, "contracts")) redirect(homeFor(user, "contracts"));
-  if (!can(user, permission)) redirect("/?denied=1");
+  // Contract pages send people without contract access home quietly; the others say why.
+  if (!canOpenProject(user, project)) redirect(homeFor(user, project, { denied: project !== "contracts" }));
+  if (!allowed(user)) redirect(`${PROJECTS[project].href}?denied=1`);
   return user;
 }
 
-/** The billboard tracker's equivalent of `requireViewer`. */
-export async function requireBillboardViewer(permission: BillboardPermission): Promise<SessionUser> {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
-  if (!canOpenProject(user, "billboards")) redirect(homeFor(user, "billboards", { denied: true }));
-  if (!canBillboards(user, permission)) redirect("/billboards?denied=1");
-  return user;
-}
+export const requireViewer = (permission: Permission) => requireIn("contracts", (user) => can(user, permission));
+export const requireBillboardViewer = (permission: BillboardPermission) =>
+  requireIn("billboards", (user) => canBillboards(user, permission));
+export const requireLicenseViewer = (permission: LicensePermission) =>
+  requireIn("licenses", (user) => canLicenses(user, permission));
+export const requireExpatViewer = (permission: ExpatPermission) => requireIn("expats", (user) => canExpats(user, permission));
 
-/** Guard for API routes: returns a refusal, or null when the caller may proceed. */
-export async function guardApi(permission: Permission): Promise<Response | null> {
-  const user = await getCurrentUser();
-  if (!user) return Response.json({ ok: false, error: "Not signed in." }, { status: 401 });
+export type ApiGuard = { user: SessionUser; denied: null } | { user: null; denied: Response };
 
-  if (!can(user, permission)) {
-    return Response.json(
-      { ok: false, error: "Your account does not have permission to do that." },
-      { status: 403 },
-    );
-  }
-
-  return null;
-}
-
-/** The License Tracker's equivalent of `requireViewer`. */
-export async function requireLicenseViewer(permission: LicensePermission): Promise<SessionUser> {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
-  if (!canOpenProject(user, "licenses")) redirect(homeFor(user, "licenses", { denied: true }));
-  if (!canLicenses(user, permission)) redirect("/licenses?denied=1");
-  return user;
-}
-
-/** The Expat Tracker's equivalent of `requireViewer`. */
-export async function requireExpatViewer(permission: ExpatPermission): Promise<SessionUser> {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
-  if (!canOpenProject(user, "expats")) redirect(homeFor(user, "expats", { denied: true }));
-  if (!canExpats(user, permission)) redirect("/expats?denied=1");
-  return user;
-}
-
-/** `guardApi` for the Expat Tracker's routes; returns the user so a route can redact for them. */
-export async function guardExpatApi(
-  permission: ExpatPermission,
-): Promise<{ user: SessionUser; denied: null } | { user: null; denied: Response }> {
+/** For API routes: the caller, or the refusal to send back (401 signed out, 403 not allowed). */
+async function guardWith(allowed: (user: SessionUser) => boolean): Promise<ApiGuard> {
   const user = await getCurrentUser();
   if (!user) return { user: null, denied: Response.json({ ok: false, error: "Not signed in." }, { status: 401 }) };
-  if (!canExpats(user, permission)) {
+  if (!allowed(user)) {
     return {
       user: null,
       denied: Response.json({ ok: false, error: "Your account does not have permission to do that." }, { status: 403 }),
@@ -241,33 +210,10 @@ export async function guardExpatApi(
   return { user, denied: null };
 }
 
-/** `guardApi` for the License Tracker's routes. */
-export async function guardLicenseApi(permission: LicensePermission): Promise<Response | null> {
-  const user = await getCurrentUser();
-  if (!user) return Response.json({ ok: false, error: "Not signed in." }, { status: 401 });
-  if (!canLicenses(user, permission)) {
-    return Response.json(
-      { ok: false, error: "Your account does not have permission to do that." },
-      { status: 403 },
-    );
-  }
-  return null;
-}
-
-/** `guardApi` for the billboard tracker's routes. */
-export async function guardBillboardApi(permission: BillboardPermission): Promise<Response | null> {
-  const user = await getCurrentUser();
-  if (!user) return Response.json({ ok: false, error: "Not signed in." }, { status: 401 });
-
-  if (!canBillboards(user, permission)) {
-    return Response.json(
-      { ok: false, error: "Your account does not have permission to do that." },
-      { status: 403 },
-    );
-  }
-
-  return null;
-}
+export const guardApi = (permission: Permission) => guardWith((user) => can(user, permission));
+export const guardBillboardApi = (permission: BillboardPermission) => guardWith((user) => canBillboards(user, permission));
+export const guardLicenseApi = (permission: LicensePermission) => guardWith((user) => canLicenses(user, permission));
+export const guardExpatApi = (permission: ExpatPermission) => guardWith((user) => canExpats(user, permission));
 
 /**
  * What each role may do — the Contract Roles and Billboard Roles tabs, or the

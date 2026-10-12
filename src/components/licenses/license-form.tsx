@@ -1,21 +1,20 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { startTransition, useActionState, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import { saveLicenseAction } from "@/app/(licenses)/licenses/actions";
-import { Alert } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
-import { EMPTY_LICENSE_FORM_STATE } from "@/lib/licenses/form-state";
 import {
-  RENEWAL_FREQUENCIES,
-  RENEWAL_STATUSES,
-  SUGGESTED_LICENSE_TYPES,
-  type License,
-} from "@/lib/licenses/types";
+  FormError,
+  FormFooter,
+  FormSection,
+  Suggestions,
+  TextField,
+  textOf,
+  type TextFieldProps,
+} from "@/components/forms/form-parts";
+import { useRecordForm } from "@/components/forms/record-form";
+import { RENEWAL_FREQUENCIES, RENEWAL_STATUSES, SUGGESTED_LICENSE_TYPES, type License } from "@/lib/licenses/types";
 
 const options = (values: readonly string[]) => values.map((value) => ({ value, label: value }));
 
@@ -39,84 +38,34 @@ export function LicenseForm({
   typesInUse: string[];
   departments: string[];
 }) {
-  const router = useRouter();
-  const [state, dispatch, pending] = useActionState(saveLicenseAction, EMPTY_LICENSE_FORM_STATE);
+  const { state, pending, onSubmit } = useRecordForm(saveLicenseAction, {
+    reset: false,
+    openSaved: (saved) => (saved.recordId ? `/licenses/${encodeURIComponent(saved.recordId)}` : null),
+  });
   const [category, setCategory] = useState(defaults.category ?? "");
 
-  useEffect(() => {
-    if (state.status === "success" && state.recordId) {
-      router.push(`/licenses/${encodeURIComponent(state.recordId)}`);
-    }
-  }, [state, router]);
-
-  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    startTransition(() => dispatch(data));
-  };
-
   const error = (field: string) => state.errors[field];
-  const text = (key: keyof License) => {
-    const value = defaults[key];
-    return value === null || value === undefined ? "" : String(value);
-  };
+  const text = (key: keyof License) => textOf(defaults[key]);
   const suggestedTypes = [...new Set([...(SUGGESTED_LICENSE_TYPES[category] ?? []), ...typesInUse])];
 
-  const input = (
-    key: keyof License,
-    label: string,
-    extra: { type?: string; required?: boolean; hint?: ReactNode; placeholder?: string; wide?: boolean; list?: string } = {},
-  ) => (
-    <Field
-      label={label}
-      htmlFor={key}
-      required={extra.required}
-      error={error(key)}
-      hint={extra.hint}
-      className={extra.wide ? "sm:col-span-2" : undefined}
-    >
-      <Input
-        id={key}
-        name={key}
-        type={extra.type ?? "text"}
-        defaultValue={text(key)}
-        placeholder={extra.placeholder}
-        list={extra.list}
-      />
-    </Field>
+  const input = (key: keyof License, label: string, extra: Partial<TextFieldProps> = {}) => (
+    <TextField name={key} label={label} error={error} defaultValue={defaults[key]} {...extra} />
   );
 
   const section = (title: string, description: string, children: ReactNode) => (
-    <Card>
-      <CardHeader title={title} description={description} />
-      <CardBody className="grid gap-4 sm:grid-cols-2">{children}</CardBody>
-    </Card>
+    <FormSection title={title} description={description}>
+      {children}
+    </FormSection>
   );
 
   return (
     <form onSubmit={onSubmit} className="space-y-5">
       <input type="hidden" name="existingId" value={mode === "edit" ? text("id") : ""} />
-      <datalist id="license-categories">
-        {categories.map((value) => (
-          <option key={value} value={value} />
-        ))}
-      </datalist>
-      <datalist id="license-types">
-        {suggestedTypes.map((value) => (
-          <option key={value} value={value} />
-        ))}
-      </datalist>
-      <datalist id="license-departments">
-        {departments.map((value) => (
-          <option key={value} value={value} />
-        ))}
-      </datalist>
+      <Suggestions id="license-categories" values={categories} />
+      <Suggestions id="license-types" values={suggestedTypes} />
+      <Suggestions id="license-departments" values={departments} />
 
-      {state.status === "error" ? (
-        <Alert tone="critical" title="The license was not saved">
-          {state.message}
-        </Alert>
-      ) : null}
+      <FormError state={state} title="The license was not saved" />
 
       {section(
         "The license",
@@ -180,17 +129,7 @@ export function LicenseForm({
         </>,
       )}
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Button type="submit" disabled={pending}>
-          {pending ? "Saving…" : mode === "create" ? "Add license" : "Save changes"}
-        </Button>
-        <Link
-          href={mode === "edit" ? `/licenses/${encodeURIComponent(text("id"))}` : "/licenses/register"}
-          className="text-sm font-medium text-slate-600 hover:text-slate-900"
-        >
-          Cancel
-        </Link>
-      </div>
+      <FormFooter pending={pending} submitLabel={mode === "create" ? "Add license" : "Save changes"} cancelHref={mode === "edit" ? `/licenses/${encodeURIComponent(text("id"))}` : "/licenses/register"} />
     </form>
   );
 }

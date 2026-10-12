@@ -3,15 +3,15 @@ import Link from "next/link";
 import { BillboardTable } from "@/components/billboards/billboard-table";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
-import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { ActivityCard } from "@/components/ui/activity-card";
+import { Card, CardHeader } from "@/components/ui/card";
 import { AlertIcon, BillboardIcon, ContractsIcon, MapIcon } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { TBody, THead, Table, TableWrap, Td, Th, Tr } from "@/components/ui/table";
 import { sortBillboardsByUrgency } from "@/lib/billboards/filters";
 import { BILLBOARD_VIEWS, getBillboardView } from "@/lib/billboards/views";
-import { getConfig } from "@/lib/config/env";
-import { formatDate, formatTimestamp } from "@/lib/date/dates";
+import { formatDate } from "@/lib/date/dates";
 import { requireBillboardViewer } from "@/lib/services/auth";
 import { loadBillboards, recentBillboardActivity } from "@/lib/services/billboards";
 
@@ -19,7 +19,6 @@ export const dynamic = "force-dynamic";
 
 export default async function BillboardDashboardPage() {
   await requireBillboardViewer("viewBillboards");
-  const config = getConfig();
   const [{ billboards, today }, activity] = await Promise.all([loadBillboards(), recentBillboardActivity(8)]);
 
   const count = (id: string) => billboards.filter(getBillboardView(id)!.matches).length;
@@ -132,36 +131,15 @@ export default async function BillboardDashboardPage() {
             </Table>
           </TableWrap>
         </Card>
-        <Card>
-          <CardHeader title="Recent changes" description="Who changed what, and when. Every change is kept in the Activity Log tab." />
-          <CardBody className="p-0">
-            {activity.length ? (
-              <ul className="divide-y divide-slate-100">
-                {activity.map((entry) => (
-                  <li key={entry.id} className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 px-5 py-3">
-                    <div className="min-w-0">
-                      <p className="text-sm text-slate-900">
-                        <span className="font-medium">{entry.action}</span>{" "}
-                        <Link
-                          href={`/billboards/${encodeURIComponent(entry.billboardId)}`}
-                          className="text-brand-700 hover:underline"
-                        >
-                          {entry.billboardId}
-                        </Link>
-                      </p>
-                      {entry.details ? <p className="line-clamp-2 text-xs text-slate-500">{entry.details}</p> : null}
-                    </div>
-                    <p className="shrink-0 text-xs text-slate-500">
-                      {formatTimestamp(entry.at, config.timezone)} · {entry.by || "—"}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="px-5 py-6 text-sm text-slate-500">No changes recorded yet.</p>
-            )}
-          </CardBody>
-        </Card>
+        <ActivityCard
+          title="Recent changes"
+          description="Who changed what, and when. Every change is kept in the Activity Log tab."
+          items={activity.map((entry) => ({
+            ...entry,
+            link: entry.billboardId ? { href: `/billboards/${encodeURIComponent(entry.billboardId)}`, label: entry.billboardId } : null,
+          }))}
+          empty="No changes recorded yet."
+        />
       </div>
     </div>
   );

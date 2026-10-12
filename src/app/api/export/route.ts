@@ -8,7 +8,7 @@ import { loadSnapshot } from "@/lib/services/contracts";
  * `?history=1` includes superseded contract rows.
  */
 export async function GET(request: Request): Promise<Response> {
-  const denied = await guardApi("exportData");
+  const { denied } = await guardApi("exportData");
   if (denied) return denied;
 
   try {

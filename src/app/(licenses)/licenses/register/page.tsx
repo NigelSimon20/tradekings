@@ -8,15 +8,8 @@ import { Input, Select } from "@/components/ui/field";
 import { DownloadIcon, PlusIcon, SearchIcon } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { canLicenses } from "@/lib/auth/roles";
-import type { PageSearchParams } from "@/lib/domain/filters";
-import {
-  STATUS_FILTER_OPTIONS,
-  countActiveLicenseFilters,
-  distinct,
-  filterLicenses,
-  parseLicenseFilters,
-  sortLicensesByUrgency,
-} from "@/lib/licenses/filters";
+import { distinct, type PageSearchParams } from "@/lib/domain/filters";
+import { STATUS_FILTER_OPTIONS, countActiveLicenseFilters, filterLicenses, parseLicenseFilters, sortLicensesByUrgency } from "@/lib/licenses/filters";
 import { ASSET_TYPES, DEFAULT_LICENSE_CATEGORIES } from "@/lib/licenses/types";
 import { LICENSE_VIEWS, getLicenseView } from "@/lib/licenses/views";
 import { requireLicenseViewer } from "@/lib/services/auth";

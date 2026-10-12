@@ -1,17 +1,16 @@
-import Link from "next/link";
 
 import { AssetMap, type MapPoint } from "@/components/licenses/asset-map";
 import { LicenseTable } from "@/components/licenses/license-table";
 import { ViewSwitch } from "@/components/licenses/view-switch";
 import { Alert } from "@/components/ui/alert";
 import { ButtonLink } from "@/components/ui/button";
-import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { ActivityCard } from "@/components/ui/activity-card";
+import { Card, CardHeader } from "@/components/ui/card";
 import { AlertIcon, PlusIcon, ShieldCheckIcon } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { canLicenses } from "@/lib/auth/roles";
-import { getConfig } from "@/lib/config/env";
-import { formatDate, formatTimestamp } from "@/lib/date/dates";
+import { formatDate } from "@/lib/date/dates";
 import type { PageSearchParams } from "@/lib/domain/filters";
 import { sortLicensesByUrgency } from "@/lib/licenses/filters";
 import { LOCATION_ASSET_TYPES } from "@/lib/licenses/types";
@@ -25,7 +24,6 @@ export const dynamic = "force-dynamic";
 export default async function LicenseDashboardPage({ searchParams }: PageSearchParams) {
   const user = await requireLicenseViewer("viewLicenses");
   const denied = (await searchParams).denied === "1";
-  const config = getConfig();
   const [{ licenses, assets, rules, today, source }, activity] = await Promise.all([
     loadLicenses(),
     recentLicenseActivity(8),
@@ -139,42 +137,23 @@ export default async function LicenseDashboardPage({ searchParams }: PageSearchP
         </Card>
       </div>
 
-      <Card>
-        <CardHeader title="Recent changes" description="Who changed what, and when. Every change is kept in the Activity Log tab." />
-        <CardBody className="p-0">
-          {activity.length ? (
-            <ul className="divide-y divide-slate-100">
-              {activity.map((entry) => (
-                <li key={entry.id} className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 px-5 py-3">
-                  <div className="min-w-0">
-                    <p className="text-sm text-slate-900">
-                      <span className="font-medium">{entry.action}</span>{" "}
-                      {entry.recordId ? (
-                        <Link
-                          href={
-                            entry.recordType === "Asset"
-                              ? `/licenses/assets/${encodeURIComponent(entry.recordId)}`
-                              : `/licenses/${encodeURIComponent(entry.recordId)}`
-                          }
-                          className="text-brand-700 hover:underline"
-                        >
-                          {entry.recordId}
-                        </Link>
-                      ) : null}
-                    </p>
-                    {entry.details ? <p className="line-clamp-2 text-xs text-slate-500">{entry.details}</p> : null}
-                  </div>
-                  <p className="shrink-0 text-xs text-slate-500">
-                    {formatTimestamp(entry.at, config.timezone)} · {entry.by || "—"}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="px-5 py-6 text-sm text-slate-500">No changes recorded yet.</p>
-          )}
-        </CardBody>
-      </Card>
+      <ActivityCard
+        title="Recent changes"
+        description="Who changed what, and when. Every change is kept in the Activity Log tab."
+        items={activity.map((entry) => ({
+          ...entry,
+          link: entry.recordId
+            ? {
+                href:
+                  entry.recordType === "Asset"
+                    ? `/licenses/assets/${encodeURIComponent(entry.recordId)}`
+                    : `/licenses/${encodeURIComponent(entry.recordId)}`,
+                label: entry.recordId,
+              }
+            : null,
+        }))}
+        empty="No changes recorded yet."
+      />
     </div>
   );
 }

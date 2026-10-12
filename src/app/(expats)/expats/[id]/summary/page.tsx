@@ -93,8 +93,8 @@ export default async function ExpatSummaryPage({ params }: { params: Promise<{ i
           <CardHeader title="Needs attention" />
           <CardBody>
             <ul className="list-disc space-y-1 pl-5 text-sm text-slate-800">
-              {row.issues.map((issue) => (
-                <li key={issue.text}>{issue.text}</li>
+              {row.issues.map((issue, position) => (
+                <li key={`${issue.section}-${position}`}>{issue.text}</li>
               ))}
               {openActions.map((action) => (
                 <li key={action.id}>

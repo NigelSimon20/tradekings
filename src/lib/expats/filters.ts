@@ -1,5 +1,5 @@
 import type { ISODate } from "@/lib/date/dates";
-import type { SearchParamsInput } from "@/lib/domain/filters";
+import { distinct, type SearchParamsInput } from "@/lib/domain/filters";
 import { ACTION_VIEWS, EXPIRY_VIEWS, PEOPLE_VIEWS, findView } from "@/lib/expats/views";
 import {
   OPEN_ACTION,
@@ -194,4 +194,14 @@ export function countActive(filters: Record<string, string>, ignore: string[] = 
   return Object.entries(filters).filter(([key, value]) => value && !ignore.includes(key)).length;
 }
 
-export { distinct } from "@/lib/licenses/filters";
+
+
+/** What the expat form suggests as people type, from everyone on record — so spellings stay consistent. */
+export function expatSuggestions(expats: { nationality: string; department: string; position: string; managerName: string }[]) {
+  return {
+    nationalities: distinct(expats.map((expat) => expat.nationality)),
+    departments: distinct(expats.map((expat) => expat.department)),
+    positions: distinct(expats.map((expat) => expat.position)),
+    managers: distinct(expats.map((expat) => expat.managerName)),
+  };
+}

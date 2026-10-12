@@ -1,3 +1,4 @@
+import type { RecordStoreInfo } from "@/lib/data/record-store";
 import { col, type TableSpec } from "@/lib/data/table-spec";
 import {
   ASSET_TYPES,
@@ -8,6 +9,7 @@ import {
   type Asset,
   type License,
   type LicenseActivity,
+  type LicenseData,
   type LicenseDocument,
   type Renewal,
 } from "@/lib/licenses/types";
@@ -121,10 +123,16 @@ export const LICENSE_ACTIVITY_TABLE: TableSpec<LicenseActivity> = {
   ],
 };
 
-export const LICENSE_TABLES = [
-  ASSETS_TABLE,
-  LICENSES_TABLE,
-  RENEWALS_TABLE,
-  DOCUMENTS_TABLE,
-  LICENSE_ACTIVITY_TABLE,
-] as const;
+/** The license spreadsheet: one tab per record list. */
+export const LICENSE_STORE: RecordStoreInfo<LicenseData> = {
+  name: "license",
+  tables: {
+    assets: ASSETS_TABLE,
+    licenses: LICENSES_TABLE,
+    renewals: RENEWALS_TABLE,
+    documents: DOCUMENTS_TABLE,
+    activity: LICENSE_ACTIVITY_TABLE,
+  },
+  summary: (data) => `${data.licenses.length} licenses across ${data.assets.length} assets`,
+  sheetSetting: "GOOGLE_LICENSES_SHEET_ID",
+};

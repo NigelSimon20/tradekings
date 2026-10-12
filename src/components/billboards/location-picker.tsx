@@ -2,9 +2,10 @@
 
 import "leaflet/dist/leaflet.css";
 
-import type { Map as LeafletMap, Marker } from "leaflet";
+import type { Marker } from "leaflet";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 
+import { useLeafletMap } from "@/components/maps/use-leaflet-map";
 import { Alert } from "@/components/ui/alert";
 import { Button, buttonClasses } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
@@ -266,8 +267,6 @@ function PickerDialog({
   );
 }
 
-type Leaflet = typeof import("leaflet");
-
 /** The map inside the dialog. Leaflet loads in the browser only. */
 function PickerMap({
   pin,
@@ -279,55 +278,40 @@ function PickerMap({
   onPin: (point: Point) => void;
 }) {
   const element = useRef<HTMLDivElement>(null);
-  const leaflet = useRef<{ L: Leaflet; map: LeafletMap; marker: Marker | null } | null>(null);
-  const [ready, setReady] = useState(false);
+  const marker = useRef<Marker | null>(null);
   // The latest callback, without re-creating the map when it changes.
   const onPinRef = useRef(onPin);
   useEffect(() => {
     onPinRef.current = onPin;
   }, [onPin]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void import("leaflet").then((L) => {
-      if (cancelled || !element.current) return;
-      const start = focus ?? { point: COUNTRY, zoom: 6 };
-      const map = L.map(element.current).setView([start.point.latitude, start.point.longitude], start.zoom);
-      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-        attribution: "&copy; OpenStreetMap contributors",
-      }).addTo(map);
+  const start = focus ?? { point: COUNTRY, zoom: 6 };
+  const { ready, leaflet } = useLeafletMap(
+    element,
+    (_L, map) => {
       map.on("click", (event) =>
         onPinRef.current({ latitude: round(event.latlng.lat), longitude: round(event.latlng.lng) }),
       );
-      leaflet.current = { L, map, marker: null };
       // The dialog animates open; measure the map once it has its size.
       setTimeout(() => map.invalidateSize(), 150);
-      setReady(true);
-    });
-    return () => {
-      cancelled = true;
-      leaflet.current?.map.remove();
-      leaflet.current = null;
-    };
-    // The map is created once; later focus changes are handled below.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
+      return {};
+    },
+    { center: [start.point.latitude, start.point.longitude], zoom: start.zoom },
+    {},
+  );
   // The pin follows the chosen point, and can be dragged.
   useEffect(() => {
     const current = leaflet.current;
     if (!ready || !current) return;
     if (!pin) {
-      current.marker?.remove();
-      current.marker = null;
+      marker.current?.remove();
+      marker.current = null;
       return;
     }
-    if (!current.marker) {
+    if (!marker.current) {
       const dot = document.createElement("span");
       dot.className = cn("bb-pin", "is-selected");
       dot.style.setProperty("--pin", TONE_COLORS.critical.solid);
-      current.marker = current.L.marker([pin.latitude, pin.longitude], {
+      marker.current = current.L.marker([pin.latitude, pin.longitude], {
         draggable: true,
         icon: current.L.divIcon({ className: "bb-marker", html: dot, iconSize: [22, 22], iconAnchor: [11, 11] }),
       })
@@ -337,15 +321,15 @@ function PickerMap({
         })
         .addTo(current.map);
     } else {
-      current.marker.setLatLng([pin.latitude, pin.longitude]);
+      marker.current.setLatLng([pin.latitude, pin.longitude]);
     }
-  }, [ready, pin]);
+  }, [ready, pin, leaflet]);
 
   useEffect(() => {
     const current = leaflet.current;
     if (!ready || !current || !focus) return;
     current.map.flyTo([focus.point.latitude, focus.point.longitude], focus.zoom, { duration: 0.6 });
-  }, [ready, focus]);
+  }, [ready, focus, leaflet]);
 
   return (
     <div className="relative isolate h-[55vh] min-h-72 overflow-hidden rounded-xl ring-1 ring-slate-200">

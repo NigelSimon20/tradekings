@@ -1,6 +1,6 @@
 import { DependantForm, FollowUpForm, LeaseForm, PermitForm, VehicleForm } from "@/components/expats/record-forms";
 import type { SelectOption } from "@/components/ui/field";
-import { distinct } from "@/lib/expats/filters";
+import { distinct } from "@/lib/domain/filters";
 import type { Dependant, EvaluatedExpat, FollowUp, Lease, Permit, Vehicle } from "@/lib/expats/types";
 
 /** The records a profile holds besides the expat themselves, by the name used in URLs. */

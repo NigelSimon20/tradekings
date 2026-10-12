@@ -1,4 +1,4 @@
-import { getCurrentUser, guardApi } from "@/lib/services/auth";
+import { guardApi } from "@/lib/services/auth";
 import { failure, success } from "@/lib/api/respond";
 import { importTemplateCsv } from "@/lib/data/csv-import";
 import { commitImport, previewImport } from "@/lib/services/import";
@@ -11,7 +11,7 @@ const MAX_BYTES = 2 * 1024 * 1024;
 
 /** Downloads the import template — for the people who can actually import. */
 export async function GET(): Promise<Response> {
-  const denied = await guardApi("editContracts");
+  const { denied } = await guardApi("editContracts");
   if (denied) return denied;
 
   return new Response(importTemplateCsv(), {
@@ -27,7 +27,7 @@ export async function GET(): Promise<Response> {
  * happen, `mode=commit` writes the new rows.
  */
 export async function POST(request: Request): Promise<Response> {
-  const denied = await guardApi("editContracts");
+  const { user, denied } = await guardApi("editContracts");
   if (denied) return denied;
 
   try {
@@ -49,11 +49,7 @@ export async function POST(request: Request): Promise<Response> {
     const text = await file.text();
 
     if (mode === "commit") {
-      const actor = await getCurrentUser();
-      const summary = await commitImport(text, {
-        includeDuplicates,
-        actor: actor?.email || actor?.name,
-      });
+      const summary = await commitImport(text, { includeDuplicates, actor: user.email || user.name });
       return success(
         `${summary.imported ?? 0} contract${summary.imported === 1 ? "" : "s"} imported from ${file.name}.`,
         { summary },

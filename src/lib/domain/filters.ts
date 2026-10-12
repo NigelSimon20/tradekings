@@ -199,3 +199,8 @@ export function buildFilterOptions(contracts: EvaluatedContract[]): FilterOption
       .sort((a, b) => a.name.localeCompare(b.name)),
   };
 }
+
+/** The distinct, sorted values in use — for filter dropdowns and form suggestions. */
+export function distinct(values: (string | undefined | null)[]): string[] {
+  return [...new Set(values.map((value) => (value ?? "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+}

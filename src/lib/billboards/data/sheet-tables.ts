@@ -6,10 +6,12 @@ import {
   SITE_CONDITIONS,
   type ActivityEntry,
   type Billboard,
+  type BillboardData,
   type BillboardFile,
   type Campaign,
   type MaintenanceRecord,
 } from "@/lib/billboards/types";
+import type { RecordStoreInfo } from "@/lib/data/record-store";
 import { col, type TableSpec } from "@/lib/data/table-spec";
 
 /**
@@ -134,13 +136,18 @@ export const ACTIVITY_TABLE: TableSpec<ActivityEntry> = {
   ],
 };
 
-export const BILLBOARD_TABLES = [
-  BILLBOARDS_TABLE,
-  CAMPAIGNS_TABLE,
-  MAINTENANCE_TABLE,
-  FILES_TABLE,
-  ACTIVITY_TABLE,
-] as const;
-
+/** The billboard spreadsheet: one tab per record list. */
+export const BILLBOARD_STORE: RecordStoreInfo<BillboardData> = {
+  name: "billboard",
+  tables: {
+    billboards: BILLBOARDS_TABLE,
+    campaigns: CAMPAIGNS_TABLE,
+    maintenance: MAINTENANCE_TABLE,
+    files: FILES_TABLE,
+    activity: ACTIVITY_TABLE,
+  },
+  summary: (data) => `${data.billboards.length} billboards`,
+  sheetSetting: "GOOGLE_BILLBOARDS_SHEET_ID",
+};
 
 export { indexHeader, missingHeaders, readRow, writeRow, type TableColumn, type TableSpec } from "@/lib/data/table-spec";

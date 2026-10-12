@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
-import { ExpatsUnavailable } from "@/components/expats/expats-unavailable";
+import { setUpExpatSheetAction } from "@/app/(expats)/expats/actions";
 import { AppShell } from "@/components/layout/app-shell";
+import { TrackerUnavailable } from "@/components/settings/setup-cards";
 import { canExpats } from "@/lib/auth/roles";
 import { getExpatRepository } from "@/lib/expats/data";
+import { EXPAT_STORE } from "@/lib/expats/data/sheet-tables";
 import { requireExpatViewer } from "@/lib/services/auth";
 import { loadExpats } from "@/lib/services/expats";
 
@@ -24,5 +26,13 @@ export default async function ExpatsLayout({ children }: { children: ReactNode }
   const { error } = await loadExpats(user);
   const canSetUp = getExpatRepository().kind === "google-sheets" && canExpats(user, "manageExpats");
 
-  return <AppShell project="expats">{error ? <ExpatsUnavailable reason={error} canSetUp={canSetUp} /> : children}</AppShell>;
+  return (
+    <AppShell project="expats">
+      {error ? (
+        <TrackerUnavailable store={EXPAT_STORE} reason={error} setUp={canSetUp ? setUpExpatSheetAction : undefined} />
+      ) : (
+        children
+      )}
+    </AppShell>
+  );
 }

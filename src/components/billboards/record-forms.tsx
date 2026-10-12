@@ -1,71 +1,15 @@
 "use client";
 
-import { useActionState, useEffect, useRef, startTransition, type FormEvent, type ReactNode } from "react";
-
 import {
   addCampaignAction,
-  addFileAction,
   addMaintenanceAction,
   archiveBillboardAction,
-  disconnectDriveAction,
   removeFileAction,
-  setUpBillboardSheetAction,
 } from "@/app/(billboards)/billboards/actions";
-import { Alert } from "@/components/ui/alert";
+import { ActionButton, FormResult, useRecordForm } from "@/components/forms/record-form";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
-import { PlusIcon, RefreshIcon } from "@/components/ui/icons";
-import { EMPTY_BILLBOARD_FORM_STATE, type BillboardFormState } from "@/lib/billboards/form-state";
-import { FILE_CATEGORIES, MAINTENANCE_KINDS, SITE_CONDITIONS } from "@/lib/billboards/types";
-import { TONE_CLASSES } from "@/lib/ui/tones";
-import { cn } from "@/lib/ui/cn";
-
-type FormAction = (previous: BillboardFormState, formData: FormData) => Promise<BillboardFormState>;
-
-/**
- * Runs a billboard action from a form. Submitting through a transition rather
- * than `<form action>` stops React clearing the fields when validation fails;
- * they are cleared only once the record has been saved.
- */
-function useRecordForm(action: FormAction, confirmMessage?: string) {
-  const [state, dispatch, pending] = useActionState(action, EMPTY_BILLBOARD_FORM_STATE);
-  const form = useRef<HTMLFormElement>(null);
-
-  useEffect(() => {
-    if (state.status === "success") form.current?.reset();
-  }, [state]);
-
-  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (confirmMessage && !window.confirm(confirmMessage)) return;
-    const data = new FormData(event.currentTarget);
-    startTransition(() => dispatch(data));
-  };
-
-  return { state, pending, form, onSubmit, error: (field: string) => state.errors[field] };
-}
-
-function Result({ state }: { state: BillboardFormState }) {
-  if (state.status === "idle") return null;
-  return (
-    <Alert tone={state.status === "success" ? "success" : "critical"} className="mt-3">
-      {state.message}
-    </Alert>
-  );
-}
-
-/** A collapsible "add a record" panel. Native `<details>`, so it needs no state. */
-export function AddPanel({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <details className="group rounded-xl ring-1 ring-slate-200 open:bg-slate-50/60">
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-2.5 text-sm font-medium text-brand-700 hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
-        <PlusIcon className="size-4 transition-transform group-open:rotate-45" />
-        {label}
-      </summary>
-      <div className="border-t border-slate-200 px-4 py-4">{children}</div>
-    </details>
-  );
-}
+import { MAINTENANCE_KINDS, SITE_CONDITIONS } from "@/lib/billboards/types";
 
 export function CampaignForm({ billboardId }: { billboardId: string }) {
   const { state, pending, form, onSubmit, error } = useRecordForm(addCampaignAction);
@@ -106,7 +50,7 @@ export function CampaignForm({ billboardId }: { billboardId: string }) {
         <Button type="submit" disabled={pending}>
           {pending ? "Saving…" : "Record campaign"}
         </Button>
-        <Result state={state} />
+        <FormResult state={state} />
       </div>
     </form>
   );
@@ -165,114 +109,36 @@ export function MaintenanceForm({ billboardId }: { billboardId: string }) {
         <Button type="submit" disabled={pending}>
           {pending ? "Saving…" : "Record maintenance"}
         </Button>
-        <Result state={state} />
-      </div>
-    </form>
-  );
-}
-
-export function FileForm({ billboardId }: { billboardId: string }) {
-  const { state, pending, form, onSubmit, error } = useRecordForm(addFileAction);
-  return (
-    <form ref={form} onSubmit={onSubmit} className="grid gap-3 sm:grid-cols-2">
-      <input type="hidden" name="billboardId" value={billboardId} />
-      <Field label="Category" htmlFor="category" required error={error("category")}>
-        <Select
-          id="category"
-          name="category"
-          options={FILE_CATEGORIES.map((category) => ({ value: category, label: category }))}
-        />
-      </Field>
-      <Field label="Date on the document" htmlFor="documentDate" error={error("documentDate")}>
-        <Input id="documentDate" name="documentDate" type="date" />
-      </Field>
-      <Field label="Title" htmlFor="fileTitle" required error={error("title")} className="sm:col-span-2">
-        <Input id="fileTitle" name="title" placeholder="e.g. Signed lease 2026–2028" />
-      </Field>
-      <Field
-        label="Link"
-        htmlFor="fileUrl"
-        required
-        error={error("url")}
-        hint="Upload the file to the shared Google Drive folder, then paste its share link here."
-        className="sm:col-span-2"
-      >
-        <Input id="fileUrl" name="url" type="url" placeholder="https://drive.google.com/…" />
-      </Field>
-      <div className="sm:col-span-2">
-        <Button type="submit" disabled={pending}>
-          {pending ? "Saving…" : "Add document"}
-        </Button>
-        <Result state={state} />
+        <FormResult state={state} />
       </div>
     </form>
   );
 }
 
 export function RemoveFileButton({ fileId, title }: { fileId: string; title: string }) {
-  const { state, pending, onSubmit } = useRecordForm(
-    removeFileAction,
-    `Remove “${title}” from this billboard? The record stays in the sheet.`,
-  );
   return (
-    <form onSubmit={onSubmit}>
-      <input type="hidden" name="fileId" value={fileId} />
-      <button
-        type="submit"
-        disabled={pending}
-        className="cursor-pointer text-xs font-medium text-slate-500 hover:text-slate-900 hover:underline disabled:opacity-50"
-      >
-        {pending ? "Removing…" : "Remove"}
-      </button>
-      {state.status === "error" ? <p className={cn("text-xs", TONE_CLASSES.critical.text)}>{state.message}</p> : null}
-    </form>
+    <ActionButton
+      action={removeFileAction}
+      fields={{ fileId }}
+      label="Remove"
+      busyLabel="Removing…"
+      look="link"
+      confirm={`Remove “${title}” from this billboard? The record stays in the sheet.`}
+    />
   );
 }
 
 export function ArchiveButton({ billboardId, archived }: { billboardId: string; archived: boolean }) {
-  const { state, pending, onSubmit } = useRecordForm(
-    archiveBillboardAction,
-    archived
-      ? undefined
-      : "Archive this billboard? It leaves the map and dashboard, but its history is kept and it can be restored.",
-  );
   return (
-    <form onSubmit={onSubmit}>
-      <input type="hidden" name="billboardId" value={billboardId} />
-      <input type="hidden" name="archive" value={archived ? "0" : "1"} />
-      <Button type="submit" variant={archived ? "secondary" : "ghost"} size="sm" disabled={pending}>
-        {pending ? "Saving…" : archived ? "Restore billboard" : "Archive billboard"}
-      </Button>
-      {state.status === "error" ? <p className={cn("mt-1 text-xs", TONE_CLASSES.critical.text)}>{state.message}</p> : null}
-    </form>
-  );
-}
-
-export function DisconnectDriveButton() {
-  const [state, dispatch, pending] = useActionState(disconnectDriveAction, EMPTY_BILLBOARD_FORM_STATE);
-  const disconnect = () => {
-    if (!window.confirm("Stop storing uploads in this Google account? Files already uploaded stay in its Drive.")) return;
-    startTransition(() => dispatch());
-  };
-  return (
-    <div>
-      <Button type="button" variant="secondary" size="sm" onClick={disconnect} disabled={pending}>
-        {pending ? "Disconnecting…" : "Disconnect"}
-      </Button>
-      <Result state={state} />
-    </div>
-  );
-}
-
-export function SetUpBillboardSheetButton() {
-  const [state, dispatch, pending] = useActionState(setUpBillboardSheetAction, EMPTY_BILLBOARD_FORM_STATE);
-  return (
-    <div>
-      <Button type="button" onClick={() => startTransition(() => dispatch())} disabled={pending}>
-        <RefreshIcon className="size-4" />
-        {pending ? "Preparing…" : "Prepare the billboard sheet"}
-      </Button>
-      <Result state={state} />
-    </div>
+    <ActionButton
+      action={archiveBillboardAction}
+      fields={{ billboardId, archive: archived ? "0" : "1" }}
+      label={archived ? "Restore billboard" : "Archive billboard"}
+      variant={archived ? "secondary" : "ghost"}
+      showResult={false}
+      confirm={
+        archived ? undefined : "Archive this billboard? It leaves the map and dashboard, but its history is kept and it can be restored."
+      }
+    />
   );
 }

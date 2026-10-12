@@ -1,3 +1,4 @@
+import type { RecordStoreInfo, RowOf, TableSet } from "@/lib/data/record-store";
 import { col, type TableSpec } from "@/lib/data/table-spec";
 import {
   ACTION_STATUSES,
@@ -217,7 +218,7 @@ export const REMINDERS_TABLE: TableSpec<ReminderLogEntry> = {
 };
 
 /** Every tab, keyed by the record type it holds. */
-export const EXPAT_TABLES: { [K in keyof ExpatData]: TableSpec<ExpatData[K][number]> } = {
+export const EXPAT_TABLES: TableSet<ExpatData> = {
   expats: EXPATS_TABLE,
   dependants: DEPENDANTS_TABLE,
   permits: PERMITS_TABLE,
@@ -229,9 +230,15 @@ export const EXPAT_TABLES: { [K in keyof ExpatData]: TableSpec<ExpatData[K][numb
   reminders: REMINDERS_TABLE,
 };
 
-export const EXPAT_TABLE_NAMES = Object.keys(EXPAT_TABLES) as (keyof ExpatData)[];
+/** The expat spreadsheet: one tab per record list. */
+export const EXPAT_STORE: RecordStoreInfo<ExpatData> = {
+  name: "expat",
+  tables: EXPAT_TABLES,
+  summary: (data) => `${data.expats.length} expats and ${data.dependants.length} dependants`,
+  sheetSetting: "GOOGLE_EXPATS_SHEET_ID",
+};
 
 /** One tab's definition, typed by its record (TypeScript cannot narrow the lookup itself). */
-export function tableFor<K extends keyof ExpatData>(name: K): TableSpec<ExpatData[K][number]> {
-  return EXPAT_TABLES[name] as TableSpec<ExpatData[K][number]>;
+export function tableFor<K extends keyof ExpatData>(name: K): TableSpec<RowOf<ExpatData, K>> {
+  return EXPAT_TABLES[name];
 }

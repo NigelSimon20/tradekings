@@ -6,7 +6,7 @@ import { formatDate, todayIn } from "@/lib/date/dates";
 
 /** Sends one short message, so email setup can be proved without a real report. */
 export async function POST(request: Request): Promise<Response> {
-  const denied = await guardApi("runReports");
+  const { denied } = await guardApi("runReports");
   if (denied) return denied;
 
   try {

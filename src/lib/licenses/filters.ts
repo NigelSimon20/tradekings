@@ -97,8 +97,3 @@ export const STATUS_FILTER_OPTIONS = (Object.keys(LICENSE_STATUS_META) as Licens
   value,
   label: LICENSE_STATUS_META[value].label,
 }));
-
-/** The distinct, sorted values in use — for filter dropdowns and form suggestions. */
-export function distinct(values: (string | undefined | null)[]): string[] {
-  return [...new Set(values.map((value) => (value ?? "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-}

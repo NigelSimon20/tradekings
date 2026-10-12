@@ -2,8 +2,10 @@ import Image from "next/image";
 
 import { ExternalLink } from "@/components/billboards/external-link";
 import { FileUpload } from "@/components/billboards/file-upload";
-import { AddPanel } from "@/components/billboards/record-forms";
-import { DocumentLinkForm, DocumentTargetFields, HistoricalToggle, RemoveDocumentButton } from "@/components/expats/controls";
+import { AddDocumentPanels } from "@/components/forms/add-document";
+import { addDocumentLinkAction } from "@/app/(expats)/expats/actions";
+import { DocumentTargetFields, HistoricalToggle, RemoveDocumentButton } from "@/components/expats/controls";
+import { DocumentLinkForm } from "@/components/forms/document-link-form";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { ContractsIcon } from "@/components/ui/icons";
@@ -151,29 +153,31 @@ export function DocumentList({
         ) : null}
 
         {mayAdd ? (
-          <div className="space-y-2">
-            {uploadsOn ? (
-              <AddPanel label="Upload documents">
-                <FileUpload
-                  endpoint="/api/expats/files"
-                  fields={{ expatId: row.expat.id }}
-                  categories={DOCUMENT_CATEGORIES}
-                  defaultCategory="Passport"
-                  titlePlaceholder="e.g. Passport bio page"
-                  dateField={{ name: "expiryDate", label: "Expiry date", hint: "If the document itself expires." }}
-                  extraFields={<DocumentTargetFields people={targets.people} records={targets.records} idPrefix="upload" />}
-                />
-              </AddPanel>
-            ) : (
-              <p className="text-sm text-slate-500">
-                Uploading is not set up yet, so documents are added as links. An administrator can connect Google Drive
-                from Setup &amp; access.
-              </p>
-            )}
-            <AddPanel label={uploadsOn ? "Add a link instead" : "Add a document link"}>
-              <DocumentLinkForm expatId={row.expat.id} people={targets.people} records={targets.records} />
-            </AddPanel>
-          </div>
+          <AddDocumentPanels
+            uploadsOn={uploadsOn}
+            uploadLabel="Upload documents"
+            upload={
+              <FileUpload
+                endpoint="/api/expats/files"
+                fields={{ expatId: row.expat.id }}
+                categories={DOCUMENT_CATEGORIES}
+                defaultCategory="Passport"
+                titlePlaceholder="e.g. Passport bio page"
+                dateField={{ name: "expiryDate", label: "Expiry date", hint: "If the document itself expires." }}
+                extraFields={<DocumentTargetFields people={targets.people} records={targets.records} idPrefix="upload" />}
+              />
+            }
+            link={
+              <DocumentLinkForm
+                action={addDocumentLinkAction}
+                hidden={{ expatId: row.expat.id }}
+                categories={DOCUMENT_CATEGORIES}
+                dateField={{ name: "expiryDate", label: "Expiry date", hint: "If the document itself expires." }}
+                extraFields={<DocumentTargetFields people={targets.people} records={targets.records} idPrefix="link" />}
+                titlePlaceholder="e.g. Signed employment contract 2026"
+              />
+            }
+          />
         ) : null}
       </CardBody>
     </Card>

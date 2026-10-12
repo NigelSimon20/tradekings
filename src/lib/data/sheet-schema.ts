@@ -137,24 +137,27 @@ function normaliseHeader(header: string): string {
   return header.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+/**
+ * Finds columns in a header row by their heading, ignoring case, spaces and
+ * punctuation, so people can reorder, insert or retitle columns slightly.
+ * Give it one heading, or several accepted ones (the first found wins).
+ */
+export function headingFinder(header: unknown[]): (...headings: string[]) => number | undefined {
+  const positions = new Map<string, number>();
+  header.forEach((cell, position) => {
+    const key = normaliseHeader(String(cell ?? ""));
+    if (key && !positions.has(key)) positions.set(key, position);
+  });
+  return (...headings) => headings.map((heading) => positions.get(normaliseHeader(heading))).find((at) => at !== undefined);
+}
+
 /** Maps each known column to the zero-based index it occupies in the sheet. */
 export function buildColumnIndex(headerRow: unknown[]): Map<ColumnKey, number> {
-  const byNormalised = new Map<string, number>();
-  headerRow.forEach((header, index) => {
-    const key = normaliseHeader(String(header ?? ""));
-    if (key && !byNormalised.has(key)) byNormalised.set(key, index);
-  });
-
+  const find = headingFinder(headerRow);
   const index = new Map<ColumnKey, number>();
   for (const column of CONTRACT_COLUMNS) {
-    const candidates = [column.header, ...(column.aliases ?? [])];
-    for (const candidate of candidates) {
-      const position = byNormalised.get(normaliseHeader(candidate));
-      if (position !== undefined) {
-        index.set(column.key, position);
-        break;
-      }
-    }
+    const position = find(column.header, ...(column.aliases ?? []));
+    if (position !== undefined) index.set(column.key, position);
   }
   return index;
 }
@@ -485,16 +488,10 @@ const USER_COLUMN_DEFAULTS: Record<UserColumn, number> = {
 export type UserColumnIndex = Record<UserColumn, number>;
 
 export function indexUserColumns(header: unknown[]): UserColumnIndex {
-  const positions = new Map<string, number>();
-  header.forEach((cell, position) => {
-    const key = normaliseHeader(String(cell ?? ""));
-    if (key && !positions.has(key)) positions.set(key, position);
-  });
+  const find = headingFinder(header);
   const index = { ...USER_COLUMN_DEFAULTS };
   for (const column of Object.keys(USER_COLUMN_HEADINGS) as UserColumn[]) {
-    const found = USER_COLUMN_HEADINGS[column]
-      .map((heading) => positions.get(normaliseHeader(heading)))
-      .find((position) => position !== undefined);
+    const found = find(...USER_COLUMN_HEADINGS[column]);
     if (found !== undefined) index[column] = found;
   }
   return index;

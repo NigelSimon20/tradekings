@@ -2,14 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 
+import { done, existingIdOf, failed, invalid, refused } from "@/lib/forms/action-results";
 import { canBillboards, type BillboardPermission } from "@/lib/auth/roles";
-import type { BillboardFormState } from "@/lib/billboards/form-state";
+import type { RecordFormState } from "@/lib/domain/form-state";
 import {
   parseBillboardForm,
   parseCampaignForm,
   parseFileForm,
   parseMaintenanceForm,
-  type ParsedBillboardForm,
 } from "@/lib/billboards/schema";
 import { getCurrentUser } from "@/lib/services/auth";
 import {
@@ -35,57 +35,34 @@ async function actorWith(permission: BillboardPermission): Promise<string | null
   return user.email || user.name;
 }
 
-const refused = (what: string): BillboardFormState => ({
-  status: "error",
-  message: `Your account does not have permission to ${what}.`,
-  errors: {},
-});
-
-const invalid = <T,>(parsed: ParsedBillboardForm<T>): BillboardFormState => ({
-  status: "error",
-  message: "Check the highlighted fields and try again.",
-  errors: parsed.errors,
-});
-
-const failed = (error: unknown): BillboardFormState => ({
-  status: "error",
-  message: (error as Error).message,
-  errors: {},
-});
-
 function refresh(): void {
   revalidatePath("/billboards", "layout");
 }
 
 export async function saveBillboardAction(
-  _previous: BillboardFormState,
+  _previous: RecordFormState,
   formData: FormData,
-): Promise<BillboardFormState> {
+): Promise<RecordFormState> {
   const actor = await actorWith("editBillboards");
   if (!actor) return refused("change billboards");
 
   const parsed = parseBillboardForm(formData);
   if (!parsed.ok || !parsed.values) return invalid(parsed);
 
-  const existingId = String(formData.get("existingId") ?? "").trim() || undefined;
+  const existingId = existingIdOf(formData);
   try {
     const saved = await saveBillboard(parsed.values, actor, existingId);
     refresh();
-    return {
-      status: "success",
-      message: existingId ? "Billboard updated." : `Billboard ${saved.id} added.`,
-      errors: {},
-      billboardId: saved.id,
-    };
+    return done(existingId ? "Billboard updated." : `Billboard ${saved.id} added.`, { recordId: saved.id });
   } catch (error) {
     return failed(error);
   }
 }
 
 export async function addCampaignAction(
-  _previous: BillboardFormState,
+  _previous: RecordFormState,
   formData: FormData,
-): Promise<BillboardFormState> {
+): Promise<RecordFormState> {
   const actor = await actorWith("editBillboards");
   if (!actor) return refused("record campaigns");
 
@@ -94,16 +71,16 @@ export async function addCampaignAction(
   try {
     await addCampaign(parsed.values, actor);
     refresh();
-    return { status: "success", message: "Campaign recorded.", errors: {} };
+    return done("Campaign recorded.");
   } catch (error) {
     return failed(error);
   }
 }
 
 export async function addMaintenanceAction(
-  _previous: BillboardFormState,
+  _previous: RecordFormState,
   formData: FormData,
-): Promise<BillboardFormState> {
+): Promise<RecordFormState> {
   const actor = await actorWith("editBillboards");
   if (!actor) return refused("record maintenance");
 
@@ -112,16 +89,16 @@ export async function addMaintenanceAction(
   try {
     await addMaintenance(parsed.values, actor);
     refresh();
-    return { status: "success", message: "Maintenance recorded.", errors: {} };
+    return done("Maintenance recorded.");
   } catch (error) {
     return failed(error);
   }
 }
 
 export async function addFileAction(
-  _previous: BillboardFormState,
+  _previous: RecordFormState,
   formData: FormData,
-): Promise<BillboardFormState> {
+): Promise<RecordFormState> {
   const actor = await actorWith("editBillboards");
   if (!actor) return refused("add documents");
 
@@ -130,31 +107,31 @@ export async function addFileAction(
   try {
     await addFile(parsed.values, actor);
     refresh();
-    return { status: "success", message: "Document added.", errors: {} };
+    return done("Document added.");
   } catch (error) {
     return failed(error);
   }
 }
 
 export async function removeFileAction(
-  _previous: BillboardFormState,
+  _previous: RecordFormState,
   formData: FormData,
-): Promise<BillboardFormState> {
+): Promise<RecordFormState> {
   const actor = await actorWith("removeDocuments");
   if (!actor) return refused("remove documents");
   try {
     await removeFile(String(formData.get("fileId") ?? ""), actor);
     refresh();
-    return { status: "success", message: "Document removed. The record is kept in the sheet.", errors: {} };
+    return done("Document removed. The record is kept in the sheet.");
   } catch (error) {
     return failed(error);
   }
 }
 
 export async function archiveBillboardAction(
-  _previous: BillboardFormState,
+  _previous: RecordFormState,
   formData: FormData,
-): Promise<BillboardFormState> {
+): Promise<RecordFormState> {
   const actor = await actorWith("archiveBillboards");
   if (!actor) return refused("archive billboards");
 
@@ -163,29 +140,25 @@ export async function archiveBillboardAction(
   try {
     await setBillboardArchived(id, archive, actor);
     refresh();
-    return {
-      status: "success",
-      message: archive ? "Billboard archived. Its history is kept." : "Billboard restored.",
-      errors: {},
-    };
+    return done(archive ? "Billboard archived. Its history is kept." : "Billboard restored.");
   } catch (error) {
     return failed(error);
   }
 }
 
-export async function disconnectDriveAction(): Promise<BillboardFormState> {
+export async function disconnectDriveAction(): Promise<RecordFormState> {
   const actor = await actorWith("manageBillboards");
   if (!actor) return refused("disconnect Google Drive");
   try {
     await disconnectDriveAccount(actor);
     refresh();
-    return { status: "success", message: "Disconnected. Files already uploaded stay in Drive.", errors: {} };
+    return done("Disconnected. Files already uploaded stay in Drive.");
   } catch (error) {
     return failed(error);
   }
 }
 
-export async function setUpBillboardSheetAction(): Promise<BillboardFormState> {
+export async function setUpBillboardSheetAction(): Promise<RecordFormState> {
   const actor = await actorWith("manageBillboards");
   if (!actor) return refused("set up the billboard sheet");
   try {

@@ -4,14 +4,14 @@ import { ExpiryTable } from "@/components/expats/expiry-table";
 import { Pipeline } from "@/components/expats/pipeline";
 import { Alert } from "@/components/ui/alert";
 import { ButtonLink } from "@/components/ui/button";
-import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { ActivityCard } from "@/components/ui/activity-card";
+import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AlertIcon, CalendarIcon, ClipboardIcon, PassportIcon, PlusIcon } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { canExpats } from "@/lib/auth/roles";
-import { getConfig } from "@/lib/config/env";
-import { describeDays, formatDate, formatTimestamp } from "@/lib/date/dates";
+import { describeDays, formatDate } from "@/lib/date/dates";
 import type { Tone } from "@/lib/domain/meta";
 import type { PageSearchParams } from "@/lib/domain/filters";
 import { profileHref } from "@/lib/expats/meta";
@@ -40,7 +40,6 @@ interface Urgent {
 export default async function ExpatDashboardPage({ searchParams }: PageSearchParams) {
   const user = await requireExpatViewer("viewExpats");
   const denied = (await searchParams).denied === "1";
-  const config = getConfig();
   const snapshot = await loadExpats(user);
   const { people, expiries, actions, applications, rules, today, source, activity } = snapshot;
   const names = new Map(people.map((row) => [row.expat.id, row.expat.fullName]));
@@ -235,42 +234,17 @@ export default async function ExpatDashboardPage({ searchParams }: PageSearchPar
         </Card>
       </div>
 
-      <Card>
-        <CardHeader
-          icon={<ClipboardIcon className="size-4" />}
-          title="Recent changes"
-          description="Who changed what, and when. Every change is kept in the Activity Log tab."
-        />
-        <CardBody className="p-0">
-          {activity.length ? (
-            <ul className="divide-y divide-slate-100">
-              {activity.slice(0, 8).map((entry) => (
-                <li key={entry.id} className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 px-5 py-3">
-                  <div className="min-w-0">
-                    <p className="text-sm text-slate-900">
-                      <span className="font-medium">
-                        {entry.action}
-                        {["Expat", "Document", "System"].includes(entry.recordType) ? "" : ` (${entry.recordType.toLowerCase()})`}
-                      </span>{" "}
-                      {entry.expatId ? (
-                        <Link href={profileHref(entry.expatId)} className="text-brand-700 hover:underline">
-                          {names.get(entry.expatId) ?? entry.expatId}
-                        </Link>
-                      ) : null}
-                    </p>
-                    {entry.details ? <p className="line-clamp-2 text-xs text-slate-500">{entry.details}</p> : null}
-                  </div>
-                  <p className="shrink-0 text-xs text-slate-500">
-                    {formatTimestamp(entry.at, config.timezone)} · {entry.by || "—"}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="px-5 py-6 text-sm text-slate-500">No changes recorded yet.</p>
-          )}
-        </CardBody>
-      </Card>
+      <ActivityCard
+        title="Recent changes"
+        icon={<ClipboardIcon className="size-4" />}
+        description="Who changed what, and when. Every change is kept in the Activity Log tab."
+        items={activity.slice(0, 8).map((entry) => ({
+          ...entry,
+          note: ["Expat", "Document", "System"].includes(entry.recordType) ? "" : `(${entry.recordType.toLowerCase()})`,
+          link: entry.expatId ? { href: profileHref(entry.expatId), label: names.get(entry.expatId) ?? entry.expatId } : null,
+        }))}
+        empty="No changes recorded yet."
+      />
     </div>
   );
 }

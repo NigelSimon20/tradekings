@@ -1,4 +1,4 @@
-import { neutraliseFormula, parseSheetBoolean } from "@/lib/data/sheet-schema";
+import { headingFinder, neutraliseFormula, parseSheetBoolean } from "@/lib/data/sheet-schema";
 import { parseDateValue, parseTimestampValue } from "@/lib/date/dates";
 
 /**
@@ -34,24 +34,15 @@ export const col = <T,>(
   extra: Partial<TableColumn<T>> = {},
 ): TableColumn<T> => ({ key, header, kind, ...extra });
 
-function normaliseHeader(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
 /** Which position each column occupies in a tab's header row. */
 export function indexHeader<K extends string>(
   spec: { columns: readonly { key: K; header: string }[] },
   header: unknown[],
 ): Map<K, number> {
-  const positions = new Map<string, number>();
-  header.forEach((cell, position) => {
-    const key = normaliseHeader(String(cell ?? ""));
-    if (key && !positions.has(key)) positions.set(key, position);
-  });
-
+  const find = headingFinder(header);
   const index = new Map<K, number>();
   for (const column of spec.columns) {
-    const position = positions.get(normaliseHeader(column.header));
+    const position = find(column.header);
     if (position !== undefined) index.set(column.key, position);
   }
   return index;

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { FollowUpForm } from "@/components/expats/record-forms";
 import { ArrowLeftIcon } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
-import { distinct } from "@/lib/expats/filters";
+import { distinct } from "@/lib/domain/filters";
 import { requireExpatViewer } from "@/lib/services/auth";
 import { loadExpats } from "@/lib/services/expats";
 

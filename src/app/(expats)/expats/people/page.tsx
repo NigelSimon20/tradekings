@@ -7,16 +7,8 @@ import { Input, Select } from "@/components/ui/field";
 import { DownloadIcon, PlusIcon, SearchIcon } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { canExpats } from "@/lib/auth/roles";
-import type { PageSearchParams } from "@/lib/domain/filters";
-import {
-  ACTION_FILTER_OPTIONS,
-  PERMIT_STATUS_OPTIONS,
-  WITHIN_OPTIONS,
-  countActive,
-  distinct,
-  filterPeople,
-  parsePeopleFilters,
-} from "@/lib/expats/filters";
+import { distinct, type PageSearchParams } from "@/lib/domain/filters";
+import { ACTION_FILTER_OPTIONS, PERMIT_STATUS_OPTIONS, WITHIN_OPTIONS, countActive, filterPeople, parsePeopleFilters } from "@/lib/expats/filters";
 import { PROFILE_STATUS_META } from "@/lib/expats/meta";
 import { LEASE_STATUSES, PERMIT_TYPES, PROFILE_STATUSES } from "@/lib/expats/types";
 import { PEOPLE_VIEWS, findView } from "@/lib/expats/views";

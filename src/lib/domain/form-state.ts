@@ -22,3 +22,19 @@ export interface UserAccessState {
 }
 
 export const EMPTY_USER_ACCESS_STATE: UserAccessState = { status: "idle", message: "" };
+
+/** Result of any record form or action button in the billboard, license and expat trackers. */
+export interface RecordFormState {
+  status: "idle" | "success" | "error";
+  message: string;
+  errors: Record<string, string>;
+  /** Set after a new record is saved, so the form can open it. */
+  recordId?: string;
+  /** Where to go once saved, if anywhere. */
+  redirectTo?: string;
+}
+
+export const EMPTY_RECORD_FORM_STATE: RecordFormState = { status: "idle", message: "", errors: {} };
+
+/** A server action a record form or button runs. */
+export type RecordAction = (previous: RecordFormState, formData: FormData) => Promise<RecordFormState>;

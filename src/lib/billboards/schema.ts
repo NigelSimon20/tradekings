@@ -9,51 +9,25 @@ import {
   type NewCampaign,
   type NewMaintenanceRecord,
 } from "@/lib/billboards/types";
-import { isISODate } from "@/lib/date/dates";
+import {
+  formValues,
+  optionalDate,
+  optionalEmail,
+  optionalNumber,
+  optionalUrl,
+  parseForm,
+  parseWith,
+  requiredUrl,
+  text,
+  withOptionalId,
+  type Parsed,
+} from "@/lib/forms/fields";
 
 /**
  * Validation for the billboard forms, shared by the pages and the server
  * actions. Every value that becomes a link must be http(s): a `javascript:`
  * URL saved into the sheet would otherwise run when someone clicks it.
  */
-
-const text = z.string().trim();
-
-const optionalEmail = text.refine((value) => value === "" || z.email().safeParse(value).success, {
-  message: "Enter a valid email address",
-});
-
-const optionalDate = text
-  .refine((value) => value === "" || isISODate(value), { message: "Use the date picker (yyyy-mm-dd)" })
-  .transform((value) => (value === "" ? null : value));
-
-export function isSafeUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" || url.protocol === "http:";
-  } catch {
-    return false;
-  }
-}
-
-const optionalUrl = text.refine((value) => value === "" || isSafeUrl(value), {
-  message: "Paste a full link starting with https://",
-});
-
-const requiredUrl = text
-  .min(1, "Paste the link to the file")
-  .refine(isSafeUrl, { message: "Paste a full link starting with https://" });
-
-function optionalNumber(label: string, min: number, max: number, integer = false) {
-  return text
-    .transform((value) => (value === "" ? null : Number(value)))
-    .refine((value) => value === null || (Number.isFinite(value) && value >= min && value <= max), {
-      message: `${label} must be between ${min} and ${max}`,
-    })
-    .refine((value) => !integer || value === null || Number.isInteger(value), {
-      message: `${label} must be a whole number`,
-    });
-}
 
 const billboardSchema = z
   .object({
@@ -136,7 +110,7 @@ const fileSchema = z.object({
   billboardId: text.min(1),
   category: z.enum(FILE_CATEGORIES),
   title: text.min(1, "Give the file a title"),
-  url: requiredUrl,
+  url: requiredUrl(),
   documentDate: optionalDate,
 });
 
@@ -147,92 +121,26 @@ const uploadSchema = z.object({
   documentDate: optionalDate,
 });
 
-export interface ParsedBillboardForm<T> {
-  ok: boolean;
-  values: T | null;
-  errors: Record<string, string>;
-}
-
-function formValues(formData: FormData): Record<string, string> {
-  return Object.fromEntries(
-    Array.from(formData.entries()).map(([key, value]) => [key, typeof value === "string" ? value : ""]),
-  );
-}
-
-function parse<T>(schema: z.ZodType<T>, input: unknown): ParsedBillboardForm<T> {
-  const result = schema.safeParse(input);
-  if (result.success) return { ok: true, values: result.data, errors: {} };
-
-  const errors: Record<string, string> = {};
-  for (const issue of result.error.issues) {
-    const key = String(issue.path[0] ?? "form");
-    if (!errors[key]) errors[key] = issue.message;
-  }
-  return { ok: false, values: null, errors };
-}
-
 /** Keys the billboard form submits, each read as text (blank when absent). */
 const BILLBOARD_TEXT_FIELDS = Object.keys(billboardSchema.shape).filter((key) => key !== "followUp");
 
-export function parseBillboardForm(formData: FormData): ParsedBillboardForm<BillboardInput> {
+export function parseBillboardForm(formData: FormData): Parsed<BillboardInput> {
   const raw = formValues(formData);
   const input: Record<string, unknown> = { followUp: raw.followUp === "on" };
   for (const key of BILLBOARD_TEXT_FIELDS) input[key] = raw[key] ?? "";
   if (!input.status) input.status = BILLBOARD_STATUSES[0];
-
-  const parsed = parse(billboardSchema, input);
-  if (!parsed.ok || !parsed.values) return { ...parsed, values: null };
-  const { id, ...values } = parsed.values;
-  return { ...parsed, values: { ...values, id: id || undefined } };
+  return withOptionalId(parseWith(billboardSchema, input));
 }
 
-export function parseCampaignForm(formData: FormData): ParsedBillboardForm<NewCampaign> {
-  const raw = formValues(formData);
-  return parse(campaignSchema, {
-    billboardId: raw.billboardId ?? "",
-    brand: raw.brand ?? "",
-    campaign: raw.campaign ?? "",
-    startDate: raw.startDate ?? "",
-    endDate: raw.endDate ?? "",
-    installedOn: raw.installedOn ?? "",
-    removedOn: raw.removedOn ?? "",
-    artworkUrl: raw.artworkUrl ?? "",
-    notes: raw.notes ?? "",
-  }) as ParsedBillboardForm<NewCampaign>;
-}
+export const parseCampaignForm = (formData: FormData): Parsed<NewCampaign> => parseForm(campaignSchema, formData);
 
-export function parseMaintenanceForm(formData: FormData): ParsedBillboardForm<NewMaintenanceRecord> {
-  const raw = formValues(formData);
-  return parse(maintenanceSchema, {
-    billboardId: raw.billboardId ?? "",
-    date: raw.date ?? "",
-    kind: raw.kind ?? "",
-    condition: raw.condition ?? "",
-    description: raw.description ?? "",
-    photoUrl: raw.photoUrl ?? "",
-    nextInspection: raw.nextInspection ?? "",
-  }) as ParsedBillboardForm<NewMaintenanceRecord>;
-}
+export const parseMaintenanceForm = (formData: FormData): Parsed<NewMaintenanceRecord> =>
+  parseForm(maintenanceSchema, formData) as Parsed<NewMaintenanceRecord>;
 
 /** The fields sent with an uploaded file; the file itself is checked by the service. */
-export function parseUploadForm(formData: FormData): ParsedBillboardForm<NewBillboardFile> {
-  const raw = formValues(formData);
-  const parsed = parse(uploadSchema, {
-    billboardId: raw.billboardId ?? "",
-    category: raw.category ?? "",
-    title: raw.title ?? "",
-    documentDate: raw.documentDate ?? "",
-  });
+export function parseUploadForm(formData: FormData): Parsed<NewBillboardFile> {
+  const parsed = parseForm(uploadSchema, formData);
   return parsed.ok && parsed.values ? { ...parsed, values: { ...parsed.values, url: "" } } : { ...parsed, values: null };
 }
 
-export function parseFileForm(formData: FormData): ParsedBillboardForm<NewBillboardFile> {
-  const raw = formValues(formData);
-  return parse(fileSchema, {
-    billboardId: raw.billboardId ?? "",
-    category: raw.category ?? "",
-    title: raw.title ?? "",
-    url: raw.url ?? "",
-    documentDate: raw.documentDate ?? "",
-  });
-}
+export const parseFileForm = (formData: FormData): Parsed<NewBillboardFile> => parseForm(fileSchema, formData);

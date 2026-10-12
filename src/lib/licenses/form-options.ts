@@ -1,4 +1,4 @@
-import { distinct } from "@/lib/licenses/filters";
+import { distinct } from "@/lib/domain/filters";
 import { DEFAULT_LICENSE_CATEGORIES, type AssetSummary, type EvaluatedLicense } from "@/lib/licenses/types";
 
 /** The choices and suggestions the license form offers, from what is already in the register. */

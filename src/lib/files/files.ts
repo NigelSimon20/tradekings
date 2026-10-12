@@ -11,7 +11,8 @@ import type { Billboard } from "@/lib/billboards/types";
  */
 
 /** Characters Drive, Windows and macOS disagree about, and control characters. */
-function clean(value: string): string {
+/** A name that is safe as a Drive or disk folder or file name. */
+export function folderName(value: string): string {
   return value
     .replace(/[\u0000-\u001f\u007f/\\:*?"<>|]+/g, " ")
     .replace(/\s+/g, " ")
@@ -20,18 +21,34 @@ function clean(value: string): string {
 }
 
 export function cityFolderName(city: string): string {
-  return clean(city) || "No city recorded";
+  return folderName(city) || "No city recorded";
 }
 
 export function siteFolderName(billboard: Pick<Billboard, "id" | "name">): string {
-  const name = clean(billboard.name);
+  const name = folderName(billboard.name);
   return name ? `${billboard.id} – ${name}` : billboard.id;
 }
 
 /** `2026-09-27 1405 Site photo – Front view.jpg` */
+/** `2026-09-27 140512` in the app's timezone, so a folder lists files in the order they were added. */
+export function fileStamp(timezone: string, at = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(at);
+  const part = (type: string) => parts.find((entry) => entry.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")} ${part("hour")}${part("minute")}${part("second")}`;
+}
+
 export function storedFileName(stamp: string, category: string, title: string, extension: string): string {
-  const label = clean(title);
-  return `${stamp} ${clean(category)}${label ? ` – ${label}` : ""}.${extension}`;
+  const label = folderName(title);
+  return `${stamp} ${folderName(category)}${label ? ` – ${label}` : ""}.${extension}`;
 }
 
 export interface AcceptedType {
@@ -69,5 +86,5 @@ export function filePreviewUrl(file: { id: string }): string {
 
 /** The part of an uploaded file's name worth keeping as its title. */
 export function titleFromFileName(name: string): string {
-  return clean(name.replace(/\.[a-z0-9]{1,5}$/i, "").replace(/[_]+/g, " "));
+  return folderName(name.replace(/\.[a-z0-9]{1,5}$/i, "").replace(/[_]+/g, " "));
 }

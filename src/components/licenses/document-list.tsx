@@ -2,12 +2,14 @@ import Image from "next/image";
 
 import { FileUpload } from "@/components/billboards/file-upload";
 import { ExternalLink } from "@/components/billboards/external-link";
-import { AddPanel } from "@/components/billboards/record-forms";
-import { DocumentLinkForm, RemoveDocumentButton } from "@/components/licenses/license-controls";
+import { AddDocumentPanels } from "@/components/forms/add-document";
+import { addDocumentLinkAction } from "@/app/(licenses)/licenses/actions";
+import { DocumentLinkForm } from "@/components/forms/document-link-form";
+import { RemoveDocumentButton } from "@/components/licenses/license-controls";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { ContractsIcon } from "@/components/ui/icons";
-import { isSafeUrl } from "@/lib/billboards/schema";
+import { isSafeUrl } from "@/lib/forms/fields";
 import { formatDate } from "@/lib/date/dates";
 import { DOCUMENT_CATEGORIES, type LicenseDocument } from "@/lib/licenses/types";
 
@@ -91,26 +93,25 @@ export function DocumentList({
         )}
 
         {mayAdd ? (
-          <div className="space-y-2">
-            {uploadsOn ? (
-              <AddPanel label="Upload documents or photos">
-                <FileUpload
-                  endpoint="/api/licenses/files"
-                  fields={target}
-                  categories={DOCUMENT_CATEGORIES}
-                  defaultCategory={defaultCategory}
-                />
-              </AddPanel>
-            ) : (
-              <p className="text-sm text-slate-500">
-                Uploading is not set up yet, so documents are added as links. An administrator can connect Google
-                Drive from Setup &amp; access.
-              </p>
-            )}
-            <AddPanel label={uploadsOn ? "Add a link instead" : "Add a document link"}>
-              <DocumentLinkForm licenseId={target.licenseId} assetId={target.assetId} />
-            </AddPanel>
-          </div>
+          <AddDocumentPanels
+            uploadsOn={uploadsOn}
+            upload={
+              <FileUpload
+                endpoint="/api/licenses/files"
+                fields={target}
+                categories={DOCUMENT_CATEGORIES}
+                defaultCategory={defaultCategory}
+              />
+            }
+            link={
+              <DocumentLinkForm
+                action={addDocumentLinkAction}
+                hidden={{ licenseId: target.licenseId, assetId: target.assetId }}
+                categories={DOCUMENT_CATEGORIES}
+                titlePlaceholder="e.g. Fire certificate 2026"
+              />
+            }
+          />
         ) : null}
       </CardBody>
     </Card>

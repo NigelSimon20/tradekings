@@ -5,7 +5,6 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { DefinitionList } from "@/components/ui/definition-list";
 import { ContractsIcon, ReportsIcon, SettingsIcon } from "@/components/ui/icons";
 import { PERMISSION_INFO } from "@/lib/auth/roles";
-import { RoleMatrix } from "@/components/ui/role-matrix";
 import { PageHeader } from "@/components/ui/page-header";
 import { RuleSummary } from "@/components/ui/rule-summary";
 import { TBody, THead, Table, TableWrap, Td, Th, Tr } from "@/components/ui/table";
@@ -14,12 +13,12 @@ import { COLUMN_TYPE_LABELS } from "@/lib/domain/meta";
 import { formatUtcHourInZone } from "@/lib/date/dates";
 import { getConfig } from "@/lib/config/env";
 import { duplicateEnvKeys } from "@/lib/config/env-file";
-import { CONTRACT_COLUMNS } from "@/lib/data/sheet-schema";
+import { CONTRACT_COLUMNS, CONTRACT_ROLES_TAB } from "@/lib/data/sheet-schema";
 import { getMailer } from "@/lib/email/mailer";
 import { can } from "@/lib/auth/roles";
 import { getRoleTable, requireViewer } from "@/lib/services/auth";
 import { loadUsersEditor } from "@/lib/services/users";
-import { UsersEditor } from "@/components/settings/users-editor";
+import { RolesCard, SignInCard } from "@/components/settings/setup-cards";
 import { checkDataSource } from "@/lib/services/contracts";
 import { getReportSettings, getRulesConfig } from "@/lib/services/settings";
 
@@ -185,44 +184,8 @@ export default async function SettingsPage() {
         </CardBody>
       </Card>
 
-      <Card>
-        <CardHeader
-          icon={<SettingsIcon className="size-4" />}
-          title="Contract Tracker roles"
-          description="What each role may do. Change the ticks — or add a row for a new role — on the Contract Roles tab of the users spreadsheet; changes apply within about 30 seconds."
-        />
-        <RoleMatrix roles={roleTable.contracts} catalogue={PERMISSION_INFO} />
-      </Card>
-
-      <Card>
-        <CardHeader
-          icon={<SettingsIcon className="size-4" />}
-          title="Who can sign in"
-          description={
-            people.rights.contracts || people.rights.billboards
-              ? "Change someone's access to each app, or add a person. Saved to the Users tab of the users spreadsheet; applies within about 30 seconds."
-              : "Set on the Users tab of the users spreadsheet. Only administrators can change it."
-          }
-        />
-        {people.editable ? (
-          <UsersEditor
-            users={people.users}
-            contractRoles={people.contractRoles}
-            billboardRoles={people.billboardRoles}
-            licenseRoles={people.licenseRoles}
-            expatRoles={people.expatRoles}
-            rights={people.rights}
-            currentEmail={people.currentEmail}
-          />
-        ) : (
-          <CardBody>
-            <p className="text-sm text-slate-500">
-              The tracker is running on sample data, so there is no Users tab yet. Once the Google Sheet is
-              connected, people can be added and given access here.
-            </p>
-          </CardBody>
-        )}
-      </Card>
+      <RolesCard appName="Contract Tracker" tab={CONTRACT_ROLES_TAB} roles={roleTable.contracts} catalogue={PERMISSION_INFO} />
+      <SignInCard people={people} />
 
       <Card>
         <CardHeader

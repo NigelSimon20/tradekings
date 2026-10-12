@@ -4,7 +4,6 @@ import "leaflet/dist/leaflet.css";
 
 import Image from "next/image";
 
-import type { LayerGroup, Map as LeafletMap } from "leaflet";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { BillboardFlagBadges, BillboardStatusBadge, LeaseBadge } from "@/components/billboards/badges";
@@ -23,12 +22,10 @@ import { filePreviewUrl } from "@/lib/files/files";
 import { BILLBOARD_STATUSES, type EvaluatedBillboard } from "@/lib/billboards/types";
 import { describeDays } from "@/lib/date/dates";
 import { TONE_CLASSES, TONE_COLORS } from "@/lib/ui/tones";
+import { useLeafletMap } from "@/components/maps/use-leaflet-map";
 import { cn } from "@/lib/ui/cn";
 
-type Leaflet = typeof import("leaflet");
-
 /** Zimbabwe, for the moment before the markers are known. */
-const COUNTRY_VIEW: [number, number] = [-19.0, 29.8];
 
 const pinColour = (billboard: EvaluatedBillboard) =>
   TONE_COLORS[BILLBOARD_STATUS_META[billboard.status].tone].solid;
@@ -52,34 +49,13 @@ export function BillboardMap({
   const [selectedId, setSelectedId] = useState<string | null>(focusId ?? null);
   // Used once, on the first framing of the map.
   const pendingFocus = useRef(focusId);
-  const [ready, setReady] = useState(false);
 
   const element = useRef<HTMLDivElement>(null);
-  const leaflet = useRef<{ L: Leaflet; map: LeafletMap; layer: LayerGroup } | null>(null);
+  const { ready, leaflet } = useLeafletMap(element, (L, map) => ({ layer: L.layerGroup().addTo(map) }));
 
   const visible = useMemo(() => filterBillboards(billboards, filters), [billboards, filters]);
   const selected = visible.find((billboard) => billboard.id === selectedId) ?? null;
   const unplaced = visible.filter((billboard) => !billboard.computed.hasLocation).length;
-
-  // Leaflet touches `window` as it loads, so it is imported in the browser only.
-  useEffect(() => {
-    let cancelled = false;
-    void import("leaflet").then((L) => {
-      if (cancelled || !element.current) return;
-      const map = L.map(element.current, { scrollWheelZoom: true }).setView(COUNTRY_VIEW, 6);
-      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-        attribution: "&copy; OpenStreetMap contributors",
-      }).addTo(map);
-      leaflet.current = { L, map, layer: L.layerGroup().addTo(map) };
-      setReady(true);
-    });
-    return () => {
-      cancelled = true;
-      leaflet.current?.map.remove();
-      leaflet.current = null;
-    };
-  }, []);
 
   // Markers follow the search and the selection.
   useEffect(() => {
@@ -114,7 +90,7 @@ export function BillboardMap({
         .on("click", () => setSelectedId(billboard.id))
         .addTo(layer);
     }
-  }, [ready, visible, selectedId]);
+  }, [ready, visible, selectedId, leaflet]);
 
   // A new search re-frames the map around what it found.
   useEffect(() => {
@@ -132,7 +108,7 @@ export function BillboardMap({
       .map((billboard) => [billboard.latitude!, billboard.longitude!] as [number, number]);
     if (points.length === 1) current.map.setView(points[0], 14);
     else if (points.length > 1) current.map.fitBounds(points, { padding: [40, 40], maxZoom: 14 });
-  }, [ready, visible]);
+  }, [ready, visible, leaflet]);
 
   const choose = (billboard: EvaluatedBillboard) => {
     setSelectedId(billboard.id);

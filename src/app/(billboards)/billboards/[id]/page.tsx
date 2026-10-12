@@ -9,20 +9,22 @@ import {
   ConditionBadge,
   LeaseBadge,
 } from "@/components/billboards/badges";
+import { addFileAction } from "@/app/(billboards)/billboards/actions";
+import { AddDocumentPanels, AddPanel } from "@/components/forms/add-document";
+import { DocumentLinkForm } from "@/components/forms/document-link-form";
 import { ExternalLink } from "@/components/billboards/external-link";
 import { FileUpload } from "@/components/billboards/file-upload";
 import { PhotoGallery } from "@/components/billboards/photo-gallery";
 import {
-  AddPanel,
   ArchiveButton,
   CampaignForm,
-  FileForm,
   MaintenanceForm,
   RemoveFileButton,
 } from "@/components/billboards/record-forms";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
+import { ActivityCard } from "@/components/ui/activity-card";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { DefinitionList } from "@/components/ui/definition-list";
 import { ArrowLeftIcon, BillboardIcon, ContractsIcon, PinIcon, SettingsIcon } from "@/components/ui/icons";
@@ -31,7 +33,7 @@ import { TBody, THead, Table, TableWrap, Td, Th, Tr } from "@/components/ui/tabl
 import { canBillboards } from "@/lib/auth/roles";
 import { getPhotoStore } from "@/lib/files";
 import { cityFolderName, filePreviewUrl, siteFolderName } from "@/lib/files/files";
-import { isSafeUrl } from "@/lib/billboards/schema";
+import { isSafeUrl } from "@/lib/forms/fields";
 import {
   PHOTO_CATEGORIES,
   FILE_CATEGORIES,
@@ -451,51 +453,36 @@ export default async function BillboardProfilePage({ params }: { params: Promise
           ) : null}
 
           {mayEdit && !billboard.archived ? (
-            <div className="space-y-2">
-              {uploadsOn ? (
-                <AddPanel label="Upload photos or documents">
-                  <FileUpload
-                    endpoint="/api/billboards/files"
-                    fields={{ billboardId: billboard.id }}
-                    categories={FILE_CATEGORIES}
-                  />
-                </AddPanel>
-              ) : (
-                <p className="text-sm text-slate-500">
-                  Uploading is not set up yet, so files are added as links. A billboard administrator can
-                  connect a Google Shared drive from Setup &amp; access.
-                </p>
-              )}
-              <AddPanel label={uploadsOn ? "Add a link instead" : "Add a photo or document link"}>
-                <FileForm billboardId={billboard.id} />
-              </AddPanel>
-            </div>
+            <AddDocumentPanels
+              uploadsOn={uploadsOn}
+              uploadLabel="Upload photos or documents"
+              upload={
+                <FileUpload
+                  endpoint="/api/billboards/files"
+                  fields={{ billboardId: billboard.id }}
+                  categories={FILE_CATEGORIES}
+                />
+              }
+              link={
+                <DocumentLinkForm
+                  action={addFileAction}
+                  hidden={{ billboardId: billboard.id }}
+                  categories={FILE_CATEGORIES}
+                  titlePlaceholder="e.g. Signed lease 2026–2028"
+                  linkHint="Upload the file to Google Drive, then paste its share link here."
+                  submitLabel="Add document"
+                />
+              }
+            />
           ) : null}
         </CardBody>
       </Card>
 
-      <Card>
-        <CardHeader title="Activity" description="Every change to this billboard: who, when and what." />
-        <CardBody className="p-0">
-          {activity.length ? (
-            <ul className="divide-y divide-slate-100">
-              {activity.map((entry) => (
-                <li key={entry.id} className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 px-5 py-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-900">{entry.action}</p>
-                    {entry.details ? <p className="text-xs break-words text-slate-500">{entry.details}</p> : null}
-                  </div>
-                  <p className="shrink-0 text-xs text-slate-500">
-                    {formatTimestamp(entry.at, config.timezone)} · {entry.by || "—"}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="px-5 py-6 text-sm text-slate-500">No changes recorded since this billboard was added.</p>
-          )}
-        </CardBody>
-      </Card>
+      <ActivityCard
+        description="Every change to this billboard: who, when and what."
+        items={activity}
+        empty="No changes recorded since this billboard was added."
+      />
 
       {mayArchive && !billboard.archived ? (
         <div className="flex justify-end">

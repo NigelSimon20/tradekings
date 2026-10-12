@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { evaluateBillboards } from "@/lib/billboards/evaluate";
 import { filterBillboards, EMPTY_BILLBOARD_FILTERS } from "@/lib/billboards/filters";
-import { isSafeUrl, parseBillboardForm } from "@/lib/billboards/schema";
+import { parseBillboardForm } from "@/lib/billboards/schema";
+import { isSafeUrl } from "@/lib/forms/fields";
 import type { Billboard, BillboardFile, Campaign } from "@/lib/billboards/types";
 import { BILLBOARD_VIEWS, getBillboardView } from "@/lib/billboards/views";
 

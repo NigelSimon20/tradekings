@@ -1,4 +1,4 @@
-import { getCurrentUser, guardApi } from "@/lib/services/auth";
+import { guardApi } from "@/lib/services/auth";
 import { originFromRequest } from "@/lib/api/origin";
 import { failure, success } from "@/lib/api/respond";
 import { runWeeklyReports } from "@/lib/reports/run";
@@ -13,7 +13,7 @@ interface RunBody {
 
 /** Manual weekly report run, triggered from the dashboard or reports page. */
 export async function POST(request: Request): Promise<Response> {
-  const denied = await guardApi("runReports");
+  const { user, denied } = await guardApi("runReports");
   if (denied) return denied;
 
   try {
@@ -23,7 +23,7 @@ export async function POST(request: Request): Promise<Response> {
       trigger: "manual",
       onlyRecipient: body.onlyRecipient,
       appUrl: originFromRequest(request),
-      actor: (await getCurrentUser())?.email,
+      actor: user.email,
     });
 
     const plural = result.emailsSent === 1 ? "" : "s";

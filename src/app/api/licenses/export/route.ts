@@ -6,7 +6,7 @@ import { licensesToCsv, loadLicenses } from "@/lib/services/licenses";
 
 /** The license register as CSV, with the same filters as the register page. */
 export async function GET(request: Request): Promise<Response> {
-  const denied = await guardLicenseApi("exportLicenses");
+  const { denied } = await guardLicenseApi("exportLicenses");
   if (denied) return denied;
 
   const { licenses, today, error } = await loadLicenses();

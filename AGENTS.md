@@ -32,7 +32,7 @@ plain label when that is a single app (`lib/domain/projects.ts`).
 - History is kept, not overwritten: campaigns, maintenance, documents and the
   Activity Log are append-only; every change records who and when. Deleting a
   billboard means archiving it; removing a document hides it.
-- Uploads go through `PhotoStore` (`lib/billboards/photos/`), chosen by
+- Uploads go through `PhotoStore` (`lib/files/`), chosen by
   `resolvePhotoStore`: a connected Google account (`drive.file` only, token
   sealed with `secret-box.ts`, never sent to a page), else the Shared drive,
   else local on sample data. Filed City / Site by `files.ts`. The file type comes from
@@ -175,7 +175,31 @@ plain label when that is a single app (`lib/domain/projects.ts`).
 - `RuleSummary`, `AdminDetails`, `LinkRow`, `StatCard`, `DefinitionList` before
   writing the markup again.
 - `countDataIssues`, `countActiveFilters`, `initialsOf`, `stampNewContract`,
-  `PageSearchParams` — one definition each, already imported where needed.
+  `PageSearchParams`, `distinct` — one definition each, already imported where needed.
+
+The billboard, license and expat trackers are built from the same parts. A new
+tracker (or a new record type) should reuse them, not copy an existing app:
+
+- **Storage**: `RecordStore` (`lib/data/record-store.ts`) — `save(table, record)`,
+  `append(table, records)` — with one Google Sheet backend (`sheet-record-store.ts`,
+  on `SheetBook`) and one local-file backend (`local-record-store.ts`). An app is
+  described once by a `RecordStoreInfo` (its tabs, name, setting) and opened
+  with `openRecordStore`.
+- **Services**: `timestamp`, `newId`, `nextId`, `describeChanges`, `newestFirst`
+  (`lib/data/records.ts`); `fileStamp`, `folderName` (`lib/files/files.ts`).
+- **Forms**: field rules and parsing in `lib/forms/fields.ts` (`text`,
+  `optionalDate`, `isSafeUrl`, `parseForm`, `withOptionalId`); action results in
+  `lib/forms/action-results.ts` (`refused`, `invalid`, `failed`, `done`). One
+  `RecordFormState` (`lib/domain/form-state.ts`).
+- **Form UI**: `useRecordForm`, `ActionButton`, `FormResult`
+  (`components/forms/record-form.tsx`); `TextField`, `FormSection`,
+  `CoordinatesFields`, `FormFooter`… (`form-parts.tsx`); `DocumentLinkForm`;
+  `AddPanel` / `AddDocumentPanels`.
+- **Pages**: `SheetCard`, `StorageCard`, `RolesCard`, `SignInCard` and
+  `TrackerUnavailable` (`components/settings/setup-cards.tsx`); `ActivityCard`;
+  `PageSkeleton`; `useLeafletMap` for any map.
+- **Routes**: guards return `{ user, denied }`; `readUpload` and `fileResponse`
+  (`lib/api/files.ts`) for upload and preview routes.
 
 ## Conventions
 

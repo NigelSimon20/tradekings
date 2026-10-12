@@ -5,6 +5,7 @@ import { cache } from "react";
 import { canExpats } from "@/lib/auth/roles";
 import type { SessionUser } from "@/lib/auth/session";
 import { getConfig } from "@/lib/config/env";
+import { describeChanges, newId, nextId, timestamp } from "@/lib/data/records";
 import type { RepositoryHealth } from "@/lib/data/repository";
 import { todayIn, type ISODate } from "@/lib/date/dates";
 import { getMailer } from "@/lib/email/mailer";
@@ -50,7 +51,14 @@ import {
   type Vehicle,
 } from "@/lib/expats/types";
 import { getPhotoStore } from "@/lib/files";
-import { MAX_UPLOAD_BYTES, detectFileType, storedFileName, titleFromFileName } from "@/lib/files/files";
+import {
+  MAX_UPLOAD_BYTES,
+  detectFileType,
+  fileStamp,
+  folderName,
+  storedFileName,
+  titleFromFileName,
+} from "@/lib/files/files";
 import type { FileContent, FileLocation } from "@/lib/files/store";
 import { buildXlsx, type XlsxSheet } from "@/lib/reports/xlsx";
 import { checkStorage, connectStorageAccount, disconnectStorageAccount } from "@/lib/services/storage";
@@ -161,27 +169,10 @@ export function setUpExpatStorage() {
 // Sensitive values are never written into the log, only that they changed.
 // ---------------------------------------------------------------------------
 
-const stamp = () => new Date().toISOString();
-
-function newId(prefix: string): string {
-  return `${prefix}-${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
-}
-
 function logEntry(expatId: string, recordType: RecordType, recordId: string, by: string, action: string, details = ""): ExpatActivity {
-  return { id: newId("LOG"), at: stamp(), by, expatId, recordType, recordId, action, details };
+  return { id: newId("LOG"), at: timestamp(), by, expatId, recordType, recordId, action, details };
 }
 
-/** `EXP-013` after `EXP-012`, so references stay short and readable. */
-function nextId(prefix: string, existing: { id: string }[]): string {
-  const pattern = new RegExp(`^${prefix.replace(/[-]/g, "\\-")}-?(\\d+)$`, "i");
-  const highest = existing.reduce((max, item) => {
-    const match = pattern.exec(item.id);
-    return match ? Math.max(max, Number(match[1])) : max;
-  }, 0);
-  return `${prefix}-${String(highest + 1).padStart(3, "0")}`;
-}
-
-const IGNORED = new Set(["lastUpdated", "lastUpdatedBy", "createdAt", "createdBy", "completedAt"]);
 const SENSITIVE_TABLE: Partial<Record<ExpatTable, keyof typeof SENSITIVE_FIELDS>> = {
   expats: "expats",
   dependants: "dependants",
@@ -191,25 +182,13 @@ const SENSITIVE_TABLE: Partial<Record<ExpatTable, keyof typeof SENSITIVE_FIELDS>
   documents: "documents",
 };
 
-/** "Expiry Date: 2026-01-31 → 2027-01-31; Number: changed" */
-function describeChanges<K extends ExpatTable>(table: K, before: ExpatRecord<K>, after: ExpatRecord<K>): string {
-  const labels = new Map(tableFor(table).columns.map((column) => [column.key as string, column.header]));
+/** What changed, for the profile's history; sensitive values only "changed". */
+function changesTo<K extends ExpatTable>(table: K, before: ExpatRecord<K>, after: ExpatRecord<K>): string {
   const sensitive = SENSITIVE_TABLE[table];
-  const show = (value: unknown) => {
-    if (value === null || value === undefined || value === "") return "(blank)";
-    if (typeof value === "boolean") return value ? "Yes" : "No";
-    return String(value);
-  };
-  const was: Record<string, unknown> = { ...before };
-  const now: Record<string, unknown> = { ...after };
-  return Object.keys(now)
-    .filter((key) => !IGNORED.has(key) && show(was[key]) !== show(now[key]))
-    .map((key) =>
-      sensitive && isSensitiveField(sensitive, key)
-        ? `${labels.get(key) ?? key}: changed`
-        : `${labels.get(key) ?? key}: ${show(was[key])} → ${show(now[key])}`,
-    )
-    .join("; ");
+  return describeChanges(tableFor(table), before, after, {
+    ignore: ["createdAt", "createdBy", "completedAt"],
+    hidden: (key) => Boolean(sensitive && isSensitiveField(sensitive, key)),
+  });
 }
 
 interface SaveOptions {
@@ -257,7 +236,7 @@ async function saveTracked<K extends ExpatTable>(
   const id = (after as { id: string }).id;
 
   if (before) {
-    const changes = describeChanges(table, before, after);
+    const changes = changesTo(table, before, after);
     if (!changes) return before;
     await repository.save(table, after);
     await repository.append("activity", [logEntry(options.expatIdOf(after), RECORD_TYPE[table], id, options.actor, "Updated", changes)]);
@@ -281,7 +260,7 @@ function requireDependant(data: ExpatData, expatId: string, dependantId: string)
   return dependant;
 }
 
-const touched = (actor: string) => ({ lastUpdated: stamp(), lastUpdatedBy: actor });
+const touched = (actor: string) => ({ lastUpdated: timestamp(), lastUpdatedBy: actor });
 
 export function saveExpat(input: ExpatInput, options: SaveOptions): Promise<Expat> {
   return saveTracked("expats", {
@@ -396,7 +375,7 @@ export function saveVehicle(input: VehicleInput, options: SaveOptions): Promise<
 }
 
 const completedAtFor = (status: ActionStatus, previous: FollowUp | null) =>
-  OPEN_ACTION.includes(status) ? "" : previous && !OPEN_ACTION.includes(previous.status) ? previous.completedAt : stamp();
+  OPEN_ACTION.includes(status) ? "" : previous && !OPEN_ACTION.includes(previous.status) ? previous.completedAt : timestamp();
 
 export function saveFollowUp(input: FollowUpInput, options: SaveOptions): Promise<FollowUp> {
   return saveTracked("actions", {
@@ -412,7 +391,7 @@ export function saveFollowUp(input: FollowUpInput, options: SaveOptions): Promis
       return {
         ...input,
         id: nextId("FUP", data.actions),
-        createdAt: stamp(),
+        createdAt: timestamp(),
         createdBy: options.actor,
         completedAt: completedAtFor(input.status, null),
         ...touched(options.actor),
@@ -463,29 +442,10 @@ export async function restoreExpat(id: string, actor: string): Promise<void> {
 // (/ dependant), named by the date they were added; nothing is overwritten.
 // ---------------------------------------------------------------------------
 
-/** `2026-10-06 140512` in the app's timezone, so a folder lists in the order files were added. */
-function fileStamp(): string {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: getConfig().timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(new Date());
-  const part = (type: string) => parts.find((entry) => entry.type === type)?.value ?? "";
-  return `${part("year")}-${part("month")}-${part("day")} ${part("hour")}${part("minute")}${part("second")}`;
-}
-
-const folderSafe = (value: string) =>
-  value.replace(/[\u0000-\u001f\u007f/\\:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
-
 function documentLocation(expat: Expat, dependant: Dependant | null): FileLocation {
-  const folder = folderSafe(`${expat.id} – ${expat.fullName}`);
+  const folder = folderName(`${expat.id} – ${expat.fullName}`);
   return dependant
-    ? { folders: [folder, folderSafe(`${dependant.fullName} (${dependant.relationship})`)], key: { name: "expatDependantId", value: dependant.id } }
+    ? { folders: [folder, folderName(`${dependant.fullName} (${dependant.relationship})`)], key: { name: "expatDependantId", value: dependant.id } }
     : { folders: [folder], key: { name: "expatId", value: expat.id } };
 }
 
@@ -524,7 +484,7 @@ export async function addExpatDocumentLink(input: DocumentLinkInput, actor: stri
     mimeType: "",
     expiryDate: input.expiryDate,
     historical: false,
-    addedAt: stamp(),
+    addedAt: timestamp(),
     addedBy: actor,
     removed: false,
   };
@@ -549,7 +509,7 @@ export async function uploadExpatDocument(
   const title = input.title.trim() || titleFromFileName(upload.name) || input.category;
   const whose = dependant?.fullName ?? expat.fullName;
   const stored = await (await getPhotoStore("expats")).save(documentLocation(expat, dependant), {
-    name: storedFileName(fileStamp(), input.category, `${whose} – ${title}`, type.extension),
+    name: storedFileName(fileStamp(getConfig().timezone), input.category, `${whose} – ${title}`, type.extension),
     mimeType: type.mimeType,
     bytes: upload.bytes,
   });
@@ -566,7 +526,7 @@ export async function uploadExpatDocument(
     mimeType: type.mimeType,
     expiryDate: input.expiryDate,
     historical: false,
-    addedAt: stamp(),
+    addedAt: timestamp(),
     addedBy: actor,
     removed: false,
   };
@@ -722,7 +682,7 @@ export async function runExpatReminders(options: {
     id: newId("REM"),
     key: reminder.logKey,
     window: reminder.window,
-    sentAt: stamp(),
+    sentAt: timestamp(),
     sentTo: sentTo.join(", "),
   }));
   await repository.append("reminders", log);

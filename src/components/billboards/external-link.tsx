@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 import { LinkIcon } from "@/components/ui/icons";
-import { isSafeUrl } from "@/lib/billboards/schema";
+import { isSafeUrl } from "@/lib/forms/fields";
 
 /**
  * A link to a stored file or document. Links typed straight into the sheet

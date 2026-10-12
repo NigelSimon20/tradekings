@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { ExpatForm } from "@/components/expats/record-forms";
 import { ArrowLeftIcon } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
-import { distinct } from "@/lib/expats/filters";
+import { expatSuggestions } from "@/lib/expats/filters";
 import { requireExpatViewer } from "@/lib/services/auth";
 import { getExpatProfile } from "@/lib/services/expats";
 
@@ -33,12 +33,7 @@ export default async function EditExpatPage({ params }: { params: Promise<{ id: 
         mode="edit"
         defaults={row.expat}
         restricted={snapshot.restricted}
-        suggestions={{
-          nationalities: distinct(all.map((expat) => expat.nationality)),
-          departments: distinct(all.map((expat) => expat.department)),
-          positions: distinct(all.map((expat) => expat.position)),
-          managers: distinct(all.map((expat) => expat.managerName)),
-        }}
+        suggestions={expatSuggestions(all)}
       />
     </div>
   );

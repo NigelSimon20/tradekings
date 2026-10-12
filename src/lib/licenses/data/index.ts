@@ -1,21 +1,15 @@
 import "server-only";
 
 import { getConfig } from "@/lib/config/env";
-import { GoogleSheetsLicenseRepository } from "@/lib/licenses/data/google-sheets-repository";
-import { LocalLicenseRepository } from "@/lib/licenses/data/local-repository";
+import { openRecordStore } from "@/lib/data/open-record-store";
 import type { LicenseRepository } from "@/lib/licenses/data/repository";
+import { buildSeedLicenses } from "@/lib/licenses/data/seed";
+import { LICENSE_STORE } from "@/lib/licenses/data/sheet-tables";
 
 let repository: LicenseRepository | null = null;
 
-/**
- * The license store, chosen once per process: the license spreadsheet when
- * GOOGLE_LICENSES_SHEET_ID is set, otherwise the local sample file.
- */
+/** The license store, chosen once per process: its spreadsheet, or the local sample file. */
 export function getLicenseRepository(): LicenseRepository {
-  if (repository) return repository;
-  const config = getConfig();
-  repository = config.licenses.google
-    ? new GoogleSheetsLicenseRepository(config.licenses.google)
-    : new LocalLicenseRepository(config.licenses.localDataFile, config.timezone);
+  repository ??= openRecordStore(LICENSE_STORE, getConfig().licenses, buildSeedLicenses);
   return repository;
 }

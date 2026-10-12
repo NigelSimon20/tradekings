@@ -1,7 +1,15 @@
 import { z } from "zod";
 
-import { isSafeUrl } from "@/lib/billboards/schema";
-import { isISODate } from "@/lib/date/dates";
+import {
+  optionalDate,
+  optionalEmail,
+  optionalNumber,
+  parseForm,
+  requiredUrl,
+  text,
+  withOptionalId,
+  type Parsed,
+} from "@/lib/forms/fields";
 import {
   COMPANIES,
   DOCUMENT_CATEGORIES,
@@ -16,24 +24,6 @@ import {
  * server actions. Links must be http(s), so a `javascript:` URL can never be
  * saved into the sheet and run when clicked.
  */
-
-const text = z.string().trim();
-
-const optionalEmail = text.refine((value) => value === "" || z.email().safeParse(value).success, {
-  message: "Enter a valid email address",
-});
-
-const optionalDate = text
-  .refine((value) => value === "" || isISODate(value), { message: "Use the date picker (yyyy-mm-dd)" })
-  .transform((value) => (value === "" ? null : value));
-
-function optionalNumber(label: string, min: number, max: number) {
-  return text
-    .transform((value) => (value === "" ? null : Number(value)))
-    .refine((value) => value === null || (Number.isFinite(value) && value >= min && value <= max), {
-      message: `${label} must be between ${min} and ${max}`,
-    });
-}
 
 const assetSchema = z
   .object({
@@ -102,7 +92,7 @@ const documentLinkSchema = z.object({
   assetId: text,
   category: z.enum(DOCUMENT_CATEGORIES),
   title: text.min(1, "Give the document a title"),
-  url: text.min(1, "Paste the link to the file").refine(isSafeUrl, { message: "Paste a full link starting with https://" }),
+  url: requiredUrl(),
   documentDate: optionalDate,
 });
 
@@ -114,64 +104,14 @@ const uploadSchema = z.object({
   documentDate: optionalDate,
 });
 
-export interface ParsedLicenseForm<T> {
-  ok: boolean;
-  values: T | null;
-  errors: Record<string, string>;
-}
+export const parseAssetForm = (formData: FormData): Parsed<AssetInput> =>
+  withOptionalId(parseForm(assetSchema, formData, { company: COMPANIES[0] }));
 
-function formValues(formData: FormData): Record<string, string> {
-  return Object.fromEntries(
-    Array.from(formData.entries()).map(([key, value]) => [key, typeof value === "string" ? value : ""]),
-  );
-}
+export const parseLicenseForm = (formData: FormData): Parsed<LicenseInput> =>
+  withOptionalId(parseForm(licenseSchema, formData, { renewalFrequency: "Annual", renewalStatus: "Not started" }));
 
-function parse<T>(schema: z.ZodType<T>, input: unknown): ParsedLicenseForm<T> {
-  const result = schema.safeParse(input);
-  if (result.success) return { ok: true, values: result.data, errors: {} };
-  const errors: Record<string, string> = {};
-  for (const issue of result.error.issues) {
-    const key = String(issue.path[0] ?? "form");
-    if (!errors[key] && issue.message) errors[key] = issue.message;
-  }
-  return { ok: false, values: null, errors };
-}
+export const parseRenewalForm = (formData: FormData) => parseForm(renewalSchema, formData);
 
-function pick(raw: Record<string, string>, keys: string[]): Record<string, string> {
-  return Object.fromEntries(keys.map((key) => [key, raw[key] ?? ""]));
-}
+export const parseDocumentLinkForm = (formData: FormData) => parseForm(documentLinkSchema, formData);
 
-export function parseAssetForm(formData: FormData): ParsedLicenseForm<AssetInput> {
-  const raw = formValues(formData);
-  const parsed = parse(assetSchema, {
-    ...pick(raw, Object.keys(assetSchema.shape)),
-    company: raw.company || COMPANIES[0],
-  });
-  if (!parsed.ok || !parsed.values) return { ...parsed, values: null };
-  const { id, ...values } = parsed.values;
-  return { ...parsed, values: { ...values, id: id || undefined } };
-}
-
-export function parseLicenseForm(formData: FormData): ParsedLicenseForm<LicenseInput> {
-  const raw = formValues(formData);
-  const parsed = parse(licenseSchema, {
-    ...pick(raw, Object.keys(licenseSchema.shape)),
-    renewalFrequency: raw.renewalFrequency || "Annual",
-    renewalStatus: raw.renewalStatus || "Not started",
-  });
-  if (!parsed.ok || !parsed.values) return { ...parsed, values: null };
-  const { id, ...values } = parsed.values;
-  return { ...parsed, values: { ...values, id: id || undefined } };
-}
-
-export function parseRenewalForm(formData: FormData) {
-  return parse(renewalSchema, pick(formValues(formData), Object.keys(renewalSchema.shape)));
-}
-
-export function parseDocumentLinkForm(formData: FormData) {
-  return parse(documentLinkSchema, pick(formValues(formData), Object.keys(documentLinkSchema.shape)));
-}
-
-export function parseLicenseUploadForm(formData: FormData) {
-  return parse(uploadSchema, pick(formValues(formData), Object.keys(uploadSchema.shape)));
-}
+export const parseLicenseUploadForm = (formData: FormData) => parseForm(uploadSchema, formData);
